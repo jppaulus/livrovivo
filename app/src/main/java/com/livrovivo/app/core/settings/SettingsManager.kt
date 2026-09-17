@@ -20,6 +20,12 @@ import kotlinx.serialization.encodeToString
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "livro_vivo_settings")
 
+/** Narrador padrão do app (Capitão Aventura): voz animada e clara, boa em qualquer aparelho. */
+const val DEFAULT_PERSONA_ID = "aventureiro"
+
+/** Versão dos padrões do app; aumentar aplica os novos padrões uma vez em quem já usa o app. */
+private const val CURRENT_DEFAULTS_VERSION = 1
+
 enum class VoiceEngineChoice(val id: String, val title: String, val description: String) {
     AUTO("auto", "Automático", "Usa a voz mais natural disponível"),
     ELEVENLABS("elevenlabs", "ElevenLabs", "A mais expressiva (chave ElevenLabs)"),
@@ -37,8 +43,17 @@ object AiModelDefaults {
     const val TTS = "gemini-3.1-flash-tts-preview"
     const val ELEVENLABS = "eleven_v3"
 
-    /** Modelos tentados em sequência quando o configurado não existe mais (ex.: foi desativado). */
-    val TEXT_FALLBACKS = listOf("gemini-2.5-flash", "gemini-flash-latest")
+    /**
+     * Modelos tentados em sequência quando o configurado foi desativado ou não está liberado para a conta.
+     * Todos os de texto e voz abaixo fazem parte do plano gratuito do Gemini.
+     */
+    val TEXT_FALLBACKS = listOf(
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest"
+    )
     val IMAGE_FALLBACKS = listOf("gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image")
     val TTS_FALLBACKS = listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts")
 
@@ -60,7 +75,7 @@ data class AppSettings(
     val geminiKeyFromDevConfig: Boolean = false,
     val elevenLabsKeyFromDevConfig: Boolean = false,
     val voiceEngine: VoiceEngineChoice = VoiceEngineChoice.AUTO,
-    val defaultPersonaId: String = "fada",
+    val defaultPersonaId: String = DEFAULT_PERSONA_ID,
     val elevenLabsVoiceIds: Map<String, String> = emptyMap(),
     val elevenLabsModel: String = AiModelDefaults.ELEVENLABS,
     val textModel: String = AiModelDefaults.TEXT,
@@ -100,6 +115,20 @@ class SettingsManager(private val context: Context) {
         val HIGHLIGHT_READING = booleanPreferencesKey("highlight_reading")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val STORIES_CREATED = intPreferencesKey("stories_created")
+        val DEFAULTS_VERSION = intPreferencesKey("defaults_version")
+    }
+
+    /**
+     * Aplica os padrões novos do app uma única vez (hoje: narrador Capitão Aventura),
+     * inclusive para quem já tinha outro narrador salvo. Depois disso, a escolha dos pais manda.
+     */
+    suspend fun applyPendingDefaults() {
+        context.dataStore.edit { prefs ->
+            if ((prefs[DEFAULTS_VERSION] ?: 0) < CURRENT_DEFAULTS_VERSION) {
+                prefs[DEFAULT_PERSONA] = DEFAULT_PERSONA_ID
+                prefs[DEFAULTS_VERSION] = CURRENT_DEFAULTS_VERSION
+            }
+        }
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { it.toSettings() }
@@ -171,7 +200,7 @@ class SettingsManager(private val context: Context) {
             geminiKeyFromDevConfig = storedGemini.isBlank() && BuildConfig.DEV_GEMINI_API_KEY.isNotBlank(),
             elevenLabsKeyFromDevConfig = storedEleven.isBlank() && BuildConfig.DEV_ELEVENLABS_API_KEY.isNotBlank(),
             voiceEngine = VoiceEngineChoice.fromId(this[VOICE_ENGINE]),
-            defaultPersonaId = this[DEFAULT_PERSONA] ?: "fada",
+            defaultPersonaId = this[DEFAULT_PERSONA] ?: DEFAULT_PERSONA_ID,
             elevenLabsVoiceIds = voiceIds,
             elevenLabsModel = this[ELEVENLABS_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.ELEVENLABS,
             textModel = this[TEXT_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.TEXT,

@@ -96,7 +96,7 @@ data class CreationUiState(
     val selectedThemeId: String = ThemeOption.PRESETS.first().id,
     val customTheme: String = "",
     val selectedObjective: ObjectiveType = ThemeOption.PRESETS.first().defaultObjective,
-    val selectedPersona: VoicePersona = VoicePersona.FADA,
+    val selectedPersona: VoicePersona = VoicePersona.DEFAULT,
     val child: ChildProfile? = null,
     val isGenerating: Boolean = false,
     val generatedStoryId: String? = null,

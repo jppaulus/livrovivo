@@ -688,7 +688,9 @@ private fun NarrationBar(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = when (state.status) {
-                            NarrationStatus.PREPARING -> "Preparando a voz de ${state.activePersona.title}..."
+                            NarrationStatus.PREPARING ->
+                                if (state.partIndex > 1) "Preparando a próxima parte..."
+                                else "Preparando a voz de ${state.activePersona.title}..."
                             NarrationStatus.PLAYING -> "${state.activePersona.title} está contando"
                             NarrationStatus.ENDED -> "Fim da página"
                             NarrationStatus.ERROR -> "Narração indisponível"
@@ -701,7 +703,11 @@ private fun NarrationBar(
                     )
                     val subtitle = state.error ?: state.notice ?: listOfNotNull(
                         state.engine?.label,
-                        if (state.durationMs > 0) "${formatTime(state.currentPositionMs)} / ${formatTime(state.durationMs)}" else null
+                        when {
+                            state.isChunked -> "Parte ${state.partIndex} de ${state.partCount}"
+                            state.durationMs > 0 -> "${formatTime(state.currentPositionMs)} / ${formatTime(state.durationMs)}"
+                            else -> null
+                        }
                     ).joinToString(" · ")
                     if (subtitle.isNotBlank()) {
                         Text(

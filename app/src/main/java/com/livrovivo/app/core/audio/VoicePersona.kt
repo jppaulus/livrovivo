@@ -77,6 +77,9 @@ enum class VoicePersona(
     );
 
     companion object {
-        fun fromId(id: String?): VoicePersona = entries.find { it.id == id } ?: FADA
+        fun fromId(id: String?): VoicePersona = entries.find { it.id == id } ?: DEFAULT
+
+        /** Narrador padrão do app: voz animada, vibrante e clara, que funciona bem em qualquer aparelho. */
+        val DEFAULT = AVENTUREIRO
     }
 }
