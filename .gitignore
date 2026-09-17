@@ -1,0 +1,45 @@
+# --- Segredos e configurações locais (NUNCA versionar) ---
+# local.properties guarda o caminho do SDK e, opcionalmente, chaves de API de desenvolvimento
+# (gemini.apiKey, elevenlabs.apiKey, supabase.url, supabase.anonKey).
+local.properties
+*.env
+.env*
+!.env.example
+!supabase/.env.example
+secrets.properties
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+service-account*.json
+
+# --- Gradle / Kotlin ---
+.gradle/
+.kotlin/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- Artefatos Android ---
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# --- IDEs ---
+.idea/
+*.iml
+.vscode/
+.fleet/
+
+# --- Supabase CLI ---
+supabase/.branches/
+supabase/.temp/
+
+# --- Sistema e logs ---
+.DS_Store
+Thumbs.db
+*.log

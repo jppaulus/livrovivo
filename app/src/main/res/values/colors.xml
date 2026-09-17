@@ -1,0 +1,10 @@
+<resources>
+    <color name="purple_primary">#6750A4</color>
+    <color name="purple_light">#EADDFF</color>
+    <color name="purple_dark">#21005D</color>
+    <color name="amber_accent">#FFB74D</color>
+    <color name="coral_friendly">#FF8A80</color>
+    <color name="sky_friendly">#81D4FA</color>
+    <color name="mint_friendly">#A5D6A7</color>
+    <color name="background_light">#FFFDF7</color>
+</resources>

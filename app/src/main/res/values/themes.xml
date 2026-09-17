@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.LivroVivo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/purple_primary</item>
+        <item name="android:navigationBarColor">@color/purple_light</item>
+    </style>
+</resources>
