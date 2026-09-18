@@ -1,5 +1,6 @@
 package com.livrovivo.app.presentation.parent
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -65,8 +68,10 @@ import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.settings.AppSettings
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyEmerald
+import com.livrovivo.app.core.ui.ChildAvatar
 import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.core.ui.SectionHeader
+import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.ParentInsights
@@ -74,11 +79,15 @@ import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.DeleteAllStoriesUseCase
+import com.livrovivo.app.domain.usecase.DeleteChildProfileUseCase
+import com.livrovivo.app.domain.usecase.DeleteStoriesOfChildUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.domain.usecase.GetChildProfilesUseCase
 import com.livrovivo.app.domain.usecase.GetParentInsightsUseCase
 import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.QuotaStatus
+import com.livrovivo.app.domain.usecase.SwitchChildUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -91,6 +100,7 @@ import java.util.Locale
 data class ParentDashboardUiState(
     val isLoading: Boolean = true,
     val child: ChildProfile? = null,
+    val profiles: List<ChildProfile> = emptyList(),
     val insights: ParentInsights = ParentInsights(),
     val quota: QuotaStatus = QuotaStatus.Limited(3, 3),
     val settings: AppSettings = AppSettings(),
@@ -102,11 +112,15 @@ data class ParentDashboardUiState(
 class ParentDashboardViewModel(
     private val getParentInsightsUseCase: GetParentInsightsUseCase,
     private val getActiveChildUseCase: GetActiveChildUseCase,
+    private val getChildProfilesUseCase: GetChildProfilesUseCase,
+    private val switchChildUseCase: SwitchChildUseCase,
+    private val deleteChildProfileUseCase: DeleteChildProfileUseCase,
     private val checkStoryQuotaUseCase: CheckStoryQuotaUseCase,
     private val settingsManager: SettingsManager,
     getStoriesUseCase: GetStoriesUseCase,
     private val deleteStoryUseCase: DeleteStoryUseCase,
     private val deleteAllStoriesUseCase: DeleteAllStoriesUseCase,
+    private val deleteStoriesOfChildUseCase: DeleteStoriesOfChildUseCase,
     private val audioPlayerController: AudioPlayerController,
     private val backendConfigured: Boolean
 ) : ViewModel() {
@@ -129,28 +143,64 @@ class ParentDashboardViewModel(
         }
     }
 
+    /**
+     * Limpa a estante mostrada na tela — que é a da criança em foco. Sem nenhum irmão
+     * cadastrado, dá no mesmo que apagar tudo; com irmãos, os outros ficam intactos.
+     */
     fun deleteAllStories() {
+        viewModelScope.launch {
+            val childId = _uiState.value.child?.id
+            _uiState.update { it.copy(isDeleting = true) }
+            audioPlayerController.stop()
+            if (childId == null) deleteAllStoriesUseCase() else deleteStoriesOfChildUseCase(childId)
+            audioPlayerController.clearNarrationCache()
+            _uiState.update { it.copy(isDeleting = false) }
+            refreshNow()
+        }
+    }
+
+    /** Troca a criança em foco: as métricas e a estante passam a ser dela. */
+    fun switchChild(childId: String) {
+        viewModelScope.launch {
+            audioPlayerController.stop()
+            switchChildUseCase(childId)
+            refreshNow()
+        }
+    }
+
+    /**
+     * Apaga um irmão com as histórias, ilustrações e métricas dele.
+     * O último perfil não é apagado — o app não abre sem nenhuma criança.
+     */
+    fun deleteChild(childId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isDeleting = true) }
             audioPlayerController.stop()
-            deleteAllStoriesUseCase()
-            audioPlayerController.clearNarrationCache()
+            val removed = deleteChildProfileUseCase(childId)
             _uiState.update { it.copy(isDeleting = false) }
-            refresh()
+            if (removed) refreshNow()
         }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    child = getActiveChildUseCase.getDirect(),
-                    insights = getParentInsightsUseCase(),
-                    quota = checkStoryQuotaUseCase(),
-                    settings = settingsManager.current()
-                )
-            }
+        viewModelScope.launch { refreshNow() }
+    }
+
+    private suspend fun refreshNow() {
+        val child = getActiveChildUseCase.getDirect()
+        val profiles = getChildProfilesUseCase.getDirect()
+        val insights = getParentInsightsUseCase()
+        val quota = checkStoryQuotaUseCase()
+        val settings = settingsManager.current()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                child = child,
+                profiles = profiles,
+                insights = insights,
+                quota = quota,
+                settings = settings
+            )
         }
     }
 }
@@ -162,12 +212,40 @@ fun ParentDashboardScreen(
     onNavigateBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPaywall: () -> Unit,
-    onEditProfile: () -> Unit
+    onEditProfile: () -> Unit,
+    onAddChild: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refresh() }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
+    var childToDelete by remember { mutableStateOf<ChildProfile?>(null) }
+
+    val insights = uiState.insights
+    val childName = uiState.child?.name ?: "a criança"
+
+    childToDelete?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { childToDelete = null },
+            title = { Text("Apagar o perfil de ${profile.name}?") },
+            text = {
+                Text(
+                    "As histórias, ilustrações e métricas de ${profile.name} serão removidas deste " +
+                        "aparelho. Os outros perfis não são afetados. Não dá para desfazer."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteChild(profile.id)
+                        childToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Apagar perfil") }
+            },
+            dismissButton = { TextButton(onClick = { childToDelete = null }) { Text("Cancelar") } }
+        )
+    }
 
     storyToDelete?.let { story ->
         AlertDialog(
@@ -190,9 +268,16 @@ fun ParentDashboardScreen(
     if (confirmDeleteAll) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Apagar todas as histórias?") },
+            title = { Text("Apagar as histórias de $childName?") },
             text = {
-                Text("As ${uiState.stories.size} histórias, com ilustrações, narrações salvas e o histórico de leitura, serão removidas deste aparelho. Não dá para desfazer.")
+                Text(
+                    buildString {
+                        append("As ${uiState.stories.size} histórias de $childName, com ilustrações, ")
+                        append("narrações salvas e o histórico de leitura, serão removidas deste aparelho. ")
+                        if (uiState.profiles.size > 1) append("As estantes dos irmãos não são afetadas. ")
+                        append("Não dá para desfazer.")
+                    }
+                )
             },
             confirmButton = {
                 Button(
@@ -207,8 +292,6 @@ fun ParentDashboardScreen(
         )
     }
 
-    val insights = uiState.insights
-    val childName = uiState.child?.name ?: "a criança"
     val companion = MagicalCompanion.findById(uiState.child?.companionId)
 
     Scaffold(
@@ -263,6 +346,40 @@ fun ParentDashboardScreen(
                         MetricItem("Páginas", "${insights.pagesRead}", Icons.AutoMirrored.Filled.MenuBook)
                         MetricItem("Minutos", "${insights.minutesReading}", Icons.Default.Timer)
                         MetricItem("Escolhas", "${insights.choicesMade}", Icons.Default.TouchApp)
+                    }
+                }
+            }
+
+            SectionHeader(
+                title = "Crianças",
+                subtitle = "Cada criança tem a própria estante, métricas e personalização."
+            )
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    uiState.profiles.forEach { profile ->
+                        ChildManageRow(
+                            child = profile,
+                            isActive = profile.id == uiState.child?.id,
+                            canDelete = uiState.profiles.size > 1,
+                            onSelect = { viewModel.switchChild(profile.id) },
+                            onEdit = {
+                                viewModel.switchChild(profile.id)
+                                onEditProfile()
+                            },
+                            onDelete = { childToDelete = profile }
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onAddChild,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Adicionar criança")
                     }
                 }
             }
@@ -326,7 +443,7 @@ fun ParentDashboardScreen(
             }
 
             SectionHeader(
-                title = "Histórias salvas (${uiState.stories.size})",
+                title = "Histórias de $childName (${uiState.stories.size})",
                 subtitle = "Apague histórias para liberar espaço ou recomeçar a estante."
             )
             Card(
@@ -387,7 +504,7 @@ fun ParentDashboardScreen(
                 ) {
                     Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Apagar todas as histórias")
+                    Text("Apagar as histórias de $childName")
                 }
                 if (uiState.quota is QuotaStatus.Limited) {
                     Text(
@@ -452,6 +569,73 @@ private fun NavigationCard(emoji: String, title: String, subtitle: String, onCli
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/** Linha de uma criança: tocar troca o foco; lápis edita; lixeira apaga tudo dela. */
+@Composable
+private fun ChildManageRow(
+    child: ChildProfile,
+    isActive: Boolean,
+    canDelete: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (isActive) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            )
+            .clickable(onClick = onSelect)
+            .padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ChildAvatar(child = child, size = 40.dp, highlighted = isActive)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = child.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (isActive) {
+                    "${AgeGroup.fromCode(child.ageGroup).label} · em foco"
+                } else {
+                    AgeGroup.fromCode(child.ageGroup).label
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+        }
+        IconButton(onClick = onEdit) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = "Editar ${child.name}",
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        IconButton(onClick = onDelete, enabled = canDelete) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = if (canDelete) {
+                    "Apagar o perfil de ${child.name}"
+                } else {
+                    "É preciso ter pelo menos uma criança cadastrada"
+                },
+                tint = if (canDelete) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                }
+            )
         }
     }
 }

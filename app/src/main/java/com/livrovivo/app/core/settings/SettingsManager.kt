@@ -89,7 +89,9 @@ data class AppSettings(
     val highlightReading: Boolean = true,
     val isPremium: Boolean = false,
     /** Total de histórias já criadas (não diminui ao apagar, para o limite gratuito ser justo). */
-    val storiesCreated: Int = 0
+    val storiesCreated: Int = 0,
+    /** Criança cuja estante está aberta. Vazio = usa o primeiro perfil cadastrado. */
+    val activeChildId: String = ""
 ) {
     val hasGeminiKey: Boolean get() = geminiApiKey.isNotBlank()
     val hasElevenLabsKey: Boolean get() = elevenLabsApiKey.isNotBlank()
@@ -116,6 +118,7 @@ class SettingsManager(private val context: Context) {
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val STORIES_CREATED = intPreferencesKey("stories_created")
         val DEFAULTS_VERSION = intPreferencesKey("defaults_version")
+        val ACTIVE_CHILD_ID = stringPreferencesKey("active_child_id")
     }
 
     /**
@@ -176,6 +179,9 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setPremium(isPremium: Boolean) = edit { it[IS_PREMIUM] = isPremium }
 
+    /** Troca a criança cuja estante está aberta. */
+    suspend fun setActiveChildId(childId: String) = edit { it[ACTIVE_CHILD_ID] = childId }
+
     /** Registra uma história criada; [existingStories] cobre quem já tinha histórias antes do contador existir. */
     suspend fun registerStoryCreated(existingStories: Int) = edit {
         val current = it[STORIES_CREATED] ?: 0
@@ -213,7 +219,8 @@ class SettingsManager(private val context: Context) {
             ambientMusicEnabled = this[AMBIENT_MUSIC] ?: false,
             highlightReading = this[HIGHLIGHT_READING] ?: true,
             isPremium = this[IS_PREMIUM] ?: false,
-            storiesCreated = this[STORIES_CREATED] ?: 0
+            storiesCreated = this[STORIES_CREATED] ?: 0,
+            activeChildId = this[ACTIVE_CHILD_ID].orEmpty()
         )
     }
 }

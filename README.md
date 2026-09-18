@@ -15,8 +15,9 @@
 - **Destaque de leitura** – a frase narrada fica destacada na tela (estilo karaokê), o que ajuda quem está aprendendo a ler.
 - **Ilustrações em cada página** – geradas pelo modelo de imagem do Gemini, usando a página anterior como referência para manter os personagens iguais do começo ao fim. São cinco estilos (aquarela, lápis de cor, animação 3D, papel recortado e desenho animado). Sem IA, o app desenha **cenas animadas próprias** para cada tema.
 - **Personalização** – nome, idade, gênero (para a concordância no texto), aparência (para as ilustrações), companheiro mágico e interesses.
+- **Um perfil por criança** – irmãos têm cada um a própria estante, métricas e personalização. O chip no topo da tela troca de criança; cadastrar, editar e apagar perfis fica na Área dos Pais. O limite do plano gratuito continua sendo do aparelho, então cadastrar irmãos não multiplica as histórias grátis.
 - **Música de ninar** – caixinha de música sintetizada ("Brilha, Brilha, Estrelinha"), que abaixa sozinha enquanto o narrador fala.
-- **Área dos Pais** (protegida por conta de multiplicação por extenso) – tempo de leitura, páginas, virtudes escolhidas, palavras novas, sugestão de conversa pós-história e configurações de IA com botões de teste.
+- **Área dos Pais** (protegida por conta de multiplicação por extenso) – tempo de leitura, páginas, virtudes escolhidas, palavras novas e sugestão de conversa pós-história (tudo da criança em foco), gestão dos perfis e configurações de IA com botões de teste.
 - **Modo offline completo** – histórias escritas à mão para 8 temas e para temas livres, com final que celebra as virtudes escolhidas.
 
 ---
@@ -85,7 +86,7 @@ app/src/main/java/com/livrovivo/app/
 │   ├── database/      # Room (DAOs, migração 2→3)
 │   ├── settings/      # Configurações e modelos de IA
 │   ├── parentalgate/  # Portão parental
-│   └── ui/            # Tema, cenas desenhadas, componentes mágicos
+│   └── ui/            # Tema, cenas desenhadas, componentes mágicos, seletor de criança
 ├── data/              # Entidades, mappers e repositórios
 ├── domain/            # Modelos, interfaces e casos de uso
 └── presentation/      # onboarding, home, creation, reader, parent, settings, paywall
@@ -108,5 +109,5 @@ Requisitos: **JDK 17** e **Android SDK 35**.
 
 - Integrar de verdade o **Google Play Billing** (hoje a assinatura é simulada e salva no aparelho).
 - Adicionar **Supabase Auth** e limite de uso por usuário no `ai-gateway`.
-- Suporte a **vários perfis de crianças** e sincronização das histórias na nuvem.
+- Sincronizar perfis e histórias na nuvem (hoje tudo fica só no aparelho).
 - Guardar as chaves digitadas com criptografia (Android Keystore).

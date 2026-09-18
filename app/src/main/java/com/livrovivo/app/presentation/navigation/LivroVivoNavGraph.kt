@@ -30,6 +30,7 @@ import com.livrovivo.app.presentation.creation.CreationScreen
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeScreen
 import com.livrovivo.app.presentation.home.HomeViewModel
+import com.livrovivo.app.presentation.onboarding.OnboardingMode
 import com.livrovivo.app.presentation.onboarding.OnboardingScreen
 import com.livrovivo.app.presentation.onboarding.OnboardingViewModel
 import com.livrovivo.app.presentation.parent.ParentDashboardScreen
@@ -84,7 +85,8 @@ fun LivroVivoNavGraph(
         startDestination = start
     ) {
         composable(Screen.Onboarding.route) {
-            val viewModel: OnboardingViewModel = koinViewModel(parameters = { parametersOf(false) })
+            val viewModel: OnboardingViewModel =
+                koinViewModel(parameters = { parametersOf(OnboardingMode.FIRST_RUN) })
             OnboardingScreen(
                 viewModel = viewModel,
                 onFinished = {
@@ -96,7 +98,18 @@ fun LivroVivoNavGraph(
         }
 
         composable(Screen.EditProfile.route) {
-            val viewModel: OnboardingViewModel = koinViewModel(parameters = { parametersOf(true) })
+            val viewModel: OnboardingViewModel =
+                koinViewModel(parameters = { parametersOf(OnboardingMode.EDIT) })
+            OnboardingScreen(
+                viewModel = viewModel,
+                onFinished = { navController.popBackStack() },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.AddChild.route) {
+            val viewModel: OnboardingViewModel =
+                koinViewModel(parameters = { parametersOf(OnboardingMode.ADD_CHILD) })
             OnboardingScreen(
                 viewModel = viewModel,
                 onFinished = { navController.popBackStack() },
@@ -122,7 +135,8 @@ fun LivroVivoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigate(Screen.Settings.route) },
                 onOpenPaywall = { navController.navigate(Screen.Paywall.route) },
-                onEditProfile = { navController.navigate(Screen.EditProfile.route) }
+                onEditProfile = { navController.navigate(Screen.EditProfile.route) },
+                onAddChild = { navController.navigate(Screen.AddChild.route) }
             )
         }
 

@@ -70,6 +70,8 @@ import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.theme.FairyPurple
 import com.livrovivo.app.core.ui.BouncyCardButton
+import com.livrovivo.app.core.ui.ActiveChildChip
+import com.livrovivo.app.core.ui.ChildSwitcherSheet
 import com.livrovivo.app.core.ui.CompanionGreetingCard
 import com.livrovivo.app.core.ui.InfoPill
 import com.livrovivo.app.core.ui.LocalImage
@@ -82,8 +84,10 @@ import com.livrovivo.app.domain.model.ThemeOption
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.domain.usecase.GetChildProfilesUseCase
 import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.QuotaStatus
+import com.livrovivo.app.domain.usecase.SwitchChildUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -93,16 +97,22 @@ import java.util.Calendar
 
 data class HomeUiState(
     val activeChild: ChildProfile? = null,
+    val profiles: List<ChildProfile> = emptyList(),
     val stories: List<Story> = emptyList(),
     val quotaStatus: QuotaStatus = QuotaStatus.Limited(remaining = 3, max = 3),
     val aiConfigured: Boolean = true
 ) {
     val inProgress: Story? get() = stories.firstOrNull { !it.isCompleted && it.chapters.isNotEmpty() }
+
+    /** Com uma criança só não há o que trocar, então o seletor fica escondido. */
+    val hasSiblings: Boolean get() = profiles.size > 1
 }
 
 class HomeViewModel(
     getStoriesUseCase: GetStoriesUseCase,
     getActiveChildUseCase: GetActiveChildUseCase,
+    getChildProfilesUseCase: GetChildProfilesUseCase,
+    private val switchChildUseCase: SwitchChildUseCase,
     private val checkStoryQuotaUseCase: CheckStoryQuotaUseCase,
     private val deleteStoryUseCase: DeleteStoryUseCase,
     settingsManager: SettingsManager,
@@ -114,16 +124,23 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = combine(
         getStoriesUseCase(),
         getActiveChildUseCase(),
+        getChildProfilesUseCase(),
         settingsManager.settingsFlow,
         quota
-    ) { stories, child, settings, quotaStatus ->
+    ) { stories, child, profiles, settings, quotaStatus ->
         HomeUiState(
             activeChild = child,
+            profiles = profiles,
             stories = stories,
             quotaStatus = quotaStatus,
             aiConfigured = settings.hasGeminiKey || backendConfigured
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /** Abre a estante de outro irmão; as histórias e o limite se atualizam sozinhos. */
+    fun switchChild(childId: String) {
+        viewModelScope.launch { switchChildUseCase(childId) }
+    }
 
     init {
         refreshQuota()
@@ -161,6 +178,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showParentalGate by remember { mutableStateOf(false) }
+    var showChildSwitcher by remember { mutableStateOf(false) }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
 
     if (showParentalGate) {
@@ -169,6 +187,22 @@ fun HomeScreen(
             onSuccess = {
                 showParentalGate = false
                 onNavigateToParentArea()
+            }
+        )
+    }
+
+    if (showChildSwitcher) {
+        ChildSwitcherSheet(
+            profiles = uiState.profiles,
+            activeChildId = uiState.activeChild?.id,
+            onSelect = { childId ->
+                viewModel.switchChild(childId)
+                showChildSwitcher = false
+            },
+            onDismiss = { showChildSwitcher = false },
+            onManage = {
+                showChildSwitcher = false
+                showParentalGate = true
             }
         )
     }
@@ -203,10 +237,21 @@ fun HomeScreen(
                         text = "Livro Vivo ✨",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 },
                 actions = {
+                    if (uiState.hasSiblings) {
+                        child?.let {
+                            ActiveChildChip(
+                                child = it,
+                                onClick = { showChildSwitcher = true },
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                        }
+                    }
                     IconButton(onClick = { showParentalGate = true }) {
                         Icon(
                             imageVector = Icons.Default.Lock,

@@ -75,9 +75,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/** Para que serve esta passagem pelo formulário: primeiro uso, irmão novo ou edição. */
+enum class OnboardingMode { FIRST_RUN, ADD_CHILD, EDIT }
+
 data class OnboardingUiState(
     val step: Int = 0,
-    val isEditMode: Boolean = false,
+    val mode: OnboardingMode = OnboardingMode.FIRST_RUN,
     val existingProfile: ChildProfile? = null,
     val childName: String = "",
     val gender: ChildGender = ChildGender.NEUTRAL,
@@ -89,19 +92,20 @@ data class OnboardingUiState(
 ) {
     val canContinue: Boolean get() = step != 0 || childName.isNotBlank()
     val isLastStep: Boolean get() = step == OnboardingViewModel.STEP_COUNT - 1
+    val isEditMode: Boolean get() = mode == OnboardingMode.EDIT
 }
 
 class OnboardingViewModel(
     private val saveChildProfileUseCase: SaveChildProfileUseCase,
     private val getActiveChildUseCase: GetActiveChildUseCase,
-    isEditMode: Boolean
+    mode: OnboardingMode
 ) : ViewModel() {
 
     companion object {
         const val STEP_COUNT = 5
     }
 
-    private val _uiState = MutableStateFlow(OnboardingUiState(isEditMode = isEditMode))
+    private val _uiState = MutableStateFlow(OnboardingUiState(mode = mode))
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
     val availableInterests = listOf(
@@ -120,7 +124,7 @@ class OnboardingViewModel(
     )
 
     init {
-        if (isEditMode) {
+        if (mode == OnboardingMode.EDIT) {
             viewModelScope.launch {
                 getActiveChildUseCase.getDirect()?.let { profile ->
                     _uiState.update {
@@ -290,7 +294,8 @@ fun OnboardingScreen(
                         Text(
                             text = when {
                                 !uiState.isLastStep -> "Continuar"
-                                uiState.isEditMode -> "Salvar alterações ✨"
+                                uiState.mode == OnboardingMode.EDIT -> "Salvar alterações ✨"
+                                uiState.mode == OnboardingMode.ADD_CHILD -> "Criar a estante ✨"
                                 else -> "Abrir o Livro Vivo ✨"
                             },
                             style = MaterialTheme.typography.labelLarge,
@@ -327,8 +332,17 @@ private fun StepTitle(emoji: String, title: String, subtitle: String) {
 private fun NameStep(uiState: OnboardingUiState, viewModel: OnboardingViewModel) {
     StepTitle(
         emoji = "🪄📖",
-        title = if (uiState.isEditMode) "Editar perfil" else "Bem-vindo ao Livro Vivo!",
-        subtitle = "Histórias mágicas em que a criança é a protagonista e decide o que acontece."
+        title = when (uiState.mode) {
+            OnboardingMode.EDIT -> "Editar perfil"
+            OnboardingMode.ADD_CHILD -> "Quem mais vai ler?"
+            OnboardingMode.FIRST_RUN -> "Bem-vindo ao Livro Vivo!"
+        },
+        subtitle = when (uiState.mode) {
+            OnboardingMode.ADD_CHILD ->
+                "Cada criança ganha a própria estante, com histórias e personalização só dela."
+            else ->
+                "Histórias mágicas em que a criança é a protagonista e decide o que acontece."
+        }
     )
     OutlinedTextField(
         value = uiState.childName,

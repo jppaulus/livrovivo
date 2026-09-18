@@ -24,16 +24,21 @@ import com.livrovivo.app.domain.usecase.ContinueStoryUseCase
 import com.livrovivo.app.domain.usecase.DeleteAllStoriesUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
 import com.livrovivo.app.domain.usecase.GenerateStoryUseCase
+import com.livrovivo.app.domain.usecase.DeleteChildProfileUseCase
+import com.livrovivo.app.domain.usecase.DeleteStoriesOfChildUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.domain.usecase.GetChildProfilesUseCase
 import com.livrovivo.app.domain.usecase.GetParentInsightsUseCase
 import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.GetStoryByIdUseCase
 import com.livrovivo.app.domain.usecase.IllustrateChapterUseCase
 import com.livrovivo.app.domain.usecase.RewindStoryUseCase
 import com.livrovivo.app.domain.usecase.SaveChildProfileUseCase
+import com.livrovivo.app.domain.usecase.SwitchChildUseCase
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeViewModel
 import com.livrovivo.app.presentation.navigation.AppStartViewModel
+import com.livrovivo.app.presentation.onboarding.OnboardingMode
 import com.livrovivo.app.presentation.onboarding.OnboardingViewModel
 import com.livrovivo.app.presentation.parent.ParentDashboardViewModel
 import com.livrovivo.app.presentation.paywall.PaywallViewModel
@@ -68,7 +73,7 @@ val appModule = module {
 
     // Repositories
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }
-    single<ChildProfileRepository> { ChildProfileRepositoryImpl(get()) }
+    single<ChildProfileRepository> { ChildProfileRepositoryImpl(get(), get(), get()) }
     single<BillingRepository> { BillingRepositoryImpl(get(), get()) }
 
     // UseCases
@@ -78,24 +83,28 @@ val appModule = module {
     factory { IllustrateChapterUseCase(get()) }
     factory { DeleteStoryUseCase(get()) }
     factory { DeleteAllStoriesUseCase(get()) }
-    factory { GetStoriesUseCase(get()) }
+    factory { DeleteStoriesOfChildUseCase(get()) }
+    factory { GetStoriesUseCase(get(), get()) }
     factory { GetStoryByIdUseCase(get()) }
     factory { SaveChildProfileUseCase(get()) }
     factory { GetActiveChildUseCase(get()) }
+    factory { GetChildProfilesUseCase(get()) }
+    factory { SwitchChildUseCase(get()) }
+    factory { DeleteChildProfileUseCase(get()) }
     factory { CheckStoryQuotaUseCase(get(), get()) }
     factory { GetParentInsightsUseCase(get(), get()) }
 
     // ViewModels
     viewModel { AppStartViewModel(get(), get()) }
-    viewModel { (isEditMode: Boolean) -> OnboardingViewModel(get(), get(), isEditMode) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
+    viewModel { (mode: OnboardingMode) -> OnboardingViewModel(get(), get(), mode) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
     viewModel { CreationViewModel(get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
-        ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get())
+        ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     viewModel { PaywallViewModel(get()) }
     viewModel {
-        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
+        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
     }
     viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
 }

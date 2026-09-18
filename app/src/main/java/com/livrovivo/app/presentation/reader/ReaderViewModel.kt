@@ -19,6 +19,7 @@ import com.livrovivo.app.domain.repository.StoryRepository
 import com.livrovivo.app.domain.usecase.ContinueStoryUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.domain.usecase.GetChildProfilesUseCase
 import com.livrovivo.app.domain.usecase.GetStoryByIdUseCase
 import com.livrovivo.app.domain.usecase.IllustrateChapterUseCase
 import com.livrovivo.app.domain.usecase.RewindStoryUseCase
@@ -64,6 +65,7 @@ class ReaderViewModel(
     private val rewindStoryUseCase: RewindStoryUseCase,
     private val illustrateChapterUseCase: IllustrateChapterUseCase,
     private val getActiveChildUseCase: GetActiveChildUseCase,
+    private val getChildProfilesUseCase: GetChildProfilesUseCase,
     private val storyRepository: StoryRepository,
     private val settingsManager: SettingsManager,
     val audioPlayerController: AudioPlayerController,
@@ -90,8 +92,7 @@ class ReaderViewModel(
         viewModelScope.launch {
             val settings = settingsManager.current()
             autoPlay = settings.autoPlayNarration
-            val child = getActiveChildUseCase.getDirect()
-            _uiState.update { it.copy(child = child, highlightReading = settings.highlightReading) }
+            _uiState.update { it.copy(highlightReading = settings.highlightReading) }
 
             getStoryByIdUseCase.observe(storyId).collect { story ->
                 if (story == null) {
@@ -99,6 +100,13 @@ class ReaderViewModel(
                     return@collect
                 }
                 val firstLoad = !pageInitialized
+                if (firstLoad) {
+                    // A dona da história, não a criança ativa: com irmãos cadastrados o leitor
+                    // mostraria o nome errado e narraria na idade errada.
+                    val child = getChildProfilesUseCase.byId(story.childId)
+                        ?: getActiveChildUseCase.getDirect()
+                    _uiState.update { it.copy(child = child) }
+                }
                 _uiState.update { state ->
                     val page = if (firstLoad) {
                         story.lastReadChapter.coerceIn(1, story.lastChapter?.index ?: 1)

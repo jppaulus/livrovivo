@@ -10,7 +10,9 @@ import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.ChildProfileRepository
 import com.livrovivo.app.domain.repository.StoryRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -32,7 +34,8 @@ class FakeStoryRepository(
     val stories = mutableListOf<Story>()
     var lastForceOffline: Boolean? = null
 
-    override fun getStoriesFlow(): Flow<List<Story>> = flowOf(stories)
+    override fun getStoriesFlow(childId: String?): Flow<List<Story>> =
+        flowOf(if (childId == null) stories else stories.filter { it.childId == childId })
     override fun observeStory(storyId: String): Flow<Story?> = flowOf(stories.find { it.id == storyId })
     override suspend fun getStoryById(storyId: String): Story? = stories.find { it.id == storyId }
 
@@ -76,18 +79,67 @@ class FakeStoryRepository(
     override suspend fun deleteAllStories() {
         stories.clear()
     }
+    override suspend fun deleteStoriesOf(childId: String) {
+        stories.removeIf { it.childId == childId }
+    }
     override suspend fun countGeneratedStories(): Int = count
     override suspend fun recordReadingSession(storyId: String, childId: String, startedAt: Long, durationMs: Long) = Unit
-    override suspend fun buildInsights(child: ChildProfile?): ParentInsights = ParentInsights(childName = child?.name.orEmpty())
+    override suspend fun buildInsights(child: ChildProfile?): ParentInsights = ParentInsights(
+        childName = child?.name.orEmpty(),
+        storiesStarted = stories.count { child == null || it.childId == child.id }
+    )
 }
 
 class FakeChildProfileRepository(
-    var activeProfile: ChildProfile? = ChildProfile("child-1", "Leo", "3-5", listOf("espaço"))
+    initialProfiles: List<ChildProfile> = listOf(ChildProfile("child-1", "Leo", "3-5", listOf("espaço"))),
+    private val storyRepository: FakeStoryRepository? = null
 ) : ChildProfileRepository {
-    override fun getActiveProfileFlow(): Flow<ChildProfile?> = flowOf(activeProfile)
+
+    val profiles = initialProfiles.toMutableList()
+    private val activeId = MutableStateFlow(initialProfiles.firstOrNull()?.id.orEmpty())
+
+    /** Espelha o app: o perfil salvo como ativo, ou o primeiro quando ele não existe mais. */
+    var activeProfile: ChildProfile?
+        get() = profiles.find { it.id == activeId.value } ?: profiles.firstOrNull()
+        set(value) {
+            if (value == null) return
+            saveInto(value)
+            activeId.value = value.id
+        }
+
+    override fun getProfilesFlow(): Flow<List<ChildProfile>> = flowOf(profiles.toList())
+    override suspend fun getProfiles(): List<ChildProfile> = profiles.toList()
+
+    override suspend fun getProfile(childId: String): ChildProfile? = profiles.find { it.id == childId }
+
+    override fun getActiveProfileFlow(): Flow<ChildProfile?> =
+        activeId.map { id -> profiles.find { it.id == id } ?: profiles.firstOrNull() }
+
     override suspend fun getActiveProfile(): ChildProfile? = activeProfile
+
     override suspend fun saveProfile(profile: ChildProfile) {
-        activeProfile = profile
+        val isNew = profiles.none { it.id == profile.id }
+        saveInto(profile)
+        if (isNew) activeId.value = profile.id
+    }
+
+    override suspend fun setActiveProfile(childId: String) {
+        if (profiles.none { it.id == childId }) return
+        activeId.value = childId
+    }
+
+    override suspend fun deleteProfile(childId: String): Boolean {
+        if (profiles.size <= 1) return false
+        if (profiles.none { it.id == childId }) return false
+        storyRepository?.deleteStoriesOf(childId)
+        profiles.removeIf { it.id == childId }
+        if (activeId.value == childId) activeId.value = profiles.first().id
+        return true
+    }
+
+    private fun saveInto(profile: ChildProfile) {
+        val index = profiles.indexOfFirst { it.id == profile.id }
+        if (index >= 0) profiles[index] = profile else profiles.add(profile)
     }
 }
 
@@ -119,7 +171,7 @@ class UseCaseTest {
 
     @Test
     fun `without child profile generation fails`() = runTest {
-        val generateUseCase = GenerateStoryUseCase(FakeStoryRepository(), FakeBillingRepository(), FakeChildProfileRepository(null))
+        val generateUseCase = GenerateStoryUseCase(FakeStoryRepository(), FakeBillingRepository(), FakeChildProfileRepository(emptyList()))
         assertTrue(generateUseCase(theme = "aventura", objectiveType = "emocional").isFailure)
     }
 

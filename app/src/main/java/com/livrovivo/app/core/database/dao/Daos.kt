@@ -27,8 +27,19 @@ interface StoryDao {
     suspend fun getStoryWithChapters(storyId: String): StoryWithChapters?
 
     @Transaction
+    @Query("SELECT * FROM stories WHERE childId = :childId ORDER BY updatedAt DESC, createdAt DESC")
+    fun observeStoriesWithChaptersOf(childId: String): Flow<List<StoryWithChapters>>
+
+    @Transaction
     @Query("SELECT * FROM stories ORDER BY createdAt DESC")
     suspend fun getAllStoriesWithChapters(): List<StoryWithChapters>
+
+    @Transaction
+    @Query("SELECT * FROM stories WHERE childId = :childId ORDER BY createdAt DESC")
+    suspend fun getStoriesWithChaptersOf(childId: String): List<StoryWithChapters>
+
+    @Query("SELECT id FROM stories WHERE childId = :childId")
+    suspend fun getStoryIdsOf(childId: String): List<String>
 
     @Query("SELECT * FROM stories WHERE id = :storyId LIMIT 1")
     suspend fun getStoryById(storyId: String): StoryEntity?
@@ -56,6 +67,9 @@ interface StoryDao {
 
     @Query("DELETE FROM stories")
     suspend fun deleteAllStories()
+
+    @Query("DELETE FROM stories WHERE childId = :childId")
+    suspend fun deleteStoriesOf(childId: String)
 
     @Query("DELETE FROM reading_sessions")
     suspend fun deleteAllSessions()
@@ -95,18 +109,34 @@ interface StoryDao {
     @Query("SELECT COALESCE(SUM(durationMs), 0) FROM reading_sessions")
     suspend fun totalReadingMs(): Long
 
+    @Query("SELECT COALESCE(SUM(durationMs), 0) FROM reading_sessions WHERE childId = :childId")
+    suspend fun totalReadingMsOf(childId: String): Long
+
     @Query("DELETE FROM reading_sessions WHERE storyId = :storyId")
     suspend fun deleteSessionsForStory(storyId: String)
+
+    @Query("DELETE FROM reading_sessions WHERE childId = :childId")
+    suspend fun deleteSessionsOf(childId: String)
 }
 
 @Dao
 interface ChildProfileDao {
-    @Query("SELECT * FROM child_profiles ORDER BY createdAt DESC LIMIT 1")
-    fun getActiveProfileFlow(): Flow<ChildProfileEntity?>
+    /** Irmãos na ordem em que foram cadastrados, para a lista não dançar a cada troca. */
+    @Query("SELECT * FROM child_profiles ORDER BY createdAt ASC")
+    fun observeProfiles(): Flow<List<ChildProfileEntity>>
 
-    @Query("SELECT * FROM child_profiles ORDER BY createdAt DESC LIMIT 1")
-    suspend fun getActiveProfile(): ChildProfileEntity?
+    @Query("SELECT * FROM child_profiles ORDER BY createdAt ASC")
+    suspend fun getProfiles(): List<ChildProfileEntity>
+
+    @Query("SELECT * FROM child_profiles WHERE id = :childId LIMIT 1")
+    suspend fun getProfileById(childId: String): ChildProfileEntity?
+
+    @Query("SELECT COUNT(*) FROM child_profiles")
+    suspend fun countProfiles(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfile(profile: ChildProfileEntity)
+
+    @Query("DELETE FROM child_profiles WHERE id = :childId")
+    suspend fun deleteProfile(childId: String)
 }

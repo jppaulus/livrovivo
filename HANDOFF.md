@@ -13,8 +13,8 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 62 testes unitários passando, rodou no emulador. As integrações de IA
-  **ainda não foram testadas com chaves reais**.
+- **Estado:** compila, 74 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+  validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
 
@@ -57,14 +57,20 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/audio/LullabySynth.kt` | Caixinha de música sintetizada ("Brilha, Brilha, Estrelinha") |
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
+| `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
 | `core/database/` | Room v3 + migração 2→3 que **preserva histórias antigas** |
-| `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `applyPendingDefaults()` |
+| `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `activeChildId`, `applyPendingDefaults()` |
 | `presentation/reader/` | Leitor: páginas, escolhas, voltar e trocar de caminho, comemoração, barra de narração |
 | `presentation/{home,creation,onboarding,parent,settings,paywall}/` | Demais telas |
+| `presentation/onboarding/` | Formulário do perfil em 3 modos (`OnboardingMode`): primeiro uso, irmão novo, edição |
 | `supabase/functions/ai-gateway/index.ts` | Proxy de IA para produção (chaves ficam no servidor) |
 
 **Fluxo de uma página:** escolha da criança → `ContinueStoryUseCase` → `StoryWriter` (IA ou offline) →
 capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (em partes) e ilustração.
+
+**Quem é "a criança" em cada ponto:** a estante, as métricas e a criação de histórias usam a criança
+**ativa** (`activeChildId` no DataStore); ler, continuar e ilustrar uma história usam a criança **dona
+dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da narrativa.
 
 ---
 
@@ -90,72 +96,70 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
    pastas de build. Já foi feita varredura por chaves antes do commit.
 8. **Escolhas ligadas a virtudes** (coragem, empatia, criatividade, curiosidade, calma, cooperação) — elas
    alimentam as conquistas da criança e o painel dos pais.
+9. **Vários perfis de crianças (irmãos).** Decisões que valem a pena não refazer:
+   - **Não precisou de migração do Room.** A tabela `child_profiles` já aceitava vários registros e
+     `stories`/`reading_sessions` já tinham `childId`; o que limitava era o DAO (`LIMIT 1`). O banco
+     continua na **versão 3** e nenhuma história antiga é tocada.
+   - **A criança ativa fica no DataStore** (`activeChildId`), não no banco. Se o id salvo não existir
+     mais, cai no primeiro perfil em vez de deixar o app sem criança.
+   - **O limite gratuito é do aparelho, não por criança.** Cadastrar irmãos não multiplica as 3
+     histórias grátis (`countGeneratedStories()` continua global). Há teste cobrindo isso.
+   - **O último perfil não é apagado** — o app não abre sem nenhuma criança cadastrada.
+     Apagar um perfil leva junto histórias, ilustrações e sessões de leitura dele.
+   - **"Apagar todas as histórias" na Área dos Pais só apaga as da criança em foco**, para bater com
+     a lista mostrada logo acima do botão.
+   - **Trocar de criança é ação da criança** (chip na Home, sem portão); **cadastrar, editar e apagar
+     são ações dos pais** (Área dos Pais, atrás do portão parental).
 
 ---
 
 ## 5. Estado do Git
 
-- **No GitHub:** commit `5876283` — "Livro Vivo: histórias com IA, vozes naturais e ilustrações" (76 arquivos).
-- **Ainda não commitado** (15 modificados + 3 novos), em três frentes:
+- **Branch de trabalho:** `claude/projeto-conforme-md-8263f2` (worktree em `.claude/worktrees/`).
+- **No GitHub (`main`):** commit `5876283` — "Livro Vivo: histórias com IA, vozes naturais e ilustrações".
+- **Já commitado na branch, ainda não enviado para o GitHub:**
 
-| Frente | Arquivos |
+| Commit | Conteúdo |
 |---|---|
-| Erro 403 / troca de modelo | `core/ai/AiException.kt`, `core/ai/GeminiService.kt`, `core/ai/ModelFallback.kt` (novo), `core/ai/ElevenLabsService.kt`, `core/settings/SettingsManager.kt`, `presentation/settings/SettingsViewModel.kt`, `core/di/AppModule.kt`, testes `AiExceptionTest.kt` + `ModelFallbackTest.kt` (novo) |
-| Narração em partes | `core/audio/AudioPlayerController.kt`, `core/audio/NarrationText.kt`, `core/audio/NarrationEngines.kt`, `presentation/reader/ReaderScreen.kt`, teste `NarrationChunkerTest.kt` (novo) |
-| Narrador padrão (Capitão) | `core/audio/VoicePersona.kt`, `core/settings/SettingsManager.kt`, `presentation/creation/CreationScreen.kt`, `presentation/navigation/LivroVivoNavGraph.kt` |
+| `5d0a608` | Narração em partes, diagnóstico dos erros da IA e Capitão como narrador padrão |
+| `3112bd4` | Versiona este `HANDOFF.md` |
+| *(este)* | Vários perfis de crianças (irmãos) |
 
-Mensagem sugerida para o commit:
-
-```
-Narração em partes, diagnóstico de erros da IA e Capitão como narrador padrão
-
-- Narra a página em partes: a primeira toca em poucos segundos e o resto
-  é gerado em segundo plano (antes esperava a página inteira, ~30s).
-- Separa os tipos de 403 do Gemini (chave inválida, conta bloqueada, API
-  desativada, chave restrita, modelo sem acesso, imagem sem faturamento) e
-  tenta outros modelos gratuitos, salvando o que funcionar.
-- "Testar conexão" valida a chave sem gastar cota e mostra o resultado por modelo.
-- Capitão Aventura passa a ser o narrador padrão em todos os aparelhos.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-```
+⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
+do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
+(`git checkout -- .`) — elas já estão no histórico.
 
 ---
 
 ## 6. Pendências (em ordem de prioridade)
 
-### 6.1. Erro 403 do Gemini — **não resolvido**
-O usuário criou uma chave no AI Studio e recebeu:
-`"a chave de api parece invalida ou sem permissão. (http 403) the caller does not have permission"`
+### 6.1. Google Play Billing de verdade — **não começado**
+A assinatura hoje é **simulada**: `BillingRepositoryImpl.purchaseSubscription()` só grava
+`isPremium = true` no DataStore, então qualquer pessoa destrava o Premium. A biblioteca
+`com.android.billingclient:billing-ktx:7.1.1` **já está no Gradle**, mas não é usada em lugar nenhum,
+e os preços estão escritos à mão na `PaywallScreen`.
 
-Já feito: 403 deixou de ser tratado como "chave inválida"; o app tenta outros modelos gratuitos, valida a
-chave separadamente e mostra o erro por modelo.
-
-**Falta descobrir em qual botão o erro apareceu:**
-- Em "Gerar ilustração de teste" → esperado: imagens exigem faturamento ativo.
-- Em "Testar conexão" ou ao criar história → provável verificação de conta Google (idade, telefone,
-  verificação em duas etapas), conta de escola/empresa, ou chave recém-criada.
-
-**Como diagnosticar:** instalar a versão nova → Área dos Pais → IA, vozes e ilustrações → **Testar conexão**
-→ ler a mensagem (agora detalha modelo + causa). Com o aparelho conectado, `adb logcat -s LivroVivoIA`
-mostra modelo, código HTTP e mensagem do Google (a chave nunca é registrada).
+Falta: conectar o `BillingClient`, buscar os planos e preços reais do Play, abrir o fluxo de compra,
+confirmar a compra (*acknowledge*) e restaurar a assinatura quando o app abre.
+SKUs previstos: `livro_vivo_monthly` e `livro_vivo_annual`.
 
 ### 6.2. Tempo até começar a narrar — **precisa medir**
 Era cerca de 30s. Com a narração em partes deve cair para poucos segundos, mas **não foi medido no aparelho**.
 Se ainda passar de ~8s: gerar as duas primeiras partes em paralelo e encurtar a primeira
 (`NarrationChunker.chunk(firstMaxChars = ...)`).
 
-### 6.3. Nunca testado com chaves reais
-Gemini (texto, imagem, TTS) e ElevenLabs (TTS, listagem de vozes). Os formatos seguem a documentação atual,
-e cada integração tem botão "Testar" nas configurações.
+### 6.3. Integrações de IA ainda sem teste real
+O **Gemini de texto já foi validado** com a chave do usuário (o antigo erro 403 está resolvido).
+Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige faturamento ativo),
+**TTS** do Gemini e a **ElevenLabs** (voz e listagem de vozes). Cada uma tem botão "Testar" nas configurações.
 
 ### 6.4. Outras pendências
-- **Google Play Billing real:** a assinatura hoje é simulada e salva no DataStore (`BillingRepositoryImpl`).
 - **Segurança do backend:** `ai-gateway` não tem autenticação por usuário nem limite de uso; adicionar
   Supabase Auth + cota por usuário antes de publicar.
 - **Chaves em texto puro** no DataStore; migrar para Android Keystore.
-- **Um perfil de criança só**; falta suporte a irmãos e sincronização na nuvem.
-- **Sem testes instrumentados de UI** (só unitários).
+- **Sem sincronização na nuvem:** perfis e histórias vivem só no aparelho; trocar de celular perde tudo.
+- **Sem testes instrumentados de UI** (só unitários). O seletor de criança e a gestão de perfis não têm
+  teste de interface.
 - Política Famílias do Google Play: revisar antes de publicar (portão parental já existe).
 
 ---
@@ -165,9 +169,9 @@ e cada integração tem botão "Testar" nas configurações.
 > Estou retomando o app Livro Vivo (Android/Kotlin/Compose), em
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
-> Há mudanças ainda não commitadas (narração em partes, diagnóstico do erro 403 e narrador padrão).
-> Minha prioridade agora é: [ex.: descobrir o erro 403 da minha chave / medir o tempo da narração /
-> commitar o que está pendente].
+> O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
+> Minha prioridade agora é: [ex.: integrar o Google Play Billing de verdade / medir o tempo da narração /
+> proteger o ai-gateway com Supabase Auth].
 
 ---
 

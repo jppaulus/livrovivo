@@ -9,7 +9,9 @@ import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.ChildProfileRepository
 import com.livrovivo.app.domain.repository.StoryRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 
 class QuotaExceededException : IllegalStateException(
     "Limite de histórias gratuitas atingido. Assine o Livro Vivo Premium para histórias ilimitadas!"
@@ -43,10 +45,18 @@ class GenerateStoryUseCase(
     }
 }
 
+/**
+ * Estante da criança ativa. Como observa o perfil ativo, a lista troca sozinha
+ * quando os pais mudam de criança — as telas não precisam saber disso.
+ */
 class GetStoriesUseCase(
-    private val storyRepository: StoryRepository
+    private val storyRepository: StoryRepository,
+    private val childProfileRepository: ChildProfileRepository
 ) {
-    operator fun invoke(): Flow<List<Story>> = storyRepository.getStoriesFlow()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    operator fun invoke(): Flow<List<Story>> =
+        childProfileRepository.getActiveProfileFlow()
+            .flatMapLatest { child -> storyRepository.getStoriesFlow(child?.id) }
 }
 
 class GetStoryByIdUseCase(
@@ -88,6 +98,13 @@ class DeleteAllStoriesUseCase(
     suspend operator fun invoke() = storyRepository.deleteAllStories()
 }
 
+/** Limpa a estante de uma criança sem tocar na dos irmãos. */
+class DeleteStoriesOfChildUseCase(
+    private val storyRepository: StoryRepository
+) {
+    suspend operator fun invoke(childId: String) = storyRepository.deleteStoriesOf(childId)
+}
+
 class SaveChildProfileUseCase(
     private val childProfileRepository: ChildProfileRepository
 ) {
@@ -101,6 +118,31 @@ class GetActiveChildUseCase(
 ) {
     operator fun invoke(): Flow<ChildProfile?> = childProfileRepository.getActiveProfileFlow()
     suspend fun getDirect(): ChildProfile? = childProfileRepository.getActiveProfile()
+}
+
+/** Todos os irmãos cadastrados, para o seletor de criança. */
+class GetChildProfilesUseCase(
+    private val childProfileRepository: ChildProfileRepository
+) {
+    operator fun invoke(): Flow<List<ChildProfile>> = childProfileRepository.getProfilesFlow()
+    suspend fun getDirect(): List<ChildProfile> = childProfileRepository.getProfiles()
+
+    /** A dona de uma história, que pode não ser a criança ativa no momento. */
+    suspend fun byId(childId: String): ChildProfile? = childProfileRepository.getProfile(childId)
+}
+
+/** Abre a estante de outra criança. */
+class SwitchChildUseCase(
+    private val childProfileRepository: ChildProfileRepository
+) {
+    suspend operator fun invoke(childId: String) = childProfileRepository.setActiveProfile(childId)
+}
+
+/** Apaga um irmão e tudo que é dele. Devolve false quando é o último perfil. */
+class DeleteChildProfileUseCase(
+    private val childProfileRepository: ChildProfileRepository
+) {
+    suspend operator fun invoke(childId: String): Boolean = childProfileRepository.deleteProfile(childId)
 }
 
 class CheckStoryQuotaUseCase(

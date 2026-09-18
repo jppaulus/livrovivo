@@ -9,7 +9,8 @@ import com.livrovivo.app.domain.model.Story
 import kotlinx.coroutines.flow.Flow
 
 interface StoryRepository {
-    fun getStoriesFlow(): Flow<List<Story>>
+    /** Estante de uma criança; com [childId] nulo, devolve as histórias de todas. */
+    fun getStoriesFlow(childId: String?): Flow<List<Story>>
     fun observeStory(storyId: String): Flow<Story?>
     suspend fun getStoryById(storyId: String): Story?
 
@@ -33,16 +34,42 @@ interface StoryRepository {
     suspend fun deleteStory(storyId: String)
     suspend fun deleteAllStories()
 
-    /** Histórias já criadas (inclusive apagadas), usado no limite do plano gratuito. */
+    /** Apaga as histórias, ilustrações e sessões de leitura de uma criança. */
+    suspend fun deleteStoriesOf(childId: String)
+
+    /**
+     * Histórias já criadas (inclusive apagadas), usado no limite do plano gratuito.
+     * É somado no aparelho todo: cadastrar irmãos não multiplica as histórias grátis.
+     */
     suspend fun countGeneratedStories(): Int
     suspend fun recordReadingSession(storyId: String, childId: String, startedAt: Long, durationMs: Long)
+
+    /** Métricas só da [child] indicada (leitura, virtudes, vocabulário). */
     suspend fun buildInsights(child: ChildProfile?): ParentInsights
 }
 
 interface ChildProfileRepository {
+    /** Todos os irmãos cadastrados, na ordem em que entraram. */
+    fun getProfilesFlow(): Flow<List<ChildProfile>>
+    suspend fun getProfiles(): List<ChildProfile>
+
+    /** Um perfil específico, mesmo que outro irmão esteja ativo agora. */
+    suspend fun getProfile(childId: String): ChildProfile?
+
+    /** Criança cuja estante está aberta. */
     fun getActiveProfileFlow(): Flow<ChildProfile?>
     suspend fun getActiveProfile(): ChildProfile?
+
+    /** Cria ou atualiza um perfil; um perfil novo já entra como ativo. */
     suspend fun saveProfile(profile: ChildProfile)
+
+    suspend fun setActiveProfile(childId: String)
+
+    /**
+     * Apaga o perfil e tudo que é dele. Devolve false (sem apagar nada) quando é o
+     * último perfil, porque o app não funciona sem nenhuma criança cadastrada.
+     */
+    suspend fun deleteProfile(childId: String): Boolean
 }
 
 interface BillingRepository {

@@ -7,6 +7,7 @@ import com.livrovivo.app.core.database.dao.ChildProfileDao
 import com.livrovivo.app.core.database.dao.StoryDao
 import com.livrovivo.app.core.illustration.IllustrationService
 import com.livrovivo.app.core.settings.SettingsManager
+import com.livrovivo.app.data.model.ChildProfileEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.toDomain
 import com.livrovivo.app.data.model.toEntity
@@ -26,6 +27,8 @@ import com.livrovivo.app.domain.repository.StoryRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,8 +41,14 @@ class StoryRepositoryImpl(
     private val settingsManager: SettingsManager
 ) : StoryRepository {
 
-    override fun getStoriesFlow(): Flow<List<Story>> =
-        storyDao.observeStoriesWithChapters().map { list -> list.map { it.toDomain() } }
+    override fun getStoriesFlow(childId: String?): Flow<List<Story>> {
+        val source = if (childId == null) {
+            storyDao.observeStoriesWithChapters()
+        } else {
+            storyDao.observeStoriesWithChaptersOf(childId)
+        }
+        return source.map { list -> list.map { it.toDomain() } }
+    }
 
     override fun observeStory(storyId: String): Flow<Story?> =
         storyDao.observeStoryWithChapters(storyId).map { it?.toDomain() }
@@ -83,7 +92,9 @@ class StoryRepositoryImpl(
             return Result.failure(IllegalStateException("A história já terminou."))
         }
 
-        val child = childProfileDao.getActiveProfile()?.toDomain() ?: fallbackChild(story)
+        // Sempre a criança dona da história: com irmãos cadastrados, a ativa pode ser outra
+        // e o nome mudaria no meio da narrativa.
+        val child = childProfileDao.getProfileById(story.childId)?.toDomain() ?: fallbackChild(story)
         val brief = StoryBrief(
             child = child,
             companion = MagicalCompanion.findById(story.companionId),
@@ -135,7 +146,9 @@ class StoryRepositoryImpl(
             return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED))
         }
         return try {
-            val child = childProfileDao.getActiveProfile()?.toDomain()
+            // A criança dona da história, e não a que está ativa: os pais podem ter trocado
+            // de perfil enquanto a ilustração era gerada.
+            val child = childProfileDao.getProfileById(story.childId)?.toDomain()
             val file = illustrationService.illustrate(story, chapter, child)
             // A página pode ter sido apagada enquanto a ilustração era gerada (criança voltou atrás).
             val stillExists = storyDao.getChaptersForStory(storyId).any { it.chapterIndex == chapterIndex }
@@ -165,6 +178,15 @@ class StoryRepositoryImpl(
         withContext(Dispatchers.IO) { illustrationService.deleteAllStoryAssets() }
     }
 
+    override suspend fun deleteStoriesOf(childId: String) {
+        val storyIds = storyDao.getStoryIdsOf(childId)
+        storyDao.deleteStoriesOf(childId)
+        storyDao.deleteSessionsOf(childId)
+        withContext(Dispatchers.IO) {
+            storyIds.forEach { illustrationService.deleteStoryAssets(it) }
+        }
+    }
+
     override suspend fun countGeneratedStories(): Int =
         maxOf(storyDao.getStoryCount(), settingsManager.current().storiesCreated)
 
@@ -181,7 +203,12 @@ class StoryRepositoryImpl(
     }
 
     override suspend fun buildInsights(child: ChildProfile?): ParentInsights {
-        val stories = storyDao.getAllStoriesWithChapters().map { it.toDomain() }
+        val rows = if (child == null) {
+            storyDao.getAllStoriesWithChapters()
+        } else {
+            storyDao.getStoriesWithChaptersOf(child.id)
+        }
+        val stories = rows.map { it.toDomain() }
         val name = child?.name ?: "a criança"
         val virtues = stories.flatMap { it.chosenVirtues }
         val vocabulary = stories.sortedByDescending { it.updatedAt }
@@ -210,7 +237,7 @@ class StoryRepositoryImpl(
             storiesStarted = stories.size,
             storiesCompleted = stories.count { it.isCompleted },
             pagesRead = stories.sumOf { it.chapters.size },
-            minutesReading = (storyDao.totalReadingMs() / 60_000L).toInt(),
+            minutesReading = (readingMsOf(child) / 60_000L).toInt(),
             choicesMade = stories.sumOf { story -> story.chapters.count { it.selectedChoiceText != null } },
             virtueCounts = virtues.groupingBy { it }.eachCount(),
             vocabulary = vocabulary,
@@ -218,6 +245,9 @@ class StoryRepositoryImpl(
             conversationTip = tip
         )
     }
+
+    private suspend fun readingMsOf(child: ChildProfile?): Long =
+        if (child == null) storyDao.totalReadingMs() else storyDao.totalReadingMsOf(child.id)
 
     private fun conversationQuestion(virtue: Virtue?): String = when (virtue) {
         Virtue.CORAGEM -> "o que te deu coragem naquela hora? Quando foi que você sentiu coragem de verdade?"
@@ -237,17 +267,62 @@ class StoryRepositoryImpl(
 }
 
 class ChildProfileRepositoryImpl(
-    private val childProfileDao: ChildProfileDao
+    private val childProfileDao: ChildProfileDao,
+    private val storyRepository: StoryRepository,
+    private val settingsManager: SettingsManager
 ) : ChildProfileRepository {
 
-    override fun getActiveProfileFlow(): Flow<ChildProfile?> =
-        childProfileDao.getActiveProfileFlow().map { it?.toDomain() }
+    override fun getProfilesFlow(): Flow<List<ChildProfile>> =
+        childProfileDao.observeProfiles().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun getActiveProfile(): ChildProfile? = childProfileDao.getActiveProfile()?.toDomain()
+    override suspend fun getProfiles(): List<ChildProfile> =
+        childProfileDao.getProfiles().map { it.toDomain() }
+
+    override suspend fun getProfile(childId: String): ChildProfile? =
+        childProfileDao.getProfileById(childId)?.toDomain()
+
+    override fun getActiveProfileFlow(): Flow<ChildProfile?> =
+        combine(
+            childProfileDao.observeProfiles(),
+            settingsManager.settingsFlow.map { it.activeChildId }.distinctUntilChanged()
+        ) { profiles, activeId ->
+            profiles.pick(activeId)?.toDomain()
+        }.distinctUntilChanged()
+
+    override suspend fun getActiveProfile(): ChildProfile? =
+        childProfileDao.getProfiles().pick(settingsManager.current().activeChildId)?.toDomain()
 
     override suspend fun saveProfile(profile: ChildProfile) {
+        val isNew = childProfileDao.getProfileById(profile.id) == null
         childProfileDao.insertProfile(profile.toEntity())
+        // Uma criança recém-cadastrada já abre a estante dela.
+        if (isNew) settingsManager.setActiveChildId(profile.id)
     }
+
+    override suspend fun setActiveProfile(childId: String) {
+        if (childProfileDao.getProfileById(childId) == null) return
+        settingsManager.setActiveChildId(childId)
+    }
+
+    override suspend fun deleteProfile(childId: String): Boolean {
+        if (childProfileDao.countProfiles() <= 1) return false
+        if (childProfileDao.getProfileById(childId) == null) return false
+
+        storyRepository.deleteStoriesOf(childId)
+        childProfileDao.deleteProfile(childId)
+
+        if (settingsManager.current().activeChildId == childId) {
+            childProfileDao.getProfiles().firstOrNull()?.let { settingsManager.setActiveChildId(it.id) }
+        }
+        return true
+    }
+
+    /**
+     * O perfil salvo como ativo; se ele não existe mais (apagado em outro aparelho, base
+     * antiga sem a preferência), cai no primeiro da lista em vez de deixar o app sem criança.
+     */
+    private fun List<ChildProfileEntity>.pick(activeId: String): ChildProfileEntity? =
+        find { it.id == activeId } ?: firstOrNull()
 }
 
 /**
