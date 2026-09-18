@@ -12,6 +12,7 @@ import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.illustration.IllustrationService
+import com.livrovivo.app.core.album.StickerBook
 import com.livrovivo.app.core.billing.BillingManager
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.repository.BillingRepositoryImpl
@@ -36,6 +37,7 @@ import com.livrovivo.app.domain.usecase.IllustrateChapterUseCase
 import com.livrovivo.app.domain.usecase.RewindStoryUseCase
 import com.livrovivo.app.domain.usecase.SaveChildProfileUseCase
 import com.livrovivo.app.domain.usecase.SwitchChildUseCase
+import com.livrovivo.app.presentation.album.AlbumViewModel
 import com.livrovivo.app.presentation.bedtime.BedtimeViewModel
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeViewModel
@@ -59,6 +61,7 @@ val appModule = module {
     // Settings & DataStore
     single { SettingsManager(androidContext()) }
     single { BillingManager(androidContext(), get()) }
+    single { StickerBook(get(), get()) }
 
     // IA (texto, imagem e voz)
     single { AiHttp.createClient() }
@@ -100,13 +103,14 @@ val appModule = module {
     // ViewModels
     viewModel { AppStartViewModel(get(), get(), get()) }
     viewModel { (mode: OnboardingMode) -> OnboardingViewModel(get(), get(), mode) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
     viewModel { CreationViewModel(get(), get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
-        ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
+        ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     viewModel { PaywallViewModel(get(), get(), get()) }
     viewModel { (childId: String) -> BedtimeViewModel(childId, get(), get(), get(), get()) }
+    viewModel { (childId: String) -> AlbumViewModel(childId, get(), get()) }
     viewModel {
         ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
     }

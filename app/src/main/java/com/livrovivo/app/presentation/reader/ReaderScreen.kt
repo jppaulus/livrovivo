@@ -92,6 +92,7 @@ import com.livrovivo.app.core.ui.ConfettiOverlay
 import com.livrovivo.app.core.ui.HighlightedStoryText
 import com.livrovivo.app.core.ui.InfoPill
 import com.livrovivo.app.core.ui.PageIllustration
+import com.livrovivo.app.core.ui.StickerView
 import com.livrovivo.app.core.ui.StoryBookPageFrame
 import com.livrovivo.app.core.ui.VirtueBadge
 import com.livrovivo.app.domain.model.Chapter
@@ -105,7 +106,8 @@ fun ReaderScreen(
     viewModel: ReaderViewModel,
     onNavigateBack: () -> Unit,
     onNewStory: () -> Unit,
-    onGoodnight: (childId: String) -> Unit
+    onGoodnight: (childId: String) -> Unit,
+    onOpenAlbum: (childId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var rewindTarget by remember { mutableStateOf<Int?>(null) }
@@ -247,7 +249,8 @@ fun ReaderScreen(
                             onNewStory = onNewStory,
                             onShelf = onNavigateBack,
                             onRetryIllustration = viewModel::retryIllustration,
-                            onGoodnight = { uiState.story?.childId?.let(onGoodnight) }
+                            onGoodnight = { uiState.story?.childId?.let(onGoodnight) },
+                            onOpenAlbum = { uiState.story?.childId?.let(onOpenAlbum) }
                         )
                     }
                 }
@@ -279,7 +282,8 @@ private fun PageContent(
     onNewStory: () -> Unit,
     onShelf: () -> Unit,
     onRetryIllustration: () -> Unit,
-    onGoodnight: () -> Unit
+    onGoodnight: () -> Unit,
+    onOpenAlbum: () -> Unit
 ) {
     val isCurrentNarration = uiState.narration.chapterKey?.startsWith("${uiState.story?.id}#${chapter.index}#") == true
     val status = uiState.illustrationStatus[chapter.index]
@@ -351,7 +355,8 @@ private fun PageContent(
                 onChooseAnother = { onChooseAnother((chapter.index - 1).coerceAtLeast(1)) },
                 onNewStory = onNewStory,
                 onShelf = onShelf,
-                onGoodnight = onGoodnight
+                onGoodnight = onGoodnight,
+                onOpenAlbum = onOpenAlbum
             )
 
             !uiState.isLatestPage -> PathChosenCard(
@@ -545,7 +550,8 @@ private fun EndingCard(
     onChooseAnother: () -> Unit,
     onNewStory: () -> Unit,
     onShelf: () -> Unit,
-    onGoodnight: () -> Unit
+    onGoodnight: () -> Unit,
+    onOpenAlbum: () -> Unit
 ) {
     val virtues = uiState.story?.chosenVirtues.orEmpty()
     val mode = uiState.bedtimeMode
@@ -601,6 +607,42 @@ private fun EndingCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+            if (uiState.newStickers.isNotEmpty()) {
+                Text(
+                    text = "Figurinhas novas no álbum! ✨",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    uiState.newStickers.forEach { sticker ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(80.dp)
+                        ) {
+                            StickerView(sticker = sticker, collected = true, size = 72.dp, modifier = Modifier.width(72.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = sticker.caption,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                // Na hora de dormir obrigatória, o boa-noite é o único caminho: nada de ir ao álbum.
+                if (mode != BedtimeMode.REQUIRED) {
+                    TextButton(onClick = onOpenAlbum) { Text("Ver meu álbum 📒") }
+                } else {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
             if (atNight) {
                 // À noite o boa-noite é o convite principal; com o limite atingido, o único.

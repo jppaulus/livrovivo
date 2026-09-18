@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.livrovivo.app.core.album.StickerBook
 import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.bedtime.minuteTicks
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
@@ -82,6 +83,7 @@ import com.livrovivo.app.core.ui.LocalImage
 import com.livrovivo.app.core.ui.MagicalSparklesEffect
 import com.livrovivo.app.core.ui.ProceduralScene
 import com.livrovivo.app.domain.model.AdventureMemory
+import com.livrovivo.app.domain.model.AlbumView
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.Story
@@ -93,9 +95,12 @@ import com.livrovivo.app.domain.usecase.GetChildProfilesUseCase
 import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.QuotaStatus
 import com.livrovivo.app.domain.usecase.SwitchChildUseCase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -121,6 +126,7 @@ class HomeViewModel(
     private val checkStoryQuotaUseCase: CheckStoryQuotaUseCase,
     private val deleteStoryUseCase: DeleteStoryUseCase,
     settingsManager: SettingsManager,
+    stickerBook: StickerBook,
     backendConfigured: Boolean
 ) : ViewModel() {
 
@@ -141,6 +147,12 @@ class HomeViewModel(
             aiConfigured = settings.hasGeminiKey || backendConfigured
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /** Álbum de figurinhas da criança ativa (troca junto quando os pais mudam de criança). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val album: StateFlow<AlbumView?> = getActiveChildUseCase()
+        .flatMapLatest { child -> child?.let { stickerBook.albumFlow(it.id) } ?: flowOf(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Modo da noite da criança ativa: muda com o relógio e quando uma história termina. */
     val bedtimeMode: StateFlow<BedtimeMode> = combine(
@@ -179,10 +191,12 @@ fun HomeScreen(
     onNavigateToReader: (String) -> Unit,
     onNavigateToParentArea: () -> Unit,
     onNavigateToEditProfile: () -> Unit,
-    onGoodnight: (childId: String) -> Unit
+    onGoodnight: (childId: String) -> Unit,
+    onOpenAlbum: (childId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val bedtimeMode by viewModel.bedtimeMode.collectAsState()
+    val album by viewModel.album.collectAsState()
     var showParentalGate by remember { mutableStateOf(false) }
     var showChildSwitcher by remember { mutableStateOf(false) }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
@@ -345,6 +359,13 @@ fun HomeScreen(
                     }
                 }
 
+                val albumNow = album
+                if (child != null && albumNow != null) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        AlbumCard(album = albumNow, onClick = { onOpenAlbum(child.id) })
+                    }
+                }
+
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(
                         modifier = Modifier
@@ -390,6 +411,46 @@ fun HomeScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Atalho para o álbum, com quantas figurinhas já foram coladas. */
+@Composable
+private fun AlbumCard(album: AlbumView, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "📒", fontSize = 34.sp)
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Meu álbum de figurinhas",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${album.collectedCount} de ${album.total} figurinhas",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { album.collectedCount.toFloat() / album.total },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                )
             }
         }
     }

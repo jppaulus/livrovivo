@@ -34,6 +34,8 @@ import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.presentation.album.AlbumScreen
+import com.livrovivo.app.presentation.album.AlbumViewModel
 import com.livrovivo.app.presentation.bedtime.BedtimeScreen
 import com.livrovivo.app.presentation.bedtime.BedtimeViewModel
 import com.livrovivo.app.presentation.bedtime.SleepOverlay
@@ -160,6 +162,9 @@ private fun AppNavHost(
     val goodnight: (String) -> Unit = { childId ->
         navController.navigate(Screen.Bedtime.createRoute(childId)) { launchSingleTop = true }
     }
+    val openAlbum: (String) -> Unit = { childId ->
+        navController.navigate(Screen.Album.createRoute(childId)) { launchSingleTop = true }
+    }
 
     NavHost(
         navController = navController,
@@ -206,7 +211,8 @@ private fun AppNavHost(
                 onNavigateToReader = { storyId -> navController.navigate(Screen.Reader.createRoute(storyId)) },
                 onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) },
                 onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
-                onGoodnight = goodnight
+                onGoodnight = goodnight,
+                onOpenAlbum = openAlbum
             )
         }
 
@@ -263,8 +269,18 @@ private fun AppNavHost(
                         popUpTo(Screen.Home.route)
                     }
                 },
-                onGoodnight = goodnight
+                onGoodnight = goodnight,
+                onOpenAlbum = openAlbum
             )
+        }
+
+        composable(
+            route = Screen.Album.route,
+            arguments = listOf(navArgument("childId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val childId = backStackEntry.arguments?.getString("childId").orEmpty()
+            val viewModel: AlbumViewModel = koinViewModel(parameters = { parametersOf(childId) })
+            AlbumScreen(viewModel = viewModel, onNavigateBack = { navController.popBackStack() })
         }
 
         composable(

@@ -13,6 +13,11 @@ sealed class Screen(val route: String) {
     }
     data object Paywall : Screen("paywall")
 
+    /** Álbum de figurinhas da criança [childId]. */
+    data object Album : Screen("album/{childId}") {
+        fun createRoute(childId: String): String = "album/$childId"
+    }
+
     /** Ritual de dormir da criança [childId]. */
     data object Bedtime : Screen("bedtime/{childId}") {
         fun createRoute(childId: String): String = "bedtime/$childId"

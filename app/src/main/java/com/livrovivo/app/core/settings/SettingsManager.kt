@@ -102,7 +102,9 @@ data class AppSettings(
     /** Depois do boa-noite o app "dorme" até este instante (epoch ms); 0 = acordado. */
     val sleepUntil: Long = 0L,
     /** Quando cada criança terminou suas últimas histórias, para contar as da noite. */
-    val storyEndings: Map<String, List<Long>> = emptyMap()
+    val storyEndings: Map<String, List<Long>> = emptyMap(),
+    /** Figurinhas já coladas no álbum de cada criança. Ausente = criança que ainda não tinha álbum. */
+    val collectedStickers: Map<String, Set<String>> = emptyMap()
 ) {
     val hasGeminiKey: Boolean get() = geminiApiKey.isNotBlank()
     val hasElevenLabsKey: Boolean get() = elevenLabsApiKey.isNotBlank()
@@ -152,6 +154,7 @@ class SettingsManager(private val context: Context) {
         val STORIES_PER_NIGHT = intPreferencesKey("stories_per_night")
         val SLEEP_UNTIL = longPreferencesKey("sleep_until")
         val STORY_ENDINGS = stringPreferencesKey("story_endings")
+        val COLLECTED_STICKERS = stringPreferencesKey("collected_stickers")
     }
 
     /**
@@ -223,6 +226,19 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setSleepUntil(epochMs: Long) = edit { it[SLEEP_UNTIL] = epochMs }
 
+    /** Cola figurinhas no álbum da criança; o que já estava colado nunca sai. */
+    suspend fun addCollectedStickers(childId: String, ids: Set<String>) = edit { prefs ->
+        val all = prefs.collectedStickers()
+        val merged = all[childId].orEmpty() + ids
+        prefs[COLLECTED_STICKERS] = appJson.encodeToString(all + (childId to merged))
+    }
+
+    /** Esquece tudo o que é de uma criança (perfil apagado): álbum e finais de história. */
+    suspend fun forgetChild(childId: String) = edit { prefs ->
+        prefs[COLLECTED_STICKERS] = appJson.encodeToString(prefs.collectedStickers() - childId)
+        prefs[STORY_ENDINGS] = appJson.encodeToString(prefs.storyEndings() - childId)
+    }
+
     /** Registra que a criança terminou uma história (lido e gravado de uma vez só). */
     suspend fun recordStoryEnding(childId: String, at: Long) = edit { prefs ->
         prefs[STORY_ENDINGS] = appJson.encodeToString(Bedtime.withEnding(prefs.storyEndings(), childId, at))
@@ -232,6 +248,12 @@ class SettingsManager(private val context: Context) {
     suspend fun registerStoryCreated(existingStories: Int) = edit {
         val current = it[STORIES_CREATED] ?: 0
         it[STORIES_CREATED] = maxOf(current, existingStories - 1) + 1
+    }
+
+    private fun Preferences.collectedStickers(): Map<String, Set<String>> = try {
+        this[COLLECTED_STICKERS]?.let { appJson.decodeFromString<Map<String, Set<String>>>(it) } ?: emptyMap()
+    } catch (_: Exception) {
+        emptyMap()
     }
 
     private fun Preferences.storyEndings(): Map<String, List<Long>> = try {
@@ -282,7 +304,8 @@ class SettingsManager(private val context: Context) {
                 storiesPerNight = this[STORIES_PER_NIGHT]?.takeIf { it > 0 }
             ),
             sleepUntil = this[SLEEP_UNTIL] ?: 0L,
-            storyEndings = storyEndings()
+            storyEndings = storyEndings(),
+            collectedStickers = collectedStickers()
         )
     }
 }

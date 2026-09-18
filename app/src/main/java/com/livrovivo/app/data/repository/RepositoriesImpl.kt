@@ -320,6 +320,7 @@ class ChildProfileRepositoryImpl(
 
         storyRepository.deleteStoriesOf(childId)
         childProfileDao.deleteProfile(childId)
+        settingsManager.forgetChild(childId)
 
         if (settingsManager.current().activeChildId == childId) {
             childProfileDao.getProfiles().firstOrNull()?.let { settingsManager.setActiveChildId(it.id) }

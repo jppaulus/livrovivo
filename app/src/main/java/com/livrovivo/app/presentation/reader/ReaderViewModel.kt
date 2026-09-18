@@ -3,6 +3,7 @@ package com.livrovivo.app.presentation.reader
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.ai.AiException
+import com.livrovivo.app.core.album.StickerBook
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
@@ -15,6 +16,7 @@ import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Choice
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.SceneKind
+import com.livrovivo.app.domain.model.Sticker
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.ThemeOption
 import com.livrovivo.app.domain.repository.StoryRepository
@@ -52,7 +54,9 @@ data class ReaderUiState(
     val narration: PlaybackState = PlaybackState(),
     /** Na hora de dormir, o fim da história convida para o boa-noite (ou só permite ele). */
     val bedtimeMode: BedtimeMode = BedtimeMode.OFF,
-    val storiesTonight: Int = 0
+    val storiesTonight: Int = 0,
+    /** Figurinhas que esta história acabou de colar no álbum (vazio ao reler um final). */
+    val newStickers: List<Sticker> = emptyList()
 ) {
     val chapters: List<Chapter> get() = story?.sortedChapters.orEmpty()
     val currentChapter: Chapter? get() = chapters.find { it.index == pageIndex }
@@ -75,7 +79,8 @@ class ReaderViewModel(
     private val storyRepository: StoryRepository,
     private val settingsManager: SettingsManager,
     val audioPlayerController: AudioPlayerController,
-    private val deleteStoryUseCase: DeleteStoryUseCase
+    private val deleteStoryUseCase: DeleteStoryUseCase,
+    private val stickerBook: StickerBook
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReaderUiState())
@@ -172,7 +177,21 @@ class ReaderViewModel(
         )
         ensureIllustration(chapter.index)
         viewModelScope.launch { storyRepository.markRead(story.id, chapter.index) }
-        if (chapter.isEnding) _uiState.update { it.copy(showCelebration = true) }
+        if (chapter.isEnding) {
+            _uiState.update { it.copy(showCelebration = true) }
+            collectStickers(story)
+        }
+    }
+
+    /**
+     * Cola no álbum o que esta história trouxe. Voltar ao final depois não apaga a novidade
+     * da tela (a segunda chamada não devolve nada novo, e a primeira lista é mantida).
+     */
+    private fun collectStickers(story: Story) {
+        viewModelScope.launch {
+            val fresh = stickerBook.collectAfterEnding(story.childId, story.id)
+            if (fresh.isNotEmpty()) _uiState.update { it.copy(newStickers = fresh) }
+        }
     }
 
     private fun ensureIllustration(chapterIndex: Int) {
