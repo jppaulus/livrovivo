@@ -18,6 +18,7 @@ junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 coroutinesTest = "1.9.0"
+orgJson = "20240303"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -59,6 +60,9 @@ play-billing = { group = "com.android.billingclient", name = "billing-ktx", vers
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+# org.json real nos testes: o android.jar mockável devolve valores padrão e quebraria
+# qualquer parse de JSON (ex.: as compras do Google Play).
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }

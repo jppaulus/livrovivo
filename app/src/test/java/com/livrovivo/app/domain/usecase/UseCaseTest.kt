@@ -25,7 +25,10 @@ class FakeBillingRepository(
     override val isPremiumFlow: Flow<Boolean> = flowOf(isPremium)
     override suspend fun isUserPremium(): Boolean = isPremium
     override suspend fun canGenerateNewStory(): Boolean = canGenerate
-    override suspend fun purchaseSubscription(sku: String): Result<Boolean> = Result.success(true)
+    var refreshCount = 0
+    override suspend fun refreshSubscription() {
+        refreshCount++
+    }
 }
 
 class FakeStoryRepository(

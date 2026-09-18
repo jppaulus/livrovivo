@@ -19,6 +19,7 @@
 - **Música de ninar** – caixinha de música sintetizada ("Brilha, Brilha, Estrelinha"), que abaixa sozinha enquanto o narrador fala.
 - **Área dos Pais** (protegida por conta de multiplicação por extenso) – tempo de leitura, páginas, virtudes escolhidas, palavras novas e sugestão de conversa pós-história (tudo da criança em foco), gestão dos perfis e configurações de IA com botões de teste.
 - **Modo offline completo** – histórias escritas à mão para 8 temas e para temas livres, com final que celebra as virtudes escolhidas.
+- **Assinatura pelo Google Play** – planos, preços e teste grátis vêm do Play (nada de preço escrito no app), com compra, confirmação e restauração automática em outro aparelho. O plano gratuito dá 3 histórias.
 
 ---
 
@@ -85,6 +86,7 @@ app/src/main/java/com/livrovivo/app/
 │   ├── illustration/  # IllustrationService (geração + consistência entre páginas)
 │   ├── database/      # Room (DAOs, migração 2→3)
 │   ├── settings/      # Configurações e modelos de IA
+│   ├── billing/       # Google Play Billing (planos, compra, confirmação, restauração)
 │   ├── parentalgate/  # Portão parental
 │   └── ui/            # Tema, cenas desenhadas, componentes mágicos, seletor de criança
 ├── data/              # Entidades, mappers e repositórios
@@ -92,6 +94,27 @@ app/src/main/java/com/livrovivo/app/
 └── presentation/      # onboarding, home, creation, reader, parent, settings, paywall
 supabase/functions/ai-gateway/   # Proxy seguro de IA para produção
 ```
+
+---
+
+## 💳 Assinaturas (Google Play Console)
+
+O código de cobrança está pronto, mas **os produtos precisam existir no Play Console** — sem isso o app
+mostra "Assinaturas indisponíveis" em vez de preços inventados. Cadastre duas assinaturas com estes IDs:
+
+| ID do produto | Plano base sugerido |
+|---|---|
+| `livro_vivo_annual` | anual (`P1Y`), com 7 dias de teste grátis |
+| `livro_vivo_monthly` | mensal (`P1M`) |
+
+O preço, a moeda e o teste grátis vêm do Play em tempo de execução — mexer neles é no Console, não no código.
+
+Para testar: publique o app numa faixa de **teste interno**, adicione sua conta como testador de licença
+(*Configurações → Teste de licença*) e instale pela Play Store. Compras assim não são cobradas.
+Emulador sem Google Play não consegue comprar.
+
+> No build de **debug** há um botão "Destravar Premium" na tela de assinatura, para testar os recursos
+> Premium sem Play Console. Ele não existe no build de release.
 
 ---
 
@@ -107,7 +130,7 @@ Requisitos: **JDK 17** e **Android SDK 35**.
 
 ## 📌 Próximos passos recomendados
 
-- Integrar de verdade o **Google Play Billing** (hoje a assinatura é simulada e salva no aparelho).
+- Cadastrar as assinaturas no **Google Play Console** (ver abaixo) — o código já está pronto.
 - Adicionar **Supabase Auth** e limite de uso por usuário no `ai-gateway`.
 - Sincronizar perfis e histórias na nuvem (hoje tudo fica só no aparelho).
 - Guardar as chaves digitadas com criptografia (Android Keystore).

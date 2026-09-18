@@ -3,6 +3,7 @@ package com.livrovivo.app.data.repository
 import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.ai.StoryBrief
 import com.livrovivo.app.core.ai.StoryWriter
+import com.livrovivo.app.core.billing.BillingManager
 import com.livrovivo.app.core.database.dao.ChildProfileDao
 import com.livrovivo.app.core.database.dao.StoryDao
 import com.livrovivo.app.core.illustration.IllustrationService
@@ -326,12 +327,13 @@ class ChildProfileRepositoryImpl(
 }
 
 /**
- * Assinatura simulada (persistida no aparelho). A integração real com o Google Play Billing
- * deve substituir [purchaseSubscription] antes da publicação.
+ * Estado da assinatura. O valor guardado no DataStore é o espelho local do que o Google Play
+ * respondeu (ver [BillingManager]), o que mantém o Premium funcionando sem internet.
  */
 class BillingRepositoryImpl(
     private val storyDao: StoryDao,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val billingManager: BillingManager
 ) : BillingRepository {
 
     override val isPremiumFlow: Flow<Boolean> = settingsManager.settingsFlow.map { it.isPremium }
@@ -344,8 +346,5 @@ class BillingRepositoryImpl(
         return created < BillingRepository.FREE_STORIES
     }
 
-    override suspend fun purchaseSubscription(sku: String): Result<Boolean> {
-        settingsManager.setPremium(true)
-        return Result.success(true)
-    }
+    override suspend fun refreshSubscription() = billingManager.refresh()
 }

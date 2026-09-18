@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 74 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+- **Estado:** compila, 83 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
   validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
@@ -59,6 +59,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
 | `core/database/` | Room v3 + migração 2→3 que **preserva histórias antigas** |
+| `core/billing/BillingManager.kt` | Google Play Billing: conexão, planos, compra, confirmação e restauração |
+| `core/billing/BillingModels.kt` | Planos, estados, e regras puras (o que libera Premium, mensagens de erro) |
 | `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `activeChildId`, `applyPendingDefaults()` |
 | `presentation/reader/` | Leitor: páginas, escolhas, voltar e trocar de caminho, comemoração, barra de narração |
 | `presentation/{home,creation,onboarding,parent,settings,paywall}/` | Demais telas |
@@ -96,7 +98,21 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
    pastas de build. Já foi feita varredura por chaves antes do commit.
 8. **Escolhas ligadas a virtudes** (coragem, empatia, criatividade, curiosidade, calma, cooperação) — elas
    alimentam as conquistas da criança e o painel dos pais.
-9. **Vários perfis de crianças (irmãos).** Decisões que valem a pena não refazer:
+9. **Google Play Billing de verdade.** Decisões que valem a pena não refazer:
+   - **Preço nunca é escrito no app.** Título, preço, período e teste grátis vêm do `ProductDetails`
+     do Play, então promoções e outros países funcionam sem tocar no código.
+   - **O Play é a fonte da verdade; o `isPremium` do DataStore é só espelho local**, para o Premium
+     funcionar sem internet. Quando a consulta ao Play **falha**, o valor guardado é mantido — nunca
+     se tira o Premium de quem pagou por causa de rede ruim.
+   - **Compras são confirmadas (`acknowledgePurchase`)**, senão o Google estorna em 3 dias.
+   - **Compra pendente não libera Premium** (boleto, aprovação dos pais); a tela avisa que está em análise.
+   - **Sem produtos no Play Console, a tela diz "Assinaturas indisponíveis"** e desliga o botão, em vez
+     de mostrar preço inventado. Há um "Destravar Premium" **só no build de debug** para testes.
+   - **`BillingRepository` não abre a compra**: precisa de Activity e o resultado é assíncrono. A tela
+     de assinatura fala direto com o `BillingManager` (mesmo padrão do `AudioPlayerController`).
+   - **`testImplementation(libs.org.json)`** é obrigatório: com `unitTests.isReturnDefaultValues = true`,
+     o `org.json` do Android vira stub e qualquer parse de compra do Play silenciosamente vira lixo.
+10. **Vários perfis de crianças (irmãos).** Decisões que valem a pena não refazer:
    - **Não precisou de migração do Room.** A tabela `child_profiles` já aceitava vários registros e
      `stories`/`reading_sessions` já tinham `childId`; o que limitava era o DAO (`LIMIT 1`). O banco
      continua na **versão 3** e nenhuma história antiga é tocada.
@@ -123,7 +139,8 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
 |---|---|
 | `5d0a608` | Narração em partes, diagnóstico dos erros da IA e Capitão como narrador padrão |
 | `3112bd4` | Versiona este `HANDOFF.md` |
-| *(este)* | Vários perfis de crianças (irmãos) |
+| `700c9ec` | Vários perfis de crianças (irmãos) |
+| *(este)* | Google Play Billing de verdade |
 
 ⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
 do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
@@ -133,15 +150,17 @@ do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, 
 
 ## 6. Pendências (em ordem de prioridade)
 
-### 6.1. Google Play Billing de verdade — **não começado**
-A assinatura hoje é **simulada**: `BillingRepositoryImpl.purchaseSubscription()` só grava
-`isPremium = true` no DataStore, então qualquer pessoa destrava o Premium. A biblioteca
-`com.android.billingclient:billing-ktx:7.1.1` **já está no Gradle**, mas não é usada em lugar nenhum,
-e os preços estão escritos à mão na `PaywallScreen`.
+### 6.1. Cadastrar as assinaturas no Play Console — **pendente do usuário, não do código**
+O código de cobrança está pronto e testado, mas os produtos precisam existir no Google Play Console:
+`livro_vivo_annual` (anual, 7 dias de teste grátis) e `livro_vivo_monthly` (mensal). Enquanto não
+existirem, a tela mostra "Assinaturas indisponíveis" — de propósito, para não inventar preço.
 
-Falta: conectar o `BillingClient`, buscar os planos e preços reais do Play, abrir o fluxo de compra,
-confirmar a compra (*acknowledge*) e restaurar a assinatura quando o app abre.
-SKUs previstos: `livro_vivo_monthly` e `livro_vivo_annual`.
+Para testar de verdade: faixa de **teste interno** + conta de testador de licença + instalar pela Play
+Store. Emulador sem Google Play não compra. No build de debug há um "Destravar Premium" para testar os
+recursos Premium sem nada disso.
+
+Falta também decidir o que fazer quando a assinatura **expira com histórias acima do limite gratuito**:
+hoje elas continuam no aparelho e só a criação de novas é bloqueada.
 
 ### 6.2. Tempo até começar a narrar — **precisa medir**
 Era cerca de 30s. Com a narração em partes deve cair para poucos segundos, mas **não foi medido no aparelho**.
@@ -154,6 +173,9 @@ Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige fa
 **TTS** do Gemini e a **ElevenLabs** (voz e listagem de vozes). Cada uma tem botão "Testar" nas configurações.
 
 ### 6.4. Outras pendências
+- **Sem validação no servidor das compras:** o app confia no Google Play do aparelho. Para barrar
+  aparelhos com root/apps de bypass, seria preciso validar o token da compra pela Google Play Developer
+  API a partir de um servidor (dá para usar o Supabase).
 - **Segurança do backend:** `ai-gateway` não tem autenticação por usuário nem limite de uso; adicionar
   Supabase Auth + cota por usuário antes de publicar.
 - **Chaves em texto puro** no DataStore; migrar para Android Keystore.
@@ -170,7 +192,7 @@ Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige fa
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
-> Minha prioridade agora é: [ex.: integrar o Google Play Billing de verdade / medir o tempo da narração /
+> Minha prioridade agora é: [ex.: cadastrar as assinaturas no Play Console / medir o tempo da narração /
 > proteger o ai-gateway com Supabase Auth].
 
 ---

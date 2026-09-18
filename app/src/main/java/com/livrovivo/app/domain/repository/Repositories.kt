@@ -73,10 +73,17 @@ interface ChildProfileRepository {
 }
 
 interface BillingRepository {
+    /**
+     * Se a assinatura está valendo. Quem escreve este valor é o Google Play (via
+     * `BillingManager`); o app só lê. Abrir a compra é papel da tela de assinatura,
+     * porque precisa da Activity e o resultado chega de forma assíncrona.
+     */
     val isPremiumFlow: Flow<Boolean>
     suspend fun isUserPremium(): Boolean
     suspend fun canGenerateNewStory(): Boolean
-    suspend fun purchaseSubscription(sku: String): Result<Boolean>
+
+    /** Reconsulta as assinaturas ativas no Google Play. */
+    suspend fun refreshSubscription()
 
     companion object {
         const val FREE_STORIES = 3

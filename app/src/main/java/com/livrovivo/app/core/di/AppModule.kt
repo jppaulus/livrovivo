@@ -12,6 +12,7 @@ import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.illustration.IllustrationService
+import com.livrovivo.app.core.billing.BillingManager
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.repository.BillingRepositoryImpl
 import com.livrovivo.app.data.repository.ChildProfileRepositoryImpl
@@ -56,6 +57,7 @@ val appModule = module {
 
     // Settings & DataStore
     single { SettingsManager(androidContext()) }
+    single { BillingManager(androidContext(), get()) }
 
     // IA (texto, imagem e voz)
     single { AiHttp.createClient() }
@@ -74,7 +76,7 @@ val appModule = module {
     // Repositories
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }
     single<ChildProfileRepository> { ChildProfileRepositoryImpl(get(), get(), get()) }
-    single<BillingRepository> { BillingRepositoryImpl(get(), get()) }
+    single<BillingRepository> { BillingRepositoryImpl(get(), get(), get()) }
 
     // UseCases
     factory { GenerateStoryUseCase(get(), get(), get()) }
@@ -102,7 +104,7 @@ val appModule = module {
     viewModel { (storyId: String) ->
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
-    viewModel { PaywallViewModel(get()) }
+    viewModel { PaywallViewModel(get(), get(), get()) }
     viewModel {
         ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
     }
