@@ -8,15 +8,21 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.livrovivo.app.BuildConfig
+import com.livrovivo.app.core.bedtime.Bedtime
+import com.livrovivo.app.core.bedtime.BedtimeMode
+import com.livrovivo.app.core.bedtime.BedtimeSettings
 import com.livrovivo.app.data.model.appJson
 import com.livrovivo.app.domain.model.IllustrationStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
+import java.time.Instant
+import java.time.ZoneId
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "livro_vivo_settings")
 
@@ -91,10 +97,31 @@ data class AppSettings(
     /** Total de histórias já criadas (não diminui ao apagar, para o limite gratuito ser justo). */
     val storiesCreated: Int = 0,
     /** Criança cuja estante está aberta. Vazio = usa o primeiro perfil cadastrado. */
-    val activeChildId: String = ""
+    val activeChildId: String = "",
+    val bedtime: BedtimeSettings = BedtimeSettings(),
+    /** Depois do boa-noite o app "dorme" até este instante (epoch ms); 0 = acordado. */
+    val sleepUntil: Long = 0L,
+    /** Quando cada criança terminou suas últimas histórias, para contar as da noite. */
+    val storyEndings: Map<String, List<Long>> = emptyMap()
 ) {
     val hasGeminiKey: Boolean get() = geminiApiKey.isNotBlank()
     val hasElevenLabsKey: Boolean get() = elevenLabsApiKey.isNotBlank()
+
+    /** Em que ponto da noite está a criança [childId] agora. */
+    fun bedtimeModeFor(
+        childId: String?,
+        now: Instant = Instant.now(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): BedtimeMode = Bedtime.mode(bedtime, endingsOf(childId), now, zone)
+
+    /** Quantas histórias a criança [childId] terminou nesta noite. */
+    fun storiesTonightFor(
+        childId: String?,
+        now: Instant = Instant.now(),
+        zone: ZoneId = ZoneId.systemDefault()
+    ): Int = Bedtime.storiesTonight(endingsOf(childId), bedtime, now, zone)
+
+    private fun endingsOf(childId: String?): List<Long> = childId?.let { storyEndings[it] }.orEmpty()
 }
 
 class SettingsManager(private val context: Context) {
@@ -119,6 +146,12 @@ class SettingsManager(private val context: Context) {
         val STORIES_CREATED = intPreferencesKey("stories_created")
         val DEFAULTS_VERSION = intPreferencesKey("defaults_version")
         val ACTIVE_CHILD_ID = stringPreferencesKey("active_child_id")
+        /** Minuto do dia; -1 = ritual desligado; ausente = padrão (19h30). */
+        val BEDTIME_START = intPreferencesKey("bedtime_start")
+        /** 0 = sem limite. */
+        val STORIES_PER_NIGHT = intPreferencesKey("stories_per_night")
+        val SLEEP_UNTIL = longPreferencesKey("sleep_until")
+        val STORY_ENDINGS = stringPreferencesKey("story_endings")
     }
 
     /**
@@ -182,10 +215,29 @@ class SettingsManager(private val context: Context) {
     /** Troca a criança cuja estante está aberta. */
     suspend fun setActiveChildId(childId: String) = edit { it[ACTIVE_CHILD_ID] = childId }
 
+    /** Horário em que começa a hora de dormir; null desliga o ritual. */
+    suspend fun setBedtimeStart(minutes: Int?) = edit { it[BEDTIME_START] = minutes ?: -1 }
+
+    /** Histórias por noite antes do boa-noite obrigatório; null = sem limite. */
+    suspend fun setStoriesPerNight(count: Int?) = edit { it[STORIES_PER_NIGHT] = count ?: 0 }
+
+    suspend fun setSleepUntil(epochMs: Long) = edit { it[SLEEP_UNTIL] = epochMs }
+
+    /** Registra que a criança terminou uma história (lido e gravado de uma vez só). */
+    suspend fun recordStoryEnding(childId: String, at: Long) = edit { prefs ->
+        prefs[STORY_ENDINGS] = appJson.encodeToString(Bedtime.withEnding(prefs.storyEndings(), childId, at))
+    }
+
     /** Registra uma história criada; [existingStories] cobre quem já tinha histórias antes do contador existir. */
     suspend fun registerStoryCreated(existingStories: Int) = edit {
         val current = it[STORIES_CREATED] ?: 0
         it[STORIES_CREATED] = maxOf(current, existingStories - 1) + 1
+    }
+
+    private fun Preferences.storyEndings(): Map<String, List<Long>> = try {
+        this[STORY_ENDINGS]?.let { appJson.decodeFromString<Map<String, List<Long>>>(it) } ?: emptyMap()
+    } catch (_: Exception) {
+        emptyMap()
     }
 
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
@@ -220,7 +272,17 @@ class SettingsManager(private val context: Context) {
             highlightReading = this[HIGHLIGHT_READING] ?: true,
             isPremium = this[IS_PREMIUM] ?: false,
             storiesCreated = this[STORIES_CREATED] ?: 0,
-            activeChildId = this[ACTIVE_CHILD_ID].orEmpty()
+            activeChildId = this[ACTIVE_CHILD_ID].orEmpty(),
+            bedtime = BedtimeSettings(
+                startMinutes = when (val start = this[BEDTIME_START]) {
+                    null -> Bedtime.DEFAULT_START_MINUTES
+                    -1 -> null
+                    else -> start
+                },
+                storiesPerNight = this[STORIES_PER_NIGHT]?.takeIf { it > 0 }
+            ),
+            sleepUntil = this[SLEEP_UNTIL] ?: 0L,
+            storyEndings = storyEndings()
         )
     }
 }

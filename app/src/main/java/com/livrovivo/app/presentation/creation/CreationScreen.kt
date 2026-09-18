@@ -69,6 +69,7 @@ import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.VoicePersona
+import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyGold
@@ -106,7 +107,10 @@ data class CreationUiState(
     val canCreateOffline: Boolean = false,
     val quotaExceeded: Boolean = false,
     /** Se a criança tem histórias para reler; com irmãos, a estante dela pode estar vazia. */
-    val shelfHasStories: Boolean = true
+    val shelfHasStories: Boolean = true,
+    /** Limite de histórias da noite atingido: em vez de criar, é hora do boa-noite. */
+    val bedtimeReached: Boolean = false,
+    val storiesTonight: Int = 0
 ) {
     val isCustom: Boolean get() = selectedThemeId == ThemeOption.CUSTOM_ID
     val canGenerate: Boolean get() = !isGenerating && (!isCustom || customTheme.trim().length >= 3)
@@ -135,13 +139,20 @@ class CreationViewModel(
     init {
         viewModelScope.launch {
             val settings = settingsManager.current()
+            val child = getActiveChildUseCase.getDirect()
             _uiState.update {
                 it.copy(
-                    child = getActiveChildUseCase.getDirect(),
-                    selectedPersona = VoicePersona.fromId(settings.defaultPersonaId)
+                    child = child,
+                    selectedPersona = VoicePersona.fromId(settings.defaultPersonaId),
+                    bedtimeReached = settings.bedtimeModeFor(child?.id) == BedtimeMode.REQUIRED,
+                    storiesTonight = settings.storiesTonightFor(child?.id)
                 )
             }
         }
+    }
+
+    fun dismissBedtime() {
+        _uiState.update { it.copy(bedtimeReached = false) }
     }
 
     fun selectTheme(themeId: String) {
@@ -221,7 +232,8 @@ fun CreationScreen(
     viewModel: CreationViewModel,
     onNavigateBack: () -> Unit,
     onStoryGenerated: (String) -> Unit,
-    onNavigateToPaywall: () -> Unit
+    onNavigateToPaywall: () -> Unit,
+    onGoodnight: (childId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showGate by remember { mutableStateOf(false) }
@@ -232,6 +244,33 @@ fun CreationScreen(
             viewModel.onNavigated()
             onStoryGenerated(id)
         }
+    }
+
+    // Os pais limitaram as histórias da noite e elas já foram: o convite é para o boa-noite.
+    val bedtimeChild = uiState.child
+    if (uiState.bedtimeReached && bedtimeChild != null) {
+        val tonight = if (uiState.storiesTonight == 1) "uma aventura" else "${uiState.storiesTonight} aventuras"
+        val companionName = MagicalCompanion.findById(bedtimeChild.companionId).name
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.dismissBedtime()
+                onNavigateBack()
+            },
+            title = { Text("Já é hora de dormir 🌙") },
+            text = { Text("Você já viveu $tonight hoje à noite. $companionName está com soninho… vamos dar boa-noite?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.dismissBedtime()
+                    onGoodnight(bedtimeChild.id)
+                }) { Text("Boa noite 🌙") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissBedtime()
+                    onNavigateBack()
+                }) { Text("Voltar") }
+            }
+        )
     }
 
     // Este diálogo fala com a criança, então não anuncia o Premium nem pede que ela convença

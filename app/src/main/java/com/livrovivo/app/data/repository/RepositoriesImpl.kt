@@ -118,6 +118,9 @@ class StoryRepositoryImpl(
         return storyWriter.continueStory(brief, storyWithChoice, choice)
             .onSuccess { chapter ->
                 val now = System.currentTimeMillis()
+                // Antes de gravar a página final: quando o leitor mostrar o fim, a contagem da
+                // noite já inclui esta história (e o card não pisca entre um modo e outro).
+                if (chapter.isEnding) settingsManager.recordStoryEnding(story.childId, now)
                 storyDao.insertChapters(listOf(chapter.toEntity(storyId)))
                 storyDao.updateLastRead(storyId, chapter.index, now)
                 if (chapter.isEnding) {

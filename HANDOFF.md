@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 106 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+- **Estado:** compila, 123 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
   validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
@@ -33,6 +33,15 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 ```
+
+**Testar sem mexer no emulador do usuário:** suba uma cópia descartável do mesmo AVD, sem janela.
+Tudo o que acontece nela é jogado fora ao fechar; os dados do usuário no AVD não mudam.
+```bash
+emulator -avd Medium_Phone_API_36.1 -read-only -no-window -no-audio -no-snapshot -port 5580
+adb -s emulator-5580 shell cmd alarm set-timezone Australia/Brisbane   # simula a noite (ritual de dormir)
+adb -s emulator-5580 shell settings put global sys_storage_threshold_percentage 1   # o AVD está quase cheio
+```
+Lembre de rodar `assembleDebug` antes de instalar — `testDebugUnitTest` não gera o APK.
 
 ⚠️ **O usuário costuma usar o app no emulador em paralelo.** Se a tela mudar sozinha (narrador trocado,
 página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o APK, porque o app reinicia.
@@ -59,6 +68,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
 | `domain/model/AdventureMemory.kt` | O que o companheiro lembra das aventuras anteriores (título, tema, escolhas) |
+| `core/bedtime/Bedtime.kt` | Regras da hora de dormir: janela que cruza a meia-noite, histórias da noite, hora de acordar |
+| `presentation/bedtime/` | Ritual (`BedtimeScreen`), o que é dito nele (`BedtimeScript`) e o modo dormindo (`SleepOverlay`) |
 | `presentation/home/CompanionGreeting.kt` | Saudação da Home: lembra uma escolha recente ou cumprimenta pela hora do dia |
 | `core/database/` | Room v3 + migração 2→3 que **preserva histórias antigas** |
 | `core/billing/BillingManager.kt` | Google Play Billing: conexão, planos, compra, confirmação e restauração |
@@ -145,6 +156,24 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
     convença um adulto (CDC, art. 37, §2º): leva a criança a descobrir outros finais, que não contam no
     limite, e deixa a oferta só atrás do portão. Se a estante dela estiver vazia (um irmão usou as
     histórias grátis), pede um adulto sem anunciar nada.
+13. **Ritual da hora de dormir.** Decisões que valem a pena não refazer:
+   - **A noite vai do horário dos pais (padrão 19h30, com opção "Desligado") até as 6h**, cruzando a
+     meia-noite: histórias antes e depois da meia-noite contam como a mesma noite.
+   - **Dois modos:** sem limite, o fim da história à noite só *oferece* o boa-noite em destaque; com
+     "histórias por noite", ao atingir o limite ele vira o *único* caminho (fim da história, botão da Home
+     e tela de criação).
+   - **O limite conta finais de história por criança** (inclui "Outro final"), guardados no DataStore
+     (`storyEndings`, últimos 10 por criança). O fim é gravado *antes* da página final, para o card não piscar.
+   - **Modo dormindo = `sleepUntil` no DataStore + sobreposição por cima do NavHost** (não no lugar dele),
+     para a navegação continuar válida. Bloqueia toques e o voltar, sobrevive a fechar o app, acorda sozinho
+     às 6h ou por um adulto no portão; ao acordar volta para a estante (não reabre o ritual).
+   - **A caixinha do ritual toca mesmo com a música de fundo desligada, sem mudar essa preferência**, e
+     some aos poucos 3 minutos depois do boa-noite. Sair no meio do ritual para fala e música.
+   - **O leitor não interrompe o ritual ao sair de cena** (a navegação o desmonta depois): falas do ritual
+     usam chaves `bedtime#` e `onReaderStopped()` as respeita.
+   - **Brilho baixo só na janela do app** no modo dormindo; a configuração do aparelho não é tocada.
+   - **O ritual segue o mesmo princípio de engajamento:** o companheiro está com sono, nunca triste nem
+     pedindo para a criança ficar; nada com concordância de gênero (há teste para as duas coisas).
 
 ---
 
@@ -160,7 +189,8 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
 | `3112bd4` | Versiona este `HANDOFF.md` |
 | `700c9ec` | Vários perfis de crianças (irmãos) |
 | `1248148` | Google Play Billing de verdade |
-| *(este)* | Memória do companheiro e diálogo do limite sem venda para a criança |
+| `deeab08` | Memória do companheiro e diálogo do limite sem venda para a criança |
+| *(este)* | Ritual da hora de dormir e modo dormindo |
 
 ⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
 do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
@@ -196,17 +226,18 @@ Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige fa
 Princípio adotado: a retenção vem de **ritual** (os pais abrem toda noite porque funciona) e de
 **antecipação** (a criança pede a próxima história) — nunca de culpa, sequência que zera, recompensa
 aleatória ligada a pagamento ou história emendada sozinha. Quem paga são os pais, e o uso principal é
-na hora de dormir. Já feito: memória do companheiro e o diálogo do limite. Na fila, em ordem:
-1. **Ritual de fim de noite.** À noite, o card de fim hoje destaca "Nova aventura". Trocar por um
-   encerramento (companheiro bocejando, respiração, tela escurecendo, caixinha de música, "Boa noite")
-   e uma opção dos pais de "histórias por noite".
-2. **Álbum de figurinhas por criança:** personagens e lugares das ilustrações, mais os selos de virtude,
+na hora de dormir. Já feito: memória do companheiro, diálogo do limite e ritual de dormir (testado no
+emulador: oferta, ritual, modo dormindo, voltar/toques bloqueados, acordar pelo portão, limite por noite).
+Na fila, em ordem:
+1. **Álbum de figurinhas por criança:** personagens e lugares das ilustrações, mais os selos de virtude,
    que hoje só aparecem no card de fim. Ganha-se lendo, nunca comprando nem por sorteio.
-3. **Som ambiente pelo `mood`** de cada página (hoje ele só orienta a voz do Gemini e a ilustração).
-4. Depois: páginas que reagem ao toque, aventura dos irmãos, coautoria por voz (só com reconhecimento
+2. **Som ambiente pelo `mood`** de cada página (hoje ele só orienta a voz do Gemini e a ilustração).
+3. Depois: páginas que reagem ao toque, aventura dos irmãos, coautoria por voz (só com reconhecimento
    no aparelho e consentimento dos pais — LGPD, art. 14), datas especiais e boletim semanal para os pais.
 - Detalhe de UX: a criança só descobre o limite gratuito depois de escolher o tema na criação; dá para
-  checar ao abrir a tela.
+  checar ao abrir a tela (o limite da noite já é checado ao abrir).
+- Não verificado no aparelho: a voz das falas do ritual (o emulador de teste roda sem áudio) e o acordar
+  sozinho às 6h (coberto por teste unitário da regra de horário).
 
 ### 6.5. Outras pendências
 - **Sem validação no servidor das compras:** o app confia no Google Play do aparelho. Para barrar
@@ -228,7 +259,7 @@ na hora de dormir. Já feito: memória do companheiro e o diálogo do limite. Na
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
-> Minha prioridade agora é: [ex.: o ritual de fim de noite / cadastrar as assinaturas no Play Console /
+> Minha prioridade agora é: [ex.: o álbum de figurinhas / cadastrar as assinaturas no Play Console /
 > medir o tempo da narração].
 
 ---

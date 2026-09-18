@@ -18,6 +18,7 @@
 - **Personalização** – nome, idade, gênero (para a concordância no texto), aparência (para as ilustrações), companheiro mágico e interesses.
 - **Um perfil por criança** – irmãos têm cada um a própria estante, métricas e personalização. O chip no topo da tela troca de criança; cadastrar, editar e apagar perfis fica na Área dos Pais. O limite do plano gratuito continua sendo do aparelho, então cadastrar irmãos não multiplica as histórias grátis.
 - **Música de ninar** – caixinha de música sintetizada ("Brilha, Brilha, Estrelinha"), que abaixa sozinha enquanto o narrador fala.
+- **Ritual da hora de dormir** – à noite, o fim da história convida para um boa-noite: o companheiro boceja, a criança respira três vezes com ele (um círculo guia quem ainda não lê), vem o "Boa noite" e a caixinha de música. Depois disso o app dorme até as 6h — só um adulto acorda antes. Os pais escolhem o horário e quantas histórias cabem na noite.
 - **Área dos Pais** (protegida por conta de multiplicação por extenso) – tempo de leitura, páginas, virtudes escolhidas, palavras novas e sugestão de conversa pós-história (tudo da criança em foco), gestão dos perfis e configurações de IA com botões de teste.
 - **Modo offline completo** – histórias escritas à mão para 8 temas e para temas livres, com final que celebra as virtudes escolhidas.
 - **Assinatura pelo Google Play** – planos, preços e teste grátis vêm do Play (nada de preço escrito no app), com compra, confirmação e restauração automática em outro aparelho. O plano gratuito dá 3 histórias.

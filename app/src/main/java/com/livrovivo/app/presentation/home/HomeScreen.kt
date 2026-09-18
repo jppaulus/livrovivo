@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
@@ -65,9 +66,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.livrovivo.app.core.bedtime.BedtimeMode
+import com.livrovivo.app.core.bedtime.minuteTicks
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyGold
+import com.livrovivo.app.core.theme.FairyNightSurface
 import com.livrovivo.app.core.theme.FairyPurple
 import com.livrovivo.app.core.ui.BouncyCardButton
 import com.livrovivo.app.core.ui.ActiveChildChip
@@ -138,6 +142,14 @@ class HomeViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
+    /** Modo da noite da criança ativa: muda com o relógio e quando uma história termina. */
+    val bedtimeMode: StateFlow<BedtimeMode> = combine(
+        settingsManager.settingsFlow,
+        getActiveChildUseCase(),
+        minuteTicks()
+    ) { settings, child, _ -> settings.bedtimeModeFor(child?.id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BedtimeMode.OFF)
+
     /** Abre a estante de outro irmão; as histórias e o limite se atualizam sozinhos. */
     fun switchChild(childId: String) {
         viewModelScope.launch { switchChildUseCase(childId) }
@@ -166,9 +178,11 @@ fun HomeScreen(
     onNavigateToCreation: () -> Unit,
     onNavigateToReader: (String) -> Unit,
     onNavigateToParentArea: () -> Unit,
-    onNavigateToEditProfile: () -> Unit
+    onNavigateToEditProfile: () -> Unit,
+    onGoodnight: (childId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val bedtimeMode by viewModel.bedtimeMode.collectAsState()
     var showParentalGate by remember { mutableStateOf(false) }
     var showChildSwitcher by remember { mutableStateOf(false) }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
@@ -259,19 +273,25 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
+            // Com o limite da noite atingido, "mais uma" dá lugar ao boa-noite.
+            val windDown = bedtimeMode == BedtimeMode.REQUIRED && child != null
             BouncyCardButton(
-                onClick = onNavigateToCreation,
-                containerColor = MaterialTheme.colorScheme.primary,
+                onClick = { if (windDown) child?.let { onGoodnight(it.id) } else onNavigateToCreation() },
+                containerColor = if (windDown) FairyNightSurface else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 22.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = FairyGold)
+                    Icon(
+                        imageVector = if (windDown) Icons.Default.Bedtime else Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = FairyGold
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Nova aventura",
+                        text = if (windDown) "Boa noite" else "Nova aventura",
                         style = MaterialTheme.typography.labelLarge,
                         fontSize = 18.sp,
                         color = Color.White
@@ -299,12 +319,16 @@ fun HomeScreen(
                     CompanionGreetingCard(
                         companion = companion,
                         childName = childName,
-                        speechText = CompanionGreeting.forHome(
-                            hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
-                            companion = companion,
-                            memory = lastAdventure,
-                            now = System.currentTimeMillis()
-                        ),
+                        speechText = if (bedtimeMode == BedtimeMode.REQUIRED) {
+                            CompanionGreeting.WIND_DOWN
+                        } else {
+                            CompanionGreeting.forHome(
+                                hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+                                companion = companion,
+                                memory = lastAdventure,
+                                now = System.currentTimeMillis()
+                            )
+                        },
                         onClick = onNavigateToEditProfile
                     )
                 }

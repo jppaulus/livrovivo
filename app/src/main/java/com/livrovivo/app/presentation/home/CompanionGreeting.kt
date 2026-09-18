@@ -13,6 +13,10 @@ import com.livrovivo.app.domain.model.Virtue
  */
 object CompanionGreeting {
 
+    /** Quando as histórias da noite acabaram: convite ao boa-noite, com sono e sem culpa. */
+    const val WIND_DOWN =
+        "Boa noite! Que aventura boa foi hoje. Agora estou com soninho… vamos dar boa-noite juntinhos?"
+
     /** Depois disso a lembrança já não é "de ontem", e a saudação volta a ser a da hora do dia. */
     const val MEMORY_WINDOW_MS = 3 * 24 * 60 * 60 * 1000L
 

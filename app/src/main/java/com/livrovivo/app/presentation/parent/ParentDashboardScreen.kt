@@ -35,6 +35,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +67,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.settings.AppSettings
+import com.livrovivo.app.core.bedtime.Bedtime
+import com.livrovivo.app.core.bedtime.BedtimeSettings
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyEmerald
 import com.livrovivo.app.core.ui.ChildAvatar
@@ -184,6 +187,22 @@ class ParentDashboardViewModel(
 
     fun refresh() {
         viewModelScope.launch { refreshNow() }
+    }
+
+    /** Horário em que começa a hora de dormir; null desliga o ritual. */
+    fun setBedtimeStart(minutes: Int?) {
+        viewModelScope.launch {
+            settingsManager.setBedtimeStart(minutes)
+            refreshNow()
+        }
+    }
+
+    /** Histórias por noite antes do boa-noite obrigatório; null = sem limite. */
+    fun setStoriesPerNight(count: Int?) {
+        viewModelScope.launch {
+            settingsManager.setStoriesPerNight(count)
+            refreshNow()
+        }
     }
 
     private suspend fun refreshNow() {
@@ -515,6 +534,17 @@ fun ParentDashboardScreen(
                 }
             }
 
+            SectionHeader(
+                title = "Hora de dormir 🌙",
+                subtitle = "No fim de cada história à noite, o Livro Vivo convida para um boa-noite com " +
+                    "respiração e música. Depois dele, o app dorme até as 6h — só um adulto acorda antes."
+            )
+            BedtimeCard(
+                bedtime = uiState.settings.bedtime,
+                onStartChange = viewModel::setBedtimeStart,
+                onStoriesChange = viewModel::setStoriesPerNight
+            )
+
             SectionHeader(title = "Configurações")
             NavigationCard(
                 emoji = "🪄",
@@ -569,6 +599,61 @@ private fun NavigationCard(emoji: String, title: String, subtitle: String, onCli
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/** Escolha dos pais: quando começa a hora de dormir e quantas histórias cabem na noite. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BedtimeCard(
+    bedtime: BedtimeSettings,
+    onStartChange: (Int?) -> Unit,
+    onStoriesChange: (Int?) -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Começa às", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilterChip(
+                    selected = bedtime.startMinutes == null,
+                    onClick = { onStartChange(null) },
+                    label = { Text("Desligado") }
+                )
+                Bedtime.START_OPTIONS.forEach { minutes ->
+                    FilterChip(
+                        selected = bedtime.startMinutes == minutes,
+                        onClick = { onStartChange(minutes) },
+                        label = { Text(Bedtime.label(minutes)) }
+                    )
+                }
+            }
+
+            if (bedtime.isEnabled) {
+                Text("Histórias por noite", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Bedtime.STORIES_OPTIONS.forEach { count ->
+                        FilterChip(
+                            selected = bedtime.storiesPerNight == count,
+                            onClick = { onStoriesChange(count) },
+                            label = { Text(count?.toString() ?: "Sem limite") }
+                        )
+                    }
+                }
+                Text(
+                    text = when (val limit = bedtime.storiesPerNight) {
+                        null -> "Sem limite, o boa-noite aparece em destaque, mas a criança ainda pode escolher outra história."
+                        1 -> "Depois de 1 história na hora de dormir, o boa-noite é o único caminho."
+                        else -> "Depois de $limit histórias na hora de dormir, o boa-noite é o único caminho."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }

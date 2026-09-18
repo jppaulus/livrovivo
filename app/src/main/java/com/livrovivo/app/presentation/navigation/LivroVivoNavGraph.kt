@@ -2,6 +2,7 @@ package com.livrovivo.app.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,8 +10,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -22,10 +28,15 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.ui.CompanionAvatar
+import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.presentation.bedtime.BedtimeScreen
+import com.livrovivo.app.presentation.bedtime.BedtimeViewModel
+import com.livrovivo.app.presentation.bedtime.SleepOverlay
 import com.livrovivo.app.presentation.creation.CreationScreen
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeScreen
@@ -41,9 +52,12 @@ import com.livrovivo.app.presentation.reader.ReaderScreen
 import com.livrovivo.app.presentation.reader.ReaderViewModel
 import com.livrovivo.app.presentation.settings.SettingsScreen
 import com.livrovivo.app.presentation.settings.SettingsViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -51,20 +65,45 @@ import org.koin.core.parameter.parametersOf
 /**
  * Decide a tela inicial uma única vez, depois de ler o perfil salvo
  * (evita "piscar" o onboarding e não troca o grafo de navegação depois).
+ * Também sabe se o app está "dormindo" depois do boa-noite.
  */
 class AppStartViewModel(
     getActiveChildUseCase: GetActiveChildUseCase,
-    settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val audioPlayerController: AudioPlayerController
 ) : ViewModel() {
     private val _startDestination = MutableStateFlow<String?>(null)
     val startDestination: StateFlow<String?> = _startDestination.asStateFlow()
 
+    private val _sleepUntil = MutableStateFlow(0L)
+
+    /** Até quando o app dorme (epoch ms); 0 = acordado. */
+    val sleepUntil: StateFlow<Long> = _sleepUntil.asStateFlow()
+
+    val activeChild: StateFlow<ChildProfile?> =
+        getActiveChildUseCase().stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     init {
         viewModelScope.launch {
             settingsManager.applyPendingDefaults()
+            // Lido antes de liberar a tela inicial: quem abre o app de madrugada já cai no modo dormir.
+            _sleepUntil.value = settingsManager.current().sleepUntil
             val child = getActiveChildUseCase.getDirect()
             _startDestination.value = if (child != null) Screen.Home.route else Screen.Onboarding.route
+            settingsManager.settingsFlow.collect { _sleepUntil.value = it.sleepUntil }
         }
+    }
+
+    /** Um adulto acordou o app pelo portão parental. */
+    fun wake() {
+        audioPlayerController.stop()
+        audioPlayerController.stopBedtimeMusic()
+        viewModelScope.launch { settingsManager.setSleepUntil(0L) }
+    }
+
+    /** O app acordou sozinho de manhã: a caixinha já tinha parado, mas garante o silêncio. */
+    fun onWokeUp() {
+        audioPlayerController.stopBedtimeMusic()
     }
 }
 
@@ -78,6 +117,48 @@ fun LivroVivoNavGraph(
     if (start == null) {
         SplashContent()
         return
+    }
+
+    val sleepUntil by startViewModel.sleepUntil.collectAsState()
+    val activeChild by startViewModel.activeChild.collectAsState()
+    // O relógio anda enquanto o app dorme, para ele acordar sozinho às 6h mesmo aberto.
+    val now by produceState(System.currentTimeMillis(), sleepUntil) {
+        while (true) {
+            value = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val sleeping = sleepUntil > now
+
+    // Ao acordar (adulto ou manhã), volta para a estante em vez de reabrir a tela do ritual.
+    var wasSleeping by remember { mutableStateOf(false) }
+    LaunchedEffect(sleeping) {
+        if (wasSleeping && !sleeping) {
+            startViewModel.onWokeUp()
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+            }
+        }
+        wasSleeping = sleeping
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AppNavHost(navController = navController, start = start)
+
+        // Por cima de tudo, sem desmontar as telas: a navegação continua válida por baixo.
+        if (sleeping) {
+            SleepOverlay(child = activeChild, onWake = startViewModel::wake)
+        }
+    }
+}
+
+@Composable
+private fun AppNavHost(
+    navController: NavHostController,
+    start: String
+) {
+    val goodnight: (String) -> Unit = { childId ->
+        navController.navigate(Screen.Bedtime.createRoute(childId)) { launchSingleTop = true }
     }
 
     NavHost(
@@ -124,7 +205,8 @@ fun LivroVivoNavGraph(
                 onNavigateToCreation = { navController.navigate(Screen.Creation.route) },
                 onNavigateToReader = { storyId -> navController.navigate(Screen.Reader.createRoute(storyId)) },
                 onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) },
-                onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) }
+                onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) },
+                onGoodnight = goodnight
             )
         }
 
@@ -158,7 +240,12 @@ fun LivroVivoNavGraph(
                         popUpTo(Screen.Creation.route) { inclusive = true }
                     }
                 },
-                onNavigateToPaywall = { navController.navigate(Screen.Paywall.route) }
+                onNavigateToPaywall = { navController.navigate(Screen.Paywall.route) },
+                onGoodnight = { childId ->
+                    navController.navigate(Screen.Bedtime.createRoute(childId)) {
+                        popUpTo(Screen.Home.route)
+                    }
+                }
             )
         }
 
@@ -175,8 +262,18 @@ fun LivroVivoNavGraph(
                     navController.navigate(Screen.Creation.route) {
                         popUpTo(Screen.Home.route)
                     }
-                }
+                },
+                onGoodnight = goodnight
             )
+        }
+
+        composable(
+            route = Screen.Bedtime.route,
+            arguments = listOf(navArgument("childId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val childId = backStackEntry.arguments?.getString("childId").orEmpty()
+            val viewModel: BedtimeViewModel = koinViewModel(parameters = { parametersOf(childId) })
+            BedtimeScreen(viewModel = viewModel)
         }
 
         composable(Screen.Paywall.route) {

@@ -12,6 +12,11 @@ sealed class Screen(val route: String) {
         fun createRoute(storyId: String): String = "reader/$storyId"
     }
     data object Paywall : Screen("paywall")
+
+    /** Ritual de dormir da criança [childId]. */
+    data object Bedtime : Screen("bedtime/{childId}") {
+        fun createRoute(childId: String): String = "bedtime/$childId"
+    }
     data object ParentDashboard : Screen("parent_dashboard")
     data object Settings : Screen("settings")
 }

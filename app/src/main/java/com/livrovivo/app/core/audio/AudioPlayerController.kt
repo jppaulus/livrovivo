@@ -67,10 +67,13 @@ class AudioPlayerController(
     private val geminiEngine: GeminiNarrationEngine,
     private val deviceEngine: DeviceNarrationEngine
 ) {
-    private companion object {
-        const val MAX_CACHE_BYTES = 300L * 1024 * 1024
-        const val DUCKED_VOLUME = 0.18f
-        const val AMBIENT_VOLUME = 0.5f
+    companion object {
+        /** Falas do ritual de dormir usam chaves com este prefixo. */
+        const val BEDTIME_KEY_PREFIX = "bedtime#"
+
+        private const val MAX_CACHE_BYTES = 300L * 1024 * 1024
+        private const val DUCKED_VOLUME = 0.18f
+        private const val AMBIENT_VOLUME = 0.5f
     }
 
     private data class LoadParams(
@@ -471,9 +474,48 @@ class AudioPlayerController(
         scope.launch { deviceEngine.prewarm() }
     }
 
-    /** Chamado ao sair do leitor. */
+    /**
+     * Chamado ao sair do leitor. A navegação desmonta o leitor depois que a tela seguinte já
+     * começou, então o ritual de dormir pode estar tocando: nesse caso ele não é interrompido.
+     */
     fun onReaderStopped() {
-        stop()
+        if (currentParams?.key?.startsWith(BEDTIME_KEY_PREFIX) != true) stop()
+        if (!bedtimeMusic) stopAmbient()
+    }
+
+    // --- Ritual de dormir --------------------------------------------------------------------------
+
+    /** A caixinha toca no ritual mesmo com a música de fundo desligada, sem mudar a preferência. */
+    private var bedtimeMusic = false
+    private var bedtimeFadeJob: Job? = null
+
+    fun startBedtimeMusic() {
+        bedtimeMusic = true
+        bedtimeFadeJob?.cancel()
+        startAmbient()
+    }
+
+    /** Deixa a caixinha tocar por [holdMs], abaixa até o silêncio em [fadeMs] e desliga. */
+    fun fadeOutBedtimeMusic(holdMs: Long, fadeMs: Long) {
+        bedtimeFadeJob?.cancel()
+        bedtimeFadeJob = scope.launch {
+            delay(holdMs)
+            val steps = 30
+            repeat(steps) { step ->
+                try {
+                    ambientTrack?.setVolume(AMBIENT_VOLUME * (1f - (step + 1f) / steps))
+                } catch (_: Exception) {
+                }
+                delay(fadeMs / steps)
+            }
+            stopBedtimeMusic()
+        }
+    }
+
+    fun stopBedtimeMusic() {
+        bedtimeFadeJob?.cancel()
+        bedtimeFadeJob = null
+        bedtimeMusic = false
         stopAmbient()
     }
 
@@ -565,7 +607,7 @@ class AudioPlayerController(
         }
         ambientJob = scope.launch {
             val pcm = lullabyPcm ?: withContext(Dispatchers.Default) { LullabySynth.render() }.also { lullabyPcm = it }
-            if (!_playbackState.value.isAmbientSoundEnabled) return@launch
+            if (!_playbackState.value.isAmbientSoundEnabled && !bedtimeMusic) return@launch
             try {
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(

@@ -81,8 +81,10 @@ import androidx.compose.ui.unit.sp
 import com.livrovivo.app.core.audio.NarrationStatus
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
+import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.theme.FairyEmerald
 import com.livrovivo.app.core.theme.FairyGold
+import com.livrovivo.app.core.theme.FairyNightSurface
 import com.livrovivo.app.core.theme.FairyPurple
 import com.livrovivo.app.core.ui.BouncyCardButton
 import com.livrovivo.app.core.ui.CompanionAvatar
@@ -102,7 +104,8 @@ import kotlinx.coroutines.delay
 fun ReaderScreen(
     viewModel: ReaderViewModel,
     onNavigateBack: () -> Unit,
-    onNewStory: () -> Unit
+    onNewStory: () -> Unit,
+    onGoodnight: (childId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var rewindTarget by remember { mutableStateOf<Int?>(null) }
@@ -243,7 +246,8 @@ fun ReaderScreen(
                             onRestart = viewModel::restartStory,
                             onNewStory = onNewStory,
                             onShelf = onNavigateBack,
-                            onRetryIllustration = viewModel::retryIllustration
+                            onRetryIllustration = viewModel::retryIllustration,
+                            onGoodnight = { uiState.story?.childId?.let(onGoodnight) }
                         )
                     }
                 }
@@ -274,7 +278,8 @@ private fun PageContent(
     onRestart: () -> Unit,
     onNewStory: () -> Unit,
     onShelf: () -> Unit,
-    onRetryIllustration: () -> Unit
+    onRetryIllustration: () -> Unit,
+    onGoodnight: () -> Unit
 ) {
     val isCurrentNarration = uiState.narration.chapterKey?.startsWith("${uiState.story?.id}#${chapter.index}#") == true
     val status = uiState.illustrationStatus[chapter.index]
@@ -345,7 +350,8 @@ private fun PageContent(
                 onRestart = onRestart,
                 onChooseAnother = { onChooseAnother((chapter.index - 1).coerceAtLeast(1)) },
                 onNewStory = onNewStory,
-                onShelf = onShelf
+                onShelf = onShelf,
+                onGoodnight = onGoodnight
             )
 
             !uiState.isLatestPage -> PathChosenCard(
@@ -538,9 +544,20 @@ private fun EndingCard(
     onRestart: () -> Unit,
     onChooseAnother: () -> Unit,
     onNewStory: () -> Unit,
-    onShelf: () -> Unit
+    onShelf: () -> Unit,
+    onGoodnight: () -> Unit
 ) {
     val virtues = uiState.story?.chosenVirtues.orEmpty()
+    val mode = uiState.bedtimeMode
+    val atNight = mode != BedtimeMode.OFF
+    val closing = when (mode) {
+        BedtimeMode.OFF -> "Que tal descobrir o que aconteceria com outra escolha?"
+        BedtimeMode.OFFER -> "Já está ficando tarde… que tal dar boa-noite?"
+        BedtimeMode.REQUIRED -> {
+            val tonight = if (uiState.storiesTonight == 1) "uma aventura" else "${uiState.storiesTonight} aventuras"
+            "Você já viveu $tonight hoje à noite. Agora ${uiState.companion.name} está com soninho…"
+        }
+    }
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -552,16 +569,16 @@ private fun EndingCard(
                 .padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "👑✨🎉", fontSize = 40.sp)
+            Text(text = if (atNight) "🌙✨" else "👑✨🎉", fontSize = 40.sp)
             Text(
-                text = "Fim desta aventura!",
+                text = if (mode == BedtimeMode.REQUIRED) "Hora de dormir!" else "Fim desta aventura!",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "Foram as escolhas de ${uiState.childName} que criaram este final. Que tal descobrir o que aconteceria com outra escolha?",
+                text = "Foram as escolhas de ${uiState.childName} que criaram este final. $closing",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
@@ -585,18 +602,36 @@ private fun EndingCard(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
+            if (atNight) {
+                // À noite o boa-noite é o convite principal; com o limite atingido, o único.
+                Button(
+                    onClick = onGoodnight,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FairyNightSurface, contentColor = Color.White)
+                ) { Text("Boa noite 🌙", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+                if (mode == BedtimeMode.REQUIRED) return@Column
+                Spacer(modifier = Modifier.height(10.dp))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = onRestart, modifier = Modifier.weight(1f)) { Text("Ler do começo") }
                 OutlinedButton(onClick = onChooseAnother, modifier = Modifier.weight(1f)) { Text("Outro final") }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = onNewStory,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = FairyEmerald)
-                ) { Text("Nova aventura") }
-                Button(onClick = onShelf, modifier = Modifier.weight(1f)) { Text("Minha estante") }
+                if (atNight) {
+                    // "Mais uma" continua possível, só sem o destaque que teria de dia.
+                    OutlinedButton(onClick = onNewStory, modifier = Modifier.weight(1f)) { Text("Nova aventura") }
+                    OutlinedButton(onClick = onShelf, modifier = Modifier.weight(1f)) { Text("Minha estante") }
+                } else {
+                    Button(
+                        onClick = onNewStory,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = FairyEmerald)
+                    ) { Text("Nova aventura") }
+                    Button(onClick = onShelf, modifier = Modifier.weight(1f)) { Text("Minha estante") }
+                }
             }
         }
     }

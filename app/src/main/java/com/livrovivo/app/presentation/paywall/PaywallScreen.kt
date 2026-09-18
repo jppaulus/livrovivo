@@ -1,8 +1,6 @@
 package com.livrovivo.app.presentation.paywall
 
 import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +57,7 @@ import com.livrovivo.app.core.billing.BillingManager
 import com.livrovivo.app.core.billing.BillingStatus
 import com.livrovivo.app.core.billing.SubscriptionPlan
 import com.livrovivo.app.core.settings.SettingsManager
+import com.livrovivo.app.core.ui.findActivity
 import com.livrovivo.app.domain.repository.BillingRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -463,14 +462,4 @@ private fun SubscriptionPlanCard(
             )
         }
     }
-}
-
-/** A Activity que hospeda esta tela; o Google Play precisa dela para abrir a compra. */
-private fun Context.findActivity(): Activity? {
-    var current = this
-    while (current is ContextWrapper) {
-        if (current is Activity) return current
-        current = current.baseContext
-    }
-    return null
 }

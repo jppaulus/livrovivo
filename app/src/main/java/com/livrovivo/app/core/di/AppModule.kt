@@ -36,6 +36,7 @@ import com.livrovivo.app.domain.usecase.IllustrateChapterUseCase
 import com.livrovivo.app.domain.usecase.RewindStoryUseCase
 import com.livrovivo.app.domain.usecase.SaveChildProfileUseCase
 import com.livrovivo.app.domain.usecase.SwitchChildUseCase
+import com.livrovivo.app.presentation.bedtime.BedtimeViewModel
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeViewModel
 import com.livrovivo.app.presentation.navigation.AppStartViewModel
@@ -97,7 +98,7 @@ val appModule = module {
     factory { GetParentInsightsUseCase(get(), get()) }
 
     // ViewModels
-    viewModel { AppStartViewModel(get(), get()) }
+    viewModel { AppStartViewModel(get(), get(), get()) }
     viewModel { (mode: OnboardingMode) -> OnboardingViewModel(get(), get(), mode) }
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
     viewModel { CreationViewModel(get(), get(), get(), get(), get()) }
@@ -105,6 +106,7 @@ val appModule = module {
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     viewModel { PaywallViewModel(get(), get(), get()) }
+    viewModel { (childId: String) -> BedtimeViewModel(childId, get(), get(), get(), get()) }
     viewModel {
         ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
     }

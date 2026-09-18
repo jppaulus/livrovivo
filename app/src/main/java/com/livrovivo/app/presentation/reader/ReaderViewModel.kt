@@ -6,6 +6,8 @@ import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
+import com.livrovivo.app.core.bedtime.BedtimeMode
+import com.livrovivo.app.core.bedtime.minuteTicks
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
@@ -27,6 +29,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -46,7 +49,10 @@ data class ReaderUiState(
     val canRetry: Boolean = false,
     val highlightReading: Boolean = true,
     val showCelebration: Boolean = false,
-    val narration: PlaybackState = PlaybackState()
+    val narration: PlaybackState = PlaybackState(),
+    /** Na hora de dormir, o fim da história convida para o boa-noite (ou só permite ele). */
+    val bedtimeMode: BedtimeMode = BedtimeMode.OFF,
+    val storiesTonight: Int = 0
 ) {
     val chapters: List<Chapter> get() = story?.sortedChapters.orEmpty()
     val currentChapter: Chapter? get() = chapters.find { it.index == pageIndex }
@@ -86,6 +92,26 @@ class ReaderViewModel(
         // O início/fim do áudio acompanha a tela (DisposableEffect em ReaderScreen).
         observeNarration()
         observeStory()
+        observeBedtime()
+    }
+
+    /**
+     * Modo da noite para a criança dona da história. Recalcula quando uma história termina
+     * (a contagem muda) e a cada minuto (a hora de dormir pode começar com o leitor aberto).
+     */
+    private fun observeBedtime() {
+        viewModelScope.launch {
+            val childId = getStoryByIdUseCase(storyId)?.childId ?: return@launch
+            combine(settingsManager.settingsFlow, minuteTicks()) { settings, _ -> settings }
+                .collect { settings ->
+                    _uiState.update {
+                        it.copy(
+                            bedtimeMode = settings.bedtimeModeFor(childId),
+                            storiesTonight = settings.storiesTonightFor(childId)
+                        )
+                    }
+                }
+        }
     }
 
     private fun observeStory() {
