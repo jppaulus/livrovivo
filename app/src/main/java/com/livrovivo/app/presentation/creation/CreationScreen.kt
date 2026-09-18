@@ -84,11 +84,13 @@ import com.livrovivo.app.domain.model.SceneKind
 import com.livrovivo.app.domain.model.ThemeOption
 import com.livrovivo.app.domain.usecase.GenerateStoryUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
+import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.QuotaExceededException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -102,7 +104,9 @@ data class CreationUiState(
     val generatedStoryId: String? = null,
     val errorMessage: String? = null,
     val canCreateOffline: Boolean = false,
-    val quotaExceeded: Boolean = false
+    val quotaExceeded: Boolean = false,
+    /** Se a criança tem histórias para reler; com irmãos, a estante dela pode estar vazia. */
+    val shelfHasStories: Boolean = true
 ) {
     val isCustom: Boolean get() = selectedThemeId == ThemeOption.CUSTOM_ID
     val canGenerate: Boolean get() = !isGenerating && (!isCustom || customTheme.trim().length >= 3)
@@ -111,6 +115,7 @@ data class CreationUiState(
 class CreationViewModel(
     private val generateStoryUseCase: GenerateStoryUseCase,
     private val getActiveChildUseCase: GetActiveChildUseCase,
+    private val getStoriesUseCase: GetStoriesUseCase,
     private val settingsManager: SettingsManager,
     private val audioPlayerController: AudioPlayerController
 ) : ViewModel() {
@@ -180,9 +185,15 @@ class CreationViewModel(
                 // Mantém isGenerating = true até sair da tela: evita criar uma segunda história com um toque extra.
                 _uiState.update { it.copy(generatedStoryId = story.id) }
             }.onFailure { error ->
+                val shelfHasStories = error !is QuotaExceededException ||
+                    getStoriesUseCase().first().isNotEmpty()
                 _uiState.update {
                     when (error) {
-                        is QuotaExceededException -> it.copy(isGenerating = false, quotaExceeded = true)
+                        is QuotaExceededException -> it.copy(
+                            isGenerating = false,
+                            quotaExceeded = true,
+                            shelfHasStories = shelfHasStories
+                        )
                         is AiException -> it.copy(
                             isGenerating = false,
                             errorMessage = error.friendlyMessage,
@@ -223,19 +234,51 @@ fun CreationScreen(
         }
     }
 
+    // Este diálogo fala com a criança, então não anuncia o Premium nem pede que ela convença
+    // um adulto a comprar: publicidade dirigida à criança é abusiva (CDC, art. 37, §2º).
+    // Ela é levada ao que ainda pode fazer — descobrir outros finais, que não contam no
+    // limite — e a oferta fica só atrás do portão, na Área dos Pais.
     if (uiState.quotaExceeded) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissQuota,
-            title = { Text("As histórias grátis acabaram 📚") },
-            text = { Text("Chame um adulto para conhecer o Livro Vivo Premium e criar histórias ilimitadas.") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.dismissQuota()
-                    showGate = true
-                }) { Text("Área dos pais") }
-            },
-            dismissButton = { TextButton(onClick = viewModel::dismissQuota) { Text("Agora não") } }
-        )
+        if (uiState.shelfHasStories) {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissQuota,
+                title = { Text("Que tal descobrir outro final? ✨") },
+                text = {
+                    Text(
+                        "Você já criou todas as histórias novas por enquanto. Mas cada aventura da " +
+                            "sua estante esconde outros finais: abra uma e descubra o que acontece " +
+                            "com outra escolha!"
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        viewModel.dismissQuota()
+                        onNavigateBack()
+                    }) { Text("Ir para a estante") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        viewModel.dismissQuota()
+                        showGate = true
+                    }) { Text("Área dos pais 🔒") }
+                }
+            )
+        } else {
+            // Estante vazia (um irmão usou as histórias grátis): não há o que reler,
+            // então só resta um adulto — dito sem anunciar nada.
+            AlertDialog(
+                onDismissRequest = viewModel::dismissQuota,
+                title = { Text("Hora de chamar um adulto 🔒") },
+                text = { Text("Para criar uma história nova agora, peça ajuda a um adulto.") },
+                confirmButton = {
+                    Button(onClick = {
+                        viewModel.dismissQuota()
+                        showGate = true
+                    }) { Text("Área dos pais") }
+                },
+                dismissButton = { TextButton(onClick = viewModel::dismissQuota) { Text("Voltar") } }
+            )
+        }
     }
 
     if (showGate) {

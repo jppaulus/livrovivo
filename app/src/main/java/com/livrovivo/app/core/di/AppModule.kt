@@ -100,7 +100,7 @@ val appModule = module {
     viewModel { AppStartViewModel(get(), get()) }
     viewModel { (mode: OnboardingMode) -> OnboardingViewModel(get(), get(), mode) }
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
-    viewModel { CreationViewModel(get(), get(), get(), get()) }
+    viewModel { CreationViewModel(get(), get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }

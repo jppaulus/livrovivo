@@ -7,6 +7,7 @@
 ## ✨ O que o app faz
 
 - **Histórias que se constroem com as escolhas** – cada página termina com duas escolhas (cada uma ligada a uma virtude: coragem, empatia, criatividade, curiosidade, calma ou cooperação). A IA escreve a próxima página a partir do que a criança decidiu, seguindo um arco completo (início → desafios → clímax → final acolhedor). Dá para **voltar a qualquer página e escolher outro caminho**.
+- **Um companheiro que lembra** – o companheiro mágico lembra das escolhas da criança em aventuras anteriores e comenta na abertura da próxima história e na tela inicial (também no modo offline). Só com carinho: ele nunca diz que sentiu falta ou que a criança sumiu.
 - **Narradores com voz natural** – quatro personagens (Capitão Aventura, que é o padrão, Fada Encantada, Ursinho Gentil e Vovó Contadora) com direção de atuação: sussurros, risadinhas e suspense. A página é narrada em partes: a primeira sai em poucos segundos e o resto é gerado enquanto a criança já está ouvindo. Motores de voz, do melhor para o offline:
   1. **ElevenLabs** (`eleven_v3`, com marcações de emoção como `[whispers]` e `[giggles]`);
   2. **Gemini TTS** (vozes neurais controladas por prompt, com a mesma chave da IA);

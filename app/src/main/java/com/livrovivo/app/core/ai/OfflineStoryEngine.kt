@@ -1,5 +1,6 @@
 package com.livrovivo.app.core.ai
 
+import com.livrovivo.app.domain.model.AdventureMemory
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildGender
@@ -24,14 +25,32 @@ object OfflineStoryEngine {
         val ctx = Ctx(brief)
         val world = worldFor(themeId, brief.theme)
         val planned = plannedChapters(brief.ageGroup)
+        val remembrance = brief.memories.firstOrNull()?.let { memoryLine(ctx, it) }
         val chapter = Chapter(
             index = 1,
-            content = world.opening(ctx),
+            content = listOfNotNull(world.opening(ctx), remembrance).joinToString("\n\n"),
             choices = world.openingChoices(ctx).map { (text, virtue) -> Choice(text, 2, virtue) },
             isEnding = false,
             mood = world.mood
         )
         return Opening(world.title(ctx), chapter, planned)
+    }
+
+    /**
+     * O companheiro lembra de uma escolha de outra aventura. Fica no fim do capítulo 1, logo
+     * antes das escolhas, porque em todos os temas é o momento de decidir — e lembrar de uma
+     * boa escolha anterior encoraja a próxima.
+     */
+    private fun memoryLine(x: Ctx, memory: AdventureMemory): String? {
+        val choice = memory.highlightAsClause() ?: return null
+        return if (memory.companionId == x.companion.id) {
+            "— Lembra quando você escolheu $choice? — perguntou ${x.c}, ${x.cg("todo orgulhoso", "toda orgulhosa")}. " +
+                "— Tenho certeza de que hoje você vai saber o que fazer de novo!"
+        } else {
+            val other = MagicalCompanion.findById(memory.companionId).name
+            "— Sabia que $other me contou de quando você escolheu $choice? — disse ${x.c}, " +
+                "${x.cg("todo animado", "toda animada")}. — Hoje eu quero ver isso de pertinho!"
+        }
     }
 
     fun continuation(brief: StoryBrief, themeId: String?, story: Story, choice: Choice): Chapter {

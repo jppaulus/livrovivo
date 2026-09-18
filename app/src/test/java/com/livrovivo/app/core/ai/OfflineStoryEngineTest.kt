@@ -1,5 +1,6 @@
 package com.livrovivo.app.core.ai
 
+import com.livrovivo.app.domain.model.AdventureMemory
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.ChildGender
 import com.livrovivo.app.domain.model.ChildProfile
@@ -7,6 +8,7 @@ import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.ObjectiveType
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.ThemeOption
+import com.livrovivo.app.domain.model.Virtue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -98,5 +100,57 @@ class OfflineStoryEngineTest {
             listOf(com.livrovivo.app.domain.model.Virtue.CORAGEM, com.livrovivo.app.domain.model.Virtue.EMPATIA)
         )
         assertEquals("Você mostrou muita coragem e um coração enorme.", summary)
+    }
+
+    // --- memórias de aventuras anteriores ---
+
+    private fun memory(companionId: String) = AdventureMemory(
+        storyId = "antiga",
+        title = "Maya e a Lanterna das Estrelas",
+        theme = "Hora de Dormir sem Medo do Escuro",
+        companionId = companionId,
+        choices = listOf("Cantar uma canção de ninar para acalmar o céu"),
+        virtues = listOf(Virtue.CALMA),
+        isFinished = true,
+        updatedAt = 1L,
+        highlightChoice = "Cantar uma canção de ninar para acalmar o céu",
+        highlightVirtue = Virtue.CALMA
+    )
+
+    @Test
+    fun `the companion remembers a past choice right before the new choices`() {
+        val bento = MagicalCompanion.findById("bento")
+        val b = brief(ThemeOption.findById("fundo_do_mar"), ChildGender.GIRL, AgeGroup.KID, bento)
+            .copy(memories = listOf(memory(companionId = "bento")))
+
+        val content = OfflineStoryEngine.opening(b, "fundo_do_mar").chapter.content
+
+        val lastParagraph = content.split("\n\n").last()
+        assertTrue(lastParagraph.startsWith("— Lembra quando você escolheu cantar uma canção de ninar para acalmar o céu?"))
+        assertTrue(lastParagraph.contains("perguntou Bento, todo orgulhoso"))
+    }
+
+    @Test
+    fun `a new companion only heard about the old adventure`() {
+        val luna = MagicalCompanion.findById("luna")
+        val b = brief(ThemeOption.findById("fundo_do_mar"), ChildGender.GIRL, AgeGroup.KID, luna)
+            .copy(memories = listOf(memory(companionId = "bento")))
+
+        val content = OfflineStoryEngine.opening(b, "fundo_do_mar").chapter.content
+
+        assertTrue(content.contains("Sabia que Bento me contou de quando você escolheu cantar uma canção de ninar"))
+        assertTrue(content.contains("disse Luna, toda animada"))
+        assertFalse(content.contains("Lembra quando"))
+    }
+
+    @Test
+    fun `without memories the opening is unchanged`() {
+        val b = brief(ThemeOption.findById("fundo_do_mar"), ChildGender.GIRL, AgeGroup.KID, MagicalCompanion.ALL.first())
+
+        val semMemoria = OfflineStoryEngine.opening(b, "fundo_do_mar").chapter.content
+        val comMemoriaVazia = OfflineStoryEngine.opening(b.copy(memories = emptyList()), "fundo_do_mar").chapter.content
+
+        assertEquals(semMemoria, comMemoriaVazia)
+        assertFalse(semMemoria.contains("Lembra quando"))
     }
 }

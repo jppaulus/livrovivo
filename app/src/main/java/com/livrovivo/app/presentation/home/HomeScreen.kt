@@ -77,6 +77,7 @@ import com.livrovivo.app.core.ui.InfoPill
 import com.livrovivo.app.core.ui.LocalImage
 import com.livrovivo.app.core.ui.MagicalSparklesEffect
 import com.livrovivo.app.core.ui.ProceduralScene
+import com.livrovivo.app.domain.model.AdventureMemory
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.Story
@@ -158,15 +159,6 @@ class HomeViewModel(
     }
 }
 
-private fun greetingFor(): String {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    return when (hour) {
-        in 5..11 -> "Bom dia! Que tal uma aventura para começar o dia com um sorriso?"
-        in 12..17 -> "Boa tarde! Estou com a imaginação a mil. Vamos criar uma história?"
-        else -> "Boa noite! Eu já estou de pijama. Que tal uma história calminha antes de dormir?"
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -228,6 +220,9 @@ fun HomeScreen(
     val child = uiState.activeChild
     val companion = MagicalCompanion.findById(child?.companionId)
     val childName = child?.name ?: "Pequeno Explorador"
+    val lastAdventure = remember(uiState.stories) {
+        AdventureMemory.recent(uiState.stories, limit = 1).firstOrNull()
+    }
 
     Scaffold(
         topBar = {
@@ -304,7 +299,12 @@ fun HomeScreen(
                     CompanionGreetingCard(
                         companion = companion,
                         childName = childName,
-                        speechText = greetingFor(),
+                        speechText = CompanionGreeting.forHome(
+                            hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+                            companion = companion,
+                            memory = lastAdventure,
+                            now = System.currentTimeMillis()
+                        ),
                         onClick = onNavigateToEditProfile
                     )
                 }

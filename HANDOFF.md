@@ -1,6 +1,6 @@
 # Livro Vivo — contexto para retomar em um novo chat
 
-> Documento de passagem de bastão. Atualizado em 17/09/2026.
+> Documento de passagem de bastão. Atualizado em 18/09/2026.
 > Para começar rápido: leia as seções **1**, **5** e **6**.
 
 ---
@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 83 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+- **Estado:** compila, 106 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
   validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
@@ -58,6 +58,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
+| `domain/model/AdventureMemory.kt` | O que o companheiro lembra das aventuras anteriores (título, tema, escolhas) |
+| `presentation/home/CompanionGreeting.kt` | Saudação da Home: lembra uma escolha recente ou cumprimenta pela hora do dia |
 | `core/database/` | Room v3 + migração 2→3 que **preserva histórias antigas** |
 | `core/billing/BillingManager.kt` | Google Play Billing: conexão, planos, compra, confirmação e restauração |
 | `core/billing/BillingModels.kt` | Planos, estados, e regras puras (o que libera Premium, mensagens de erro) |
@@ -127,6 +129,23 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
    - **Trocar de criança é ação da criança** (chip na Home, sem portão); **cadastrar, editar e apagar
      são ações dos pais** (Área dos Pais, atrás do portão parental).
 
+11. **Memória do companheiro.** Decisões que valem a pena não refazer:
+   - **Montada com o que já está salvo** (título, tema e escolhas de cada história): nenhuma chamada
+     extra à IA e nenhuma coluna nova no banco (`AdventureMemory.recent`).
+   - **Só as aventuras da própria criança** — um irmão não "lembra" do que o outro viveu.
+   - **Só no prompt de abertura**, pedindo no máximo uma referência; os capítulos seguintes já veem o
+     capítulo 1 com a lembrança feita. O prompt manda ignorar instruções escondidas nas memórias.
+   - **Quem estava na aventura diz "eu lembro"; um companheiro novo "ouviu falar"** — vale para o
+     prompt, o motor offline e a saudação da Home.
+   - **Nunca culpa como gancho:** nada de "sumiu", "saudade" ou "fiquei triste". A saudação só cita
+     aventuras dos últimos 3 dias; depois disso volta a ser a da hora do dia (há teste para isso).
+   - **As escolhas começam com verbo no infinitivo**, então entram direto na frase ("você escolheu
+     acender a lanterna"); se alguma fugir disso, vai entre aspas.
+12. **O diálogo do limite gratuito não vende para a criança.** Não cita o Premium nem pede que ela
+    convença um adulto (CDC, art. 37, §2º): leva a criança a descobrir outros finais, que não contam no
+    limite, e deixa a oferta só atrás do portão. Se a estante dela estiver vazia (um irmão usou as
+    histórias grátis), pede um adulto sem anunciar nada.
+
 ---
 
 ## 5. Estado do Git
@@ -140,7 +159,8 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
 | `5d0a608` | Narração em partes, diagnóstico dos erros da IA e Capitão como narrador padrão |
 | `3112bd4` | Versiona este `HANDOFF.md` |
 | `700c9ec` | Vários perfis de crianças (irmãos) |
-| *(este)* | Google Play Billing de verdade |
+| `1248148` | Google Play Billing de verdade |
+| *(este)* | Memória do companheiro e diálogo do limite sem venda para a criança |
 
 ⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
 do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
@@ -172,7 +192,23 @@ O **Gemini de texto já foi validado** com a chave do usuário (o antigo erro 40
 Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige faturamento ativo),
 **TTS** do Gemini e a **ElevenLabs** (voz e listagem de vozes). Cada uma tem botão "Testar" nas configurações.
 
-### 6.4. Outras pendências
+### 6.4. Engajamento da criança — próximos passos
+Princípio adotado: a retenção vem de **ritual** (os pais abrem toda noite porque funciona) e de
+**antecipação** (a criança pede a próxima história) — nunca de culpa, sequência que zera, recompensa
+aleatória ligada a pagamento ou história emendada sozinha. Quem paga são os pais, e o uso principal é
+na hora de dormir. Já feito: memória do companheiro e o diálogo do limite. Na fila, em ordem:
+1. **Ritual de fim de noite.** À noite, o card de fim hoje destaca "Nova aventura". Trocar por um
+   encerramento (companheiro bocejando, respiração, tela escurecendo, caixinha de música, "Boa noite")
+   e uma opção dos pais de "histórias por noite".
+2. **Álbum de figurinhas por criança:** personagens e lugares das ilustrações, mais os selos de virtude,
+   que hoje só aparecem no card de fim. Ganha-se lendo, nunca comprando nem por sorteio.
+3. **Som ambiente pelo `mood`** de cada página (hoje ele só orienta a voz do Gemini e a ilustração).
+4. Depois: páginas que reagem ao toque, aventura dos irmãos, coautoria por voz (só com reconhecimento
+   no aparelho e consentimento dos pais — LGPD, art. 14), datas especiais e boletim semanal para os pais.
+- Detalhe de UX: a criança só descobre o limite gratuito depois de escolher o tema na criação; dá para
+  checar ao abrir a tela.
+
+### 6.5. Outras pendências
 - **Sem validação no servidor das compras:** o app confia no Google Play do aparelho. Para barrar
   aparelhos com root/apps de bypass, seria preciso validar o token da compra pela Google Play Developer
   API a partir de um servidor (dá para usar o Supabase).
@@ -192,8 +228,8 @@ Continuam sem teste com chave real: **imagem** do Gemini (lembrando que exige fa
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
-> Minha prioridade agora é: [ex.: cadastrar as assinaturas no Play Console / medir o tempo da narração /
-> proteger o ai-gateway com Supabase Auth].
+> Minha prioridade agora é: [ex.: o ritual de fim de noite / cadastrar as assinaturas no Play Console /
+> medir o tempo da narração].
 
 ---
 

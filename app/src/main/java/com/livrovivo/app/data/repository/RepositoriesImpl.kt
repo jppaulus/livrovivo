@@ -12,6 +12,7 @@ import com.livrovivo.app.data.model.ChildProfileEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.toDomain
 import com.livrovivo.app.data.model.toEntity
+import com.livrovivo.app.domain.model.AdventureMemory
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildProfile
@@ -65,12 +66,17 @@ class StoryRepositoryImpl(
         forceOffline: Boolean
     ): Result<Story> {
         val ageGroup = AgeGroup.fromCode(child.ageGroup)
+        // Só as aventuras desta criança: um irmão não "lembra" do que o outro viveu.
+        val memories = AdventureMemory.recent(
+            storyDao.getStoriesWithChaptersOf(child.id).map { it.toDomain() }
+        )
         val brief = StoryBrief(
             child = child,
             companion = MagicalCompanion.findById(child.companionId),
             theme = theme,
             objective = objective,
-            plannedChapters = ageGroup.plannedChapters
+            plannedChapters = ageGroup.plannedChapters,
+            memories = memories
         )
         return storyWriter.startStory(brief, themeId, objective.code, forceOffline).map { draft ->
             val now = System.currentTimeMillis()
