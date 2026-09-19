@@ -8,13 +8,13 @@
 
 - **Histórias que se constroem com as escolhas** – cada página termina com duas escolhas (cada uma ligada a uma virtude: coragem, empatia, criatividade, curiosidade, calma ou cooperação). A IA escreve a próxima página a partir do que a criança decidiu, seguindo um arco completo (início → desafios → clímax → final acolhedor). Dá para **voltar a qualquer página e escolher outro caminho**.
 - **Um companheiro que lembra** – o companheiro mágico lembra das escolhas da criança em aventuras anteriores e comenta na abertura da próxima história e na tela inicial (também no modo offline). Só com carinho: ele nunca diz que sentiu falta ou que a criança sumiu.
-- **Narradores com voz natural** – quatro personagens (Capitão Aventura, que é o padrão, Fada Encantada, Ursinho Gentil e Vovó Contadora) com direção de atuação: sussurros, risadinhas e suspense. A página é narrada em partes: a primeira sai em poucos segundos e o resto é gerado enquanto a criança já está ouvindo. Motores de voz, do melhor para o offline:
-  1. **ElevenLabs** (`eleven_v3`, com marcações de emoção como `[whispers]` e `[giggles]`);
-  2. **Gemini TTS** (vozes neurais controladas por prompt, com a mesma chave da IA);
-  3. **Voz do aparelho** (offline, escolhendo a melhor voz PT-BR instalada).
-  O áudio fica salvo no aparelho (AAC) para ouvir de novo sem internet.
+- **Quatro narradores** – Capitão Aventura (o padrão), Fada Encantada, Ursinho Gentil e Vovó Contadora. A página é narrada em partes: a primeira sai em poucos segundos e o resto é gerado enquanto a criança já está ouvindo. Motores de voz:
+  1. **Voz do aparelho** (padrão, sem IA) – cada narrador tem uma voz fixa do motor de voz do Google, com ritmo e tom próprios; a do Capitão é a aprovada para o app. Começa em uns 2 segundos, não custa nada e funciona até sem internet;
+  2. **Gemini TTS** (opcional, com a chave do Gemini) – vozes neurais com direção de atuação: sussurros, risadinhas e suspense. Cada página leva alguns segundos a mais para começar;
+  3. **ElevenLabs** (opcional, `eleven_v3`, com marcações de emoção como `[whispers]` e `[giggles]`).
+  O áudio das vozes de IA fica salvo no aparelho (AAC) para ouvir de novo sem internet.
 - **Destaque de leitura** – a frase narrada fica destacada na tela (estilo karaokê), o que ajuda quem está aprendendo a ler.
-- **Ilustrações em cada página** – geradas pelo modelo de imagem do Gemini, usando a página anterior como referência para manter os personagens iguais do começo ao fim. São cinco estilos (aquarela, lápis de cor, animação 3D, papel recortado e desenho animado). Sem IA, o app desenha **cenas animadas próprias** para cada tema.
+- **Ilustrações em cada página** – geradas pelo modelo de imagem do Gemini, usando a página anterior como referência para manter os personagens iguais do começo ao fim. São cinco estilos (aquarela, lápis de cor, animação 3D, papel recortado e desenho animado). Sem IA ou sem faturamento na conta do Google, o app desenha **cenas animadas próprias** para cada tema, sem mostrar erro para a criança; o motivo aparece só na Área dos Pais.
 - **Personalização** – nome, idade, gênero (para a concordância no texto), aparência (para as ilustrações), companheiro mágico e interesses.
 - **Um perfil por criança** – irmãos têm cada um a própria estante, métricas e personalização. O chip no topo da tela troca de criança; cadastrar, editar e apagar perfis fica na Área dos Pais. O limite do plano gratuito continua sendo do aparelho, então cadastrar irmãos não multiplica as histórias grátis.
 - **Sons da página** – cada página tem o som do seu lugar e do seu clima: grilos numa noite sonolenta, lareira num momento aconchegante, vento no mistério, passarinhos na alegria, riacho na aventura, ondas no mar e brilhinhos no espaço. Tudo é sintetizado no próprio aparelho (nenhum arquivo de áudio), troca devagar de uma página para a outra e abaixa sozinho enquanto o narrador fala. Um botão no leitor alterna entre os sons da página, a música de ninar (caixinha "Brilha, Brilha, Estrelinha") e silêncio.
@@ -26,7 +26,7 @@
 
 ---
 
-## 🚀 Ativando a IA (voz natural + ilustrações)
+## 🚀 Ativando a IA (histórias novas + ilustrações)
 
 ### Opção 1 — Pelo próprio app (mais rápido para testar)
 1. Crie uma chave gratuita em <https://aistudio.google.com/apikey>.

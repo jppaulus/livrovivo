@@ -10,6 +10,7 @@ import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
 import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.bedtime.minuteTicks
+import com.livrovivo.app.core.illustration.IllustrationPause
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
@@ -209,10 +210,13 @@ class ReaderViewModel(
             illustrateChapterUseCase(storyId, chapterIndex)
                 .onSuccess { setIllustrationStatus(chapterIndex, IllustrationStatus.READY) }
                 .onFailure { error ->
-                    val notConfigured = error is AiException && error.kind == AiException.Kind.NOT_CONFIGURED
-                    setIllustrationStatus(chapterIndex, if (notConfigured) IllustrationStatus.DISABLED else IllustrationStatus.FAILED)
-                    if (!notConfigured && error is AiException) {
-                        _uiState.update { it.copy(illustrationNotice = "Ilustração indisponível: ${error.friendlyMessage}") }
+                    // Sem chave ou com a conta sem faturamento, a página fica com o desenho do próprio app
+                    // sem aviso nenhum: quem vê o leitor é a criança. O motivo aparece na Área dos Pais.
+                    val quiet = error is AiException &&
+                        (error.kind == AiException.Kind.NOT_CONFIGURED || IllustrationPause.pausesFor(error.kind))
+                    setIllustrationStatus(chapterIndex, if (quiet) IllustrationStatus.DISABLED else IllustrationStatus.FAILED)
+                    if (!quiet && error is AiException) {
+                        _uiState.update { it.copy(illustrationNotice = "A ilustração desta página não carregou.") }
                     }
                 }
         }

@@ -1,6 +1,7 @@
 package com.livrovivo.app
 
 import android.app.Application
+import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.billing.BillingManager
 import com.livrovivo.app.core.di.appModule
 import org.koin.android.ext.android.inject
@@ -12,6 +13,7 @@ import org.koin.core.logger.Level
 class LivroVivoApp : Application() {
 
     private val billingManager: BillingManager by inject()
+    private val audioPlayerController: AudioPlayerController by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -24,5 +26,8 @@ class LivroVivoApp : Application() {
         // Conecta à loja e restaura a assinatura de quem já pagou (troca de aparelho,
         // reinstalação) antes mesmo de alguém abrir a tela de assinatura.
         billingManager.start()
+
+        // A voz do aparelho narra por padrão: ligar o motor já na abertura tira segundos da primeira página.
+        audioPlayerController.prewarmVoice()
     }
 }

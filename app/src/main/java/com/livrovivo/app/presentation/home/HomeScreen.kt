@@ -476,7 +476,7 @@ private fun ParentHintCard(onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Text(
-                    text = "Conecte a IA para histórias únicas, ilustrações e narradores com voz natural.",
+                    text = "Conecte a IA para criar histórias novas e únicas a cada noite.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
                 )

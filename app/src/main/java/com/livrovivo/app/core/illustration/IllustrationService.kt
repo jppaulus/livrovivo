@@ -27,7 +27,11 @@ class IllustrationService(
     private val gemini: GeminiService,
     private val settings: SettingsManager
 ) {
-    suspend fun isEnabled(): Boolean = settings.current().illustrationsEnabled && gemini.isAvailable()
+    /** Se vale pedir ilustração à IA agora (ligada, com chave e sem pausa por erro da conta). */
+    suspend fun isEnabled(): Boolean {
+        val current = settings.current()
+        return current.illustrationsEnabled && current.illustrationPause == null && gemini.isAvailable()
+    }
 
     suspend fun illustrate(story: Story, chapter: Chapter, child: ChildProfile?): File {
         val current = settings.current()
@@ -38,7 +42,13 @@ class IllustrationService(
         val prompt = buildPrompt(story, chapter, child, current.illustrationStyle, hasReference = previousImage != null)
         val references = previousImage?.let { listOfNotNull(downscaleJpeg(it, maxSide = 768, quality = 80)) }.orEmpty()
 
-        val image = gemini.generateImage(prompt, references, aspectRatio = "4:3")
+        val image = try {
+            gemini.generateImage(prompt, references, aspectRatio = "4:3")
+        } catch (e: AiException) {
+            // Sem faturamento, chave bloqueada, cota do dia...: a próxima página daria o mesmo erro.
+            if (IllustrationPause.pausesFor(e.kind)) settings.pauseIllustrations(e.kind)
+            throw e
+        }
         return withContext(Dispatchers.IO) {
             val bitmap = BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size)
                 ?: throw AiException(AiException.Kind.PARSE, "Imagem gerada em formato inválido")

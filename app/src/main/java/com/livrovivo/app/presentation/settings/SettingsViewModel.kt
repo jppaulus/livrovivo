@@ -9,6 +9,7 @@ import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.EngineKind
 import com.livrovivo.app.core.audio.VoicePersona
+import com.livrovivo.app.core.illustration.IllustrationPause
 import com.livrovivo.app.core.illustration.IllustrationService
 import com.livrovivo.app.core.settings.AppSettings
 import com.livrovivo.app.core.settings.SettingsManager
@@ -245,10 +246,13 @@ O que fazer:
             _uiState.update { it.copy(imageTest = TestState.Running, sampleImagePath = null) }
             try {
                 val file = illustrationService.sample(settingsManager.current().illustrationStyle)
+                // Funcionou: se as ilustrações estavam pausadas (ex.: faturamento ativado agora), voltam já.
+                settingsManager.resumeIllustrations()
                 _uiState.update { it.copy(imageTest = TestState.Success("Ilustração gerada!"), sampleImagePath = file.path) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (e is AiException && IllustrationPause.pausesFor(e.kind)) settingsManager.pauseIllustrations(e.kind)
                 _uiState.update { it.copy(imageTest = TestState.Failure(describe(e))) }
             }
         }

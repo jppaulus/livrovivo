@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -267,6 +268,7 @@ class AudioPlayerController(
             )
         }
 
+        val requestedAt = SystemClock.elapsedRealtime()
         loadJob = scope.launch {
             ensureInitialized()
             val settings = settingsManager.current()
@@ -282,6 +284,7 @@ class AudioPlayerController(
                 }
                 return@launch
             }
+            Log.d(TAG, "Primeira parte pronta em ${SystemClock.elapsedRealtime() - requestedAt} ms (${engine.kind.label}, ${pageParts.size} partes)")
             activeEngine = engine
             startPlayback(file, engine.kind, notice)
 
@@ -365,11 +368,6 @@ class AudioPlayerController(
             if (!engine.isAvailable(settings)) continue
             try {
                 val file = cachedOrSynthesize(engine, request, settings)
-                if (engine.kind == EngineKind.DEVICE && notice == null && settings.voiceEngine != VoiceEngineChoice.DEVICE &&
-                    !settings.hasGeminiKey && !settings.hasElevenLabsKey
-                ) {
-                    notice = "Dica para os pais: ative a IA na Área dos Pais para uma narração natural."
-                }
                 return Result.success(Triple(file, engine, notice))
             } catch (e: CancellationException) {
                 throw e
@@ -499,6 +497,14 @@ class AudioPlayerController(
         refreshBackground()
     }
 
+    /**
+     * Liga o motor de voz do aparelho com antecedência. A voz do aparelho narra por padrão, e o
+     * motor frio atrasava em alguns segundos a primeira página depois de abrir o app.
+     */
+    fun prewarmVoice() {
+        scope.launch { deviceEngine.prewarm() }
+    }
+
     /** Chamado ao entrar no leitor: aplica preferências, aquece a voz do aparelho e liga o fundo. */
     fun onReaderStarted() {
         readerActive = true
@@ -507,7 +513,7 @@ class AudioPlayerController(
             refreshBackground()
         }
         // Inicializar o motor de voz do Android leva ~1s: faz isso antes de a criança tocar em play.
-        scope.launch { deviceEngine.prewarm() }
+        prewarmVoice()
     }
 
     /**

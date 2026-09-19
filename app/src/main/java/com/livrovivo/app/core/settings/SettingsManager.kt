@@ -12,10 +12,12 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.livrovivo.app.BuildConfig
+import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.audio.BackgroundSound
 import com.livrovivo.app.core.bedtime.Bedtime
 import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.bedtime.BedtimeSettings
+import com.livrovivo.app.core.illustration.IllustrationPause
 import com.livrovivo.app.data.model.appJson
 import com.livrovivo.app.domain.model.IllustrationStyle
 import kotlinx.coroutines.flow.Flow
@@ -31,16 +33,20 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "li
 const val DEFAULT_PERSONA_ID = "aventureiro"
 
 /** Versão dos padrões do app; aumentar aplica os novos padrões uma vez em quem já usa o app. */
-private const val CURRENT_DEFAULTS_VERSION = 1
+private const val CURRENT_DEFAULTS_VERSION = 2
 
+/**
+ * Quem narra. A voz do aparelho é a padrão: é a do Capitão Aventura aprovada para o app, começa
+ * rápido e não depende de IA. As vozes de IA ficam como opção dos pais.
+ */
 enum class VoiceEngineChoice(val id: String, val title: String, val description: String) {
-    AUTO("auto", "Automático", "Usa a voz mais natural disponível"),
-    ELEVENLABS("elevenlabs", "ElevenLabs", "A mais expressiva (chave ElevenLabs)"),
-    GEMINI("gemini", "Google Gemini", "Vozes naturais com a chave do Gemini"),
-    DEVICE("device", "Voz do aparelho", "Funciona offline, menos natural");
+    DEVICE("device", "Voz do aparelho", "Padrão. O Capitão e os outros narradores começam rápido, sem IA e até sem internet."),
+    AUTO("auto", "Automático", "Usa a voz de IA mais natural disponível. Cada página leva alguns segundos para começar."),
+    GEMINI("gemini", "Google Gemini", "Vozes de IA com a chave do Gemini. Cada página leva alguns segundos para começar."),
+    ELEVENLABS("elevenlabs", "ElevenLabs", "A voz de IA mais expressiva (chave ElevenLabs). Também leva alguns segundos.");
 
     companion object {
-        fun fromId(id: String?): VoiceEngineChoice = entries.find { it.id == id } ?: AUTO
+        fun fromId(id: String?): VoiceEngineChoice = entries.find { it.id == id } ?: DEVICE
     }
 }
 
@@ -81,7 +87,7 @@ data class AppSettings(
     val elevenLabsApiKey: String = "",
     val geminiKeyFromDevConfig: Boolean = false,
     val elevenLabsKeyFromDevConfig: Boolean = false,
-    val voiceEngine: VoiceEngineChoice = VoiceEngineChoice.AUTO,
+    val voiceEngine: VoiceEngineChoice = VoiceEngineChoice.DEVICE,
     val defaultPersonaId: String = DEFAULT_PERSONA_ID,
     val elevenLabsVoiceIds: Map<String, String> = emptyMap(),
     val elevenLabsModel: String = AiModelDefaults.ELEVENLABS,
@@ -89,6 +95,8 @@ data class AppSettings(
     val imageModel: String = AiModelDefaults.IMAGE,
     val ttsModel: String = AiModelDefaults.TTS,
     val illustrationsEnabled: Boolean = true,
+    /** Ilustrações com IA pausadas por um erro da conta (ex.: sem faturamento); null = liberadas. */
+    val illustrationPause: IllustrationPause? = null,
     val illustrationStyle: IllustrationStyle = IllustrationStyle.AQUARELA,
     val autoPlayNarration: Boolean = true,
     val narrationSpeed: Float = 1.0f,
@@ -141,6 +149,7 @@ class SettingsManager(private val context: Context) {
         val IMAGE_MODEL = stringPreferencesKey("image_model")
         val TTS_MODEL = stringPreferencesKey("tts_model")
         val ILLUSTRATIONS_ENABLED = booleanPreferencesKey("illustrations_enabled")
+        val ILLUSTRATION_PAUSE = stringPreferencesKey("illustration_pause")
         val ILLUSTRATION_STYLE = stringPreferencesKey("illustration_style")
         val AUTO_PLAY = booleanPreferencesKey("auto_play_narration")
         val NARRATION_SPEED = floatPreferencesKey("narration_speed")
@@ -162,15 +171,18 @@ class SettingsManager(private val context: Context) {
     }
 
     /**
-     * Aplica os padrões novos do app uma única vez (hoje: narrador Capitão Aventura),
-     * inclusive para quem já tinha outro narrador salvo. Depois disso, a escolha dos pais manda.
+     * Aplica os padrões novos do app uma única vez, inclusive para quem já tinha outra escolha
+     * salva. Depois disso, a escolha dos pais manda.
+     * - v1: narrador Capitão Aventura.
+     * - v2: narração com a voz do aparelho (a do Capitão), em vez da voz de IA mais lenta.
      */
     suspend fun applyPendingDefaults() {
         context.dataStore.edit { prefs ->
-            if ((prefs[DEFAULTS_VERSION] ?: 0) < CURRENT_DEFAULTS_VERSION) {
-                prefs[DEFAULT_PERSONA] = DEFAULT_PERSONA_ID
-                prefs[DEFAULTS_VERSION] = CURRENT_DEFAULTS_VERSION
-            }
+            val version = prefs[DEFAULTS_VERSION] ?: 0
+            if (version >= CURRENT_DEFAULTS_VERSION) return@edit
+            if (version < 1) prefs[DEFAULT_PERSONA] = DEFAULT_PERSONA_ID
+            if (version < 2) prefs[VOICE_ENGINE] = VoiceEngineChoice.DEVICE.id
+            prefs[DEFAULTS_VERSION] = CURRENT_DEFAULTS_VERSION
         }
     }
 
@@ -206,6 +218,18 @@ class SettingsManager(private val context: Context) {
     suspend fun setTtsModel(model: String) = edit { it[TTS_MODEL] = model.trim() }
 
     suspend fun setIllustrationsEnabled(enabled: Boolean) = edit { it[ILLUSTRATIONS_ENABLED] = enabled }
+
+    /** Para de pedir ilustrações à IA por um tempo (ver [IllustrationPause]); vale para a chave atual. */
+    suspend fun pauseIllustrations(reason: AiException.Kind) = edit { prefs ->
+        prefs[ILLUSTRATION_PAUSE] = IllustrationPause.encode(
+            reason,
+            IllustrationPause.fingerprint(prefs.effectiveGeminiKey()),
+            System.currentTimeMillis()
+        )
+    }
+
+    /** Libera as ilustrações com IA de novo (ex.: a ilustração de teste funcionou). */
+    suspend fun resumeIllustrations() = edit { it.remove(ILLUSTRATION_PAUSE) }
 
     suspend fun setIllustrationStyle(style: IllustrationStyle) = edit { it[ILLUSTRATION_STYLE] = style.id }
 
@@ -270,6 +294,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { block(it) }
     }
 
+    /** A chave do Gemini em uso: a salva pelos pais ou, no build de debug, a do local.properties. */
+    private fun Preferences.effectiveGeminiKey(): String =
+        this[GEMINI_API_KEY].orEmpty().ifBlank { BuildConfig.DEV_GEMINI_API_KEY }
+
     private fun Preferences.toSettings(): AppSettings {
         val storedGemini = this[GEMINI_API_KEY].orEmpty()
         val storedEleven = this[ELEVENLABS_API_KEY].orEmpty()
@@ -291,6 +319,11 @@ class SettingsManager(private val context: Context) {
             imageModel = this[IMAGE_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.IMAGE,
             ttsModel = this[TTS_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.TTS,
             illustrationsEnabled = this[ILLUSTRATIONS_ENABLED] ?: true,
+            illustrationPause = IllustrationPause.decode(
+                this[ILLUSTRATION_PAUSE],
+                IllustrationPause.fingerprint(effectiveGeminiKey()),
+                System.currentTimeMillis()
+            ),
             illustrationStyle = IllustrationStyle.fromId(this[ILLUSTRATION_STYLE]),
             autoPlayNarration = this[AUTO_PLAY] ?: true,
             narrationSpeed = this[NARRATION_SPEED] ?: 1.0f,

@@ -1,9 +1,9 @@
 package com.livrovivo.app.core.audio
 
 /**
- * Personagens narradores. Cada um tem uma voz neural do Gemini, uma "direção de atuação"
- * para o narrador soar como um contador de histórias de verdade e um perfil para escolher
- * a voz da ElevenLabs automaticamente.
+ * Personagens narradores. Cada um tem uma voz fixa do aparelho (a padrão, sem IA), uma voz neural
+ * do Gemini, uma "direção de atuação" para o narrador soar como um contador de histórias de verdade
+ * e um perfil para escolher a voz da ElevenLabs automaticamente.
  */
 enum class VoicePersona(
     val id: String,
@@ -17,7 +17,13 @@ enum class VoicePersona(
     val style: String,
     val pace: String,
     val deviceSpeechRate: Float,
-    val devicePitch: Float
+    val devicePitch: Float,
+    /**
+     * Voz do Google (motor de voz do Android) deste narrador, sem o sufixo -local/-network.
+     * Em português do Brasil há três: [GOOGLE_FEMALE_A] e [GOOGLE_FEMALE_B], femininas (~255 Hz),
+     * e [GOOGLE_MALE], masculina (~145 Hz).
+     */
+    val deviceVoice: String
 ) {
     FADA(
         id = "fada",
@@ -31,7 +37,8 @@ enum class VoicePersona(
         style = "Warm, sweet and enchanting. You can hear the smile in her voice. Gentle wonder in magical moments, tender reassurance in scary moments.",
         pace = "Calm and unhurried, with soft pauses between paragraphs and a little suspense before surprises.",
         deviceSpeechRate = 0.95f,
-        devicePitch = 1.1f
+        devicePitch = 1.1f,
+        deviceVoice = GOOGLE_FEMALE_A
     ),
     URSINHO(
         id = "ursinho",
@@ -45,7 +52,8 @@ enum class VoicePersona(
         style = "Deep, velvety and cozy. Slow and soothing like a lullaby, with a kind chuckle in funny moments.",
         pace = "Slow and relaxed, with long comforting pauses. Perfect for bedtime.",
         deviceSpeechRate = 0.85f,
-        devicePitch = 0.78f
+        devicePitch = 0.78f,
+        deviceVoice = GOOGLE_MALE
     ),
     VOVO(
         id = "vovo",
@@ -59,7 +67,8 @@ enum class VoicePersona(
         style = "Expressive and playful, full of affection. She gives each character a slightly different little voice and savors the onomatopoeias.",
         pace = "Natural storytelling rhythm, slowing down for tender moments and speeding up a bit in exciting parts.",
         deviceSpeechRate = 0.86f,
-        devicePitch = 0.96f
+        devicePitch = 0.96f,
+        deviceVoice = GOOGLE_FEMALE_A
     ),
     AVENTUREIRO(
         id = "aventureiro",
@@ -73,7 +82,9 @@ enum class VoicePersona(
         style = "Lively, upbeat and dramatic in a fun way. Big wonder in discoveries, playful suspense, never scary.",
         pace = "Energetic but clear, with dramatic pauses before big reveals.",
         deviceSpeechRate = 1.06f,
-        devicePitch = 1.02f
+        devicePitch = 1.02f,
+        // A voz que o usuário aprovou para o app ("excelente para o projeto"). Não trocar sem ele ouvir.
+        deviceVoice = GOOGLE_FEMALE_B
     );
 
     companion object {
@@ -83,3 +94,8 @@ enum class VoicePersona(
         val DEFAULT = AVENTUREIRO
     }
 }
+
+/** Vozes do Google em português do Brasil, pelo nome sem o sufixo -local/-network. */
+const val GOOGLE_FEMALE_A = "pt-br-x-afs"
+const val GOOGLE_FEMALE_B = "pt-br-x-pte"
+const val GOOGLE_MALE = "pt-br-x-ptd"

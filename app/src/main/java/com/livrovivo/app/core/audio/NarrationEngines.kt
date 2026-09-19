@@ -200,12 +200,18 @@ class ElevenLabsNarrationEngine(private val elevenLabs: ElevenLabsService) : Nar
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Voz do próprio Android (sem chave de IA). É o mesmo motor do Google Maps, então soa mais robótica;
- * para amenizar, cada narrador recebe uma voz PT-BR diferente (quando o aparelho tem mais de uma),
- * a versão online da voz é preferida quando há internet e o ritmo/tom muda por personagem.
+ * Voz do próprio Android, sem chave de IA: é a narração padrão do app. A primeira parte fica pronta
+ * em uns 2 s (no emulador), não custa nada e funciona até sem internet. Cada narrador tem uma voz fixa do Google
+ * ([VoicePersona.deviceVoice]) com ritmo e tom próprios; a versão online da voz, mais natural, é
+ * preferida quando há internet.
  */
 class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
     override val kind = EngineKind.DEVICE
+
+    private companion object {
+        /** Motor de voz do Google: as vozes fixas dos narradores são dele. */
+        const val GOOGLE_TTS_ENGINE = "com.google.android.tts"
+    }
 
     /** Uma "pessoa" que fala: a mesma voz pode existir em versão local e online. */
     private data class Speaker(val id: String, val local: Voice?, val network: Voice?)
@@ -235,9 +241,10 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
         engine.setSpeechRate(persona.deviceSpeechRate)
         engine.setPitch(persona.devicePitch)
 
-        val speaker = speakerFor(engine, persona)
+        val online = isOnline()
+        val speaker = speakerFor(engine, persona, online)
         val attempts = buildList {
-            if (isOnline()) speaker?.network?.let(::add)
+            if (online) speaker?.network?.let(::add)
             speaker?.local?.let(::add)
             if (isEmpty()) speaker?.network?.let(::add)
             add(null) // voz padrão do idioma como última tentativa
@@ -251,7 +258,8 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
             }
             if (synthesizeOnce(engine, text, output)) {
                 lastVoiceName = voice?.name ?: engine.voice?.name
-                Log.d(LOG_TAG, "Narrando '${persona.id}' com a voz do aparelho ${lastVoiceName}")
+                val pinned = if (speaker?.id == persona.deviceVoice) " (voz fixa do narrador)" else " (voz fixa ausente)"
+                Log.d(LOG_TAG, "Narrando '${persona.id}' com a voz do aparelho ${lastVoiceName}$pinned")
                 return@withLock output
             }
             Log.w(LOG_TAG, "Voz ${voice?.name} falhou; tentando a próxima")
@@ -286,8 +294,8 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
         return ok && output.exists() && output.length() > 1_000
     }
 
-    /** Vozes PT-BR agrupadas por pessoa, em ordem estável; cada narrador fica com uma diferente. */
-    private fun speakerFor(engine: TextToSpeech, persona: VoicePersona): Speaker? {
+    /** Vozes PT-BR agrupadas por pessoa; cada narrador fica com a voz fixa dele quando o aparelho a tem. */
+    private fun speakerFor(engine: TextToSpeech, persona: VoicePersona, online: Boolean): Speaker? {
         val voices = try {
             engine.voices.orEmpty()
         } catch (_: Exception) {
@@ -300,7 +308,7 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
         Log.d(LOG_TAG, "Vozes PT-BR no aparelho: " + voices.joinToString { "${it.name}(q=${it.quality}, rede=${it.isNetworkConnectionRequired})" })
 
         val speakers = voices
-            .groupBy { it.name.lowercase().removeSuffix("-local").removeSuffix("-network") }
+            .groupBy { DeviceVoicePicker.speakerId(it.name) }
             .map { (id, group) ->
                 Speaker(
                     id = id,
@@ -310,8 +318,9 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
             }
             .filter { it.local != null || it.network != null }
             .sortedWith(compareBy<Speaker> { it.local == null }.thenBy { it.id })
-        if (speakers.isEmpty()) return null
-        return speakers[persona.ordinal % speakers.size]
+        // Sem internet, uma voz que só existe online não serve: fica com uma instalada no aparelho.
+        val usable = speakers.filter { online || it.local != null }.ifEmpty { speakers }
+        return usable.getOrNull(DeviceVoicePicker.pick(usable.map { it.id }, persona.deviceVoice, persona.ordinal))
     }
 
     private fun Voice.isNotInstalled(): Boolean =
@@ -328,8 +337,14 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
     private suspend fun ensureReady(): TextToSpeech {
         tts?.takeIf { ready }?.let { return it }
         val initialized = CompletableDeferred<Boolean>()
+        // Pede o motor do Google mesmo quando o padrão do aparelho é outro (Samsung, por exemplo):
+        // é nele que estão as vozes fixas dos narradores. Sem ele, o Android usa o motor padrão.
         val engine = withContext(Dispatchers.Main) {
-            TextToSpeech(context.applicationContext) { status -> initialized.complete(status == TextToSpeech.SUCCESS) }
+            TextToSpeech(
+                context.applicationContext,
+                { status -> initialized.complete(status == TextToSpeech.SUCCESS) },
+                GOOGLE_TTS_ENGINE
+            )
         }
         val ok = withTimeout(10_000) { initialized.await() }
         if (!ok) {

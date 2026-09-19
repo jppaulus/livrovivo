@@ -1,6 +1,6 @@
 # Livro Vivo — contexto para retomar em um novo chat
 
-> Documento de passagem de bastão. Atualizado em 18/09/2026.
+> Documento de passagem de bastão. Atualizado em 19/09/2026.
 > Para começar rápido: leia as seções **1**, **5** e **6**.
 
 ---
@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 151 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+- **Estado:** compila, 162 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
   validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 151 testes
+./gradlew testDebugUnitTest   # 162 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 ```
@@ -61,12 +61,14 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ai/ElevenLabsService.kt` | TTS premium + listagem de vozes da conta |
 | `core/audio/AudioPlayerController.kt` | Narração: escolhe motor, **gera em partes**, toca com ExoPlayer, destaque de leitura, cache; som de fundo com troca suave (`refreshBackground()`) |
 | `core/audio/NarrationText.kt` | `NarrationChunker` (divide a página) e `NarrationTimeline` (frases para o destaque) |
-| `core/audio/NarrationEngines.kt` | Motores: ElevenLabs, Gemini TTS, voz do aparelho (com escolha de voz por narrador) |
-| `core/audio/VoicePersona.kt` | 4 narradores + direção de atuação. **Não reordenar** (ver seção 4) |
+| `core/audio/NarrationEngines.kt` | Motores: voz do aparelho (padrão, motor do Google), Gemini TTS e ElevenLabs |
+| `core/audio/DeviceVoicePicker.kt` | Regra pura de qual voz do Google cada narrador usa (voz fixa, com reserva por posição) |
+| `core/audio/VoicePersona.kt` | 4 narradores: voz fixa do aparelho (`deviceVoice`), voz do Gemini e direção de atuação |
 | `core/audio/LullabySynth.kt` | Caixinha de música sintetizada ("Brilha, Brilha, Estrelinha") |
 | `core/audio/AmbienceSynth.kt` | Sons da página sintetizados (grilos, lareira, vento, passarinhos, riacho, brilhinhos, ondas) e a regra `Ambience.forPage(mood, cena)` |
 | `core/audio/BackgroundSound.kt` | O que toca por baixo da narração (sons da página, ninar, nada) e a migração da antiga preferência |
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
+| `core/illustration/IllustrationPause.kt` | Pausa das ilustrações com IA depois de erro da conta (faturamento, chave, cota) |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
 | `domain/model/AdventureMemory.kt` | O que o companheiro lembra das aventuras anteriores (título, tema, escolhas) |
@@ -105,9 +107,7 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
    faturamento ativo). Por isso erro de imagem é reportado como "exige faturamento".
 4. **Narrador padrão: Capitão Aventura** (`DEFAULT_PERSONA_ID = "aventureiro"`), escolha do usuário.
    Aplicado uma vez até para quem já tinha outro narrador, via `applyPendingDefaults()` +
-   `DEFAULTS_VERSION` (chamado em `AppStartViewModel`).
-   ⚠️ **Não reordenar o enum `VoicePersona`:** o `ordinal` decide qual voz do aparelho cada narrador usa, e
-   o usuário aprovou justamente a voz atual do Capitão.
+   `DEFAULTS_VERSION` (chamado em `AppStartViewModel`). A voz dele é fixa (decisão 16).
 5. **Narração em partes:** a primeira parte (~260 caracteres) toca em poucos segundos; o resto é gerado em
    segundo plano e entra na fila do ExoPlayer. Cortes só em parágrafo/frase.
 6. **Limite gratuito conta histórias criadas** (`storiesCreated` no DataStore), então apagar histórias não
@@ -220,6 +220,29 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
    - ⚠️ **Ninguém ouviu ainda:** o emulador de teste roda sem áudio. O teste confirmou qual som toca, a
      troca e o desligar (via `dumpsys audio` e o log `LivroVivoAudio`), mas o gosto de cada som precisa de
      ouvido humano. `AmbienceSamplesExport` grava os sete em WAV se `AMBIENCE_WAV_DIR` estiver definida.
+16. **A narração padrão é a voz do aparelho, com a voz do Capitão fixa.** Decisões que valem a pena não refazer:
+   - **O usuário pediu a voz do Capitão "independente de IA"**: ela é a do motor de voz do Google, não a
+     do Gemini. `VoiceEngineChoice.DEVICE` é o padrão, e a migração `DEFAULTS_VERSION = 2` aplica isso uma
+     vez até para quem tinha escolhido Automático ou Gemini. As vozes de IA ficam como opção dos pais.
+   - **Cada narrador tem uma voz fixa pelo nome** (`VoicePersona.deviceVoice`): Capitão `pt-br-x-pte`
+     (a aprovada, "excelente para o projeto"), Fada e Vovó `pt-br-x-afs`, Ursinho `pt-br-x-ptd`. Antes a
+     voz saía da posição na lista, que muda: logo depois de ligar o aparelho o Google não lista
+     "pt-BR-language", e o Capitão trocava de `afs` para `pte` no meio da sessão. A posição da lista só
+     vale como reserva em aparelhos sem as vozes do Google, então a ordem do enum já não importa.
+   - **Tom medido das vozes do Google:** `afs` e `pte` são femininas (~255 Hz), `ptd` é masculina
+     (~145 Hz). Antes, a Vovó ficava com a voz masculina e o Ursinho com uma feminina mais grave.
+   - **O app pede o motor do Google** (`com.google.android.tts`) mesmo quando o padrão do aparelho é
+     outro (Samsung); sem ele, o Android usa o padrão. O manifesto declara `<queries>` para
+     `TTS_SERVICE`, exigido pelo Android 11+.
+   - **O motor de voz é ligado na abertura do app** (`LivroVivoApp` → `prewarmVoice()`): a primeira
+     página depois de abrir o app caiu de 6,4 s para ~2,5 s no emulador. Com o app aberto, ~2 s. A
+     versão instalada da voz (sem internet) leva o mesmo tempo, então o que sobra é a própria síntese.
+     O log `LivroVivoAudio` mostra "Primeira parte pronta em X ms".
+17. **Ilustração que falha por problema da conta não aparece para a criança.** Sem faturamento, chave
+    bloqueada, cota do dia etc. (`IllustrationPause.pausesFor`), as ilustrações com IA ficam pausadas
+    (24 h, ou 1 h para cota) e as páginas usam os desenhos do app sem aviso; a Área dos Pais explica o
+    motivo. A pausa acaba sozinha no prazo, ao trocar a chave do Gemini ou quando a ilustração de teste
+    funciona. Erros de uma página só (rede, instabilidade, filtro) mostram apenas "Tentar de novo".
 ---
 
 ## 5. Estado do Git
@@ -237,7 +260,8 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
 | `deeab08` | Memória do companheiro e diálogo do limite sem venda para a criança |
 | `163a123` | Ritual da hora de dormir e modo dormindo |
 | `b307d45` | Álbum de figurinhas por criança |
-| *(este)* | Sons da página pelo clima e lugar de cada página |
+| `786e172` | Sons da página pelo clima e lugar de cada página |
+| *(este)* | Voz do Capitão como padrão sem IA e ilustrações sem erro para a criança |
 
 ⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
 do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
@@ -259,10 +283,11 @@ recursos Premium sem nada disso.
 Falta também decidir o que fazer quando a assinatura **expira com histórias acima do limite gratuito**:
 hoje elas continuam no aparelho e só a criação de novas é bloqueada.
 
-### 6.2. Tempo até começar a narrar — **precisa medir**
-Era cerca de 30s. Com a narração em partes deve cair para poucos segundos, mas **não foi medido no aparelho**.
-Se ainda passar de ~8s: gerar as duas primeiras partes em paralelo e encurtar a primeira
-(`NarrationChunker.chunk(firstMaxChars = ...)`).
+### 6.2. Tempo até começar a narrar — **medido no emulador, falta no celular**
+Com a voz do aparelho (padrão): ~2,5 s na primeira página depois de abrir o app e ~2 s com o app aberto.
+Com o Gemini TTS era bem mais (o usuário reclamou mesmo com a narração em partes). Se ainda parecer lento
+no celular: a primeira parte hoje é o primeiro parágrafo inteiro; dá para começar pela primeira frase
+(exige mudar o `NarrationChunker`, que só corta dentro de parágrafos com mais de 520 caracteres).
 
 ### 6.3. Integrações de IA ainda sem teste real
 O **Gemini de texto já foi validado** com a chave do usuário (o antigo erro 403 está resolvido).
@@ -290,7 +315,17 @@ dormir, álbum de figurinhas e sons da página. Na fila, em ordem:
 - Não verificado no aparelho: a voz das falas do ritual (o emulador de teste roda sem áudio) e o acordar
   sozinho às 6h (coberto por teste unitário da regra de horário).
 
-### 6.5. Outras pendências
+### 6.5. Pais sem chave de IA — **decisão de produto pendente**
+O usuário notou que os pais terão dificuldade para criar uma chave no AI Studio. Hoje, sem chave, o app
+já funciona bem (histórias escritas à mão, voz do Capitão, desenhos próprios), mas as histórias da IA
+exigem chave. O caminho para produção é o servidor (`supabase/functions/ai-gateway`) guardar a chave do
+app, com login anônimo por aparelho e cota por usuário; a assinatura paga o custo da IA e os pais nunca
+veem chave. Antes de escolher o provedor, **confirmar os termos**: até onde se sabe, os Termos Adicionais
+da API Gemini proíbem usá-la em serviço direcionado ou provavelmente usado por menores de 18 anos, e no
+plano gratuito o Google pode usar o conteúdo enviado para melhorar produtos. Pode ser preciso o Vertex AI
+(Google Cloud) ou outro provedor com termos adequados para público infantil.
+
+### 6.6. Outras pendências
 - **Sem validação no servidor das compras:** o app confia no Google Play do aparelho. Para barrar
   aparelhos com root/apps de bypass, seria preciso validar o token da compra pela Google Play Developer
   API a partir de um servidor (dá para usar o Supabase).
@@ -310,8 +345,8 @@ dormir, álbum de figurinhas e sons da página. Na fila, em ordem:
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
-> Minha prioridade agora é: [ex.: páginas que reagem ao toque / cadastrar as assinaturas no Play Console /
-> medir o tempo da narração].
+> Minha prioridade agora é: [ex.: servidor de IA para os pais não precisarem de chave / páginas que
+> reagem ao toque / cadastrar as assinaturas no Play Console].
 
 ---
 

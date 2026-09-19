@@ -72,6 +72,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.audio.VoicePersona
 import com.livrovivo.app.core.settings.AiModelDefaults
 import com.livrovivo.app.core.settings.VoiceEngineChoice
@@ -162,24 +163,24 @@ fun SettingsScreen(
                     subtitle = "Escolha o motor de voz e ouça uma amostra de cada narrador."
                 )
                 val hasAiVoice = settings.hasGeminiKey || settings.hasElevenLabsKey || uiState.backendConfigured
-                if (!hasAiVoice || settings.voiceEngine == VoiceEngineChoice.DEVICE) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = if (!hasAiVoice) {
-                                "🔈 Sem chave de IA, os narradores usam a voz do aparelho — a mesma voz robótica do Google Maps. " +
-                                    "Cole a chave gratuita do Gemini na seção acima para cada narrador ganhar uma voz natural e diferente."
-                            } else {
-                                "🔈 \"Voz do aparelho\" está selecionada: ela soa robótica. Escolha Automático para usar as vozes naturais."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
+                val usesDeviceVoice = settings.voiceEngine == VoiceEngineChoice.DEVICE || !hasAiVoice
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (usesDeviceVoice) {
+                            "🧭 Os narradores usam a voz do aparelho, a mesma do Capitão Aventura: começa rápido, " +
+                                "não gasta IA e funciona até sem internet."
+                        } else {
+                            "⏳ Com voz de IA, cada página leva alguns segundos a mais para começar a ser narrada. " +
+                                "Escolha \"Voz do aparelho\" para a narração começar mais rápido."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     VoiceEngineChoice.entries.forEach { choice ->
@@ -299,6 +300,22 @@ fun SettingsScreen(
                     subtitle = "Uma ilustração por página, mantendo os personagens iguais do começo ao fim."
                 )
                 SwitchRow("Gerar ilustrações com IA", settings.illustrationsEnabled) { viewModel.setIllustrationsEnabled(it) }
+                settings.illustrationPause?.takeIf { settings.illustrationsEnabled }?.let { pause ->
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⏸️ Ilustrações com IA pausadas: ${AiException(pause.reason).friendlyMessage} " +
+                                "Enquanto isso, as páginas mostram os desenhos do próprio app, sem aviso para a criança. " +
+                                "Depois de resolver, toque em \"Gerar ilustração de teste\" para voltar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
                 Text("Estilo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     IllustrationStyle.entries.forEach { style ->
