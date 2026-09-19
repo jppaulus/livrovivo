@@ -320,10 +320,16 @@ O usuário notou que os pais terão dificuldade para criar uma chave no AI Studi
 já funciona bem (histórias escritas à mão, voz do Capitão, desenhos próprios), mas as histórias da IA
 exigem chave. O caminho para produção é o servidor (`supabase/functions/ai-gateway`) guardar a chave do
 app, com login anônimo por aparelho e cota por usuário; a assinatura paga o custo da IA e os pais nunca
-veem chave. Antes de escolher o provedor, **confirmar os termos**: até onde se sabe, os Termos Adicionais
-da API Gemini proíbem usá-la em serviço direcionado ou provavelmente usado por menores de 18 anos, e no
-plano gratuito o Google pode usar o conteúdo enviado para melhorar produtos. Pode ser preciso o Vertex AI
-(Google Cloud) ou outro provedor com termos adequados para público infantil.
+veem chave.
+
+⚠️ **Bloqueio antes de publicar: os termos da API Gemini não permitem este app.** Os Termos Adicionais
+(ai.google.dev/gemini-api/terms, atualizados em 28/04/2026, conferidos em 19/09/2026) dizem: *"You also
+will not use the Services as part of a website, application, or other service [...] that is directed
+towards or is likely to be accessed by individuals under the age of 18."* E no plano gratuito o Google usa
+o conteúdo enviado para melhorar produtos, com revisão humana. Serve para desenvolver e testar, mas em
+produção o provedor de IA precisa ser outro (ex.: Vertex AI no Google Cloud, que tem termos próprios, ou
+outro fornecedor) — conferir os termos de cada um para público infantil, LGPD e a política Famílias do
+Google Play antes de construir o servidor.
 
 ### 6.6. Outras pendências
 - **Sem validação no servidor das compras:** o app confia no Google Play do aparelho. Para barrar
