@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -45,7 +46,10 @@ data class PlaybackState(
     val durationMs: Long = 0L,
     val highlightedSentence: Int = -1,
     val speed: Float = 1f,
-    val isAmbientSoundEnabled: Boolean = false,
+    /** O que toca por baixo da narração: sons da página, música de ninar ou nada. */
+    val backgroundSound: BackgroundSound = BackgroundSound.AMBIENCE,
+    /** O som da página atual (grilos, vento...), usado quando o fundo são os sons da página. */
+    val ambience: Ambience? = null,
     /** A página é narrada em partes para começar rápido: parte atual e total. */
     val partIndex: Int = 1,
     val partCount: Int = 1
@@ -74,6 +78,13 @@ class AudioPlayerController(
         private const val MAX_CACHE_BYTES = 300L * 1024 * 1024
         private const val DUCKED_VOLUME = 0.18f
         private const val AMBIENT_VOLUME = 0.5f
+
+        /** Os sons da página ficam mais baixos que a caixinha: são fundo, não trilha. */
+        private const val PAGE_SOUND_VOLUME = 0.45f
+        private const val PAGE_SOUND_DUCKED = 0.16f
+        private const val FADE_IN_MS = 900L
+        private const val FADE_OUT_MS = 600L
+        private const val TAG = "LivroVivoAudio"
     }
 
     private data class LoadParams(
@@ -110,9 +121,26 @@ class AudioPlayerController(
     private var queuedParts = 0
     private var activeEngine: NarrationEngine? = null
 
-    private var ambientTrack: AudioTrack? = null
-    private var ambientJob: Job? = null
-    private var lullabyPcm: ShortArray? = null
+    /** O que está tocando no fundo agora. */
+    private sealed interface Layer {
+        data object Lullaby : Layer
+        data class Page(val ambience: Ambience) : Layer
+    }
+
+    private var backgroundTrack: AudioTrack? = null
+    private var backgroundLayer: Layer? = null
+    private var backgroundJob: Job? = null
+    private var fadingIn = false
+
+    /** Volume aplicado por último ao fundo atual: a saída suave parte dele, sem salto. */
+    private var backgroundVolume = 0f
+    private var pageAmbience: Ambience? = null
+    private var readerActive = false
+
+    /** Últimos fundos já sintetizados (cada um tem uns 700 KB). */
+    private val pcmCache = object : LinkedHashMap<Layer, ShortArray>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Layer, ShortArray>?) = size > 3
+    }
 
     /** Lê preferências salvas (persona, velocidade, música) uma única vez. */
     private suspend fun ensureInitialized() {
@@ -122,7 +150,7 @@ class AudioPlayerController(
             it.copy(
                 activePersona = VoicePersona.fromId(settings.defaultPersonaId),
                 speed = settings.narrationSpeed,
-                isAmbientSoundEnabled = settings.ambientMusicEnabled
+                backgroundSound = settings.backgroundSound
             )
         }
         initialized = true
@@ -456,19 +484,27 @@ class AudioPlayerController(
         scope.launch { settingsManager.setNarrationSpeed(value) }
     }
 
-    fun toggleAmbientSound() = setAmbientEnabled(!_playbackState.value.isAmbientSoundEnabled)
-
-    fun setAmbientEnabled(enabled: Boolean) {
-        _playbackState.update { it.copy(isAmbientSoundEnabled = enabled) }
-        scope.launch { settingsManager.setAmbientMusic(enabled) }
-        if (enabled) startAmbient() else stopAmbient()
+    /** Passa para o próximo fundo (sons da página, música de ninar, nada) e guarda a escolha. */
+    fun cycleBackgroundSound() {
+        val next = _playbackState.value.backgroundSound.next()
+        _playbackState.update { it.copy(backgroundSound = next) }
+        scope.launch { settingsManager.setBackgroundSound(next) }
+        refreshBackground()
     }
 
-    /** Chamado ao entrar no leitor: aplica preferências, aquece a voz do aparelho e retoma a música. */
+    /** O leitor avisa qual é o som da página que apareceu; a troca é suave. */
+    fun setPageAmbience(ambience: Ambience?) {
+        pageAmbience = ambience
+        _playbackState.update { it.copy(ambience = ambience) }
+        refreshBackground()
+    }
+
+    /** Chamado ao entrar no leitor: aplica preferências, aquece a voz do aparelho e liga o fundo. */
     fun onReaderStarted() {
+        readerActive = true
         scope.launch {
             ensureInitialized()
-            if (_playbackState.value.isAmbientSoundEnabled) startAmbient()
+            refreshBackground()
         }
         // Inicializar o motor de voz do Android leva ~1s: faz isso antes de a criança tocar em play.
         scope.launch { deviceEngine.prewarm() }
@@ -480,7 +516,9 @@ class AudioPlayerController(
      */
     fun onReaderStopped() {
         if (currentParams?.key?.startsWith(BEDTIME_KEY_PREFIX) != true) stop()
-        if (!bedtimeMusic) stopAmbient()
+        readerActive = false
+        pageAmbience = null
+        refreshBackground()
     }
 
     // --- Ritual de dormir --------------------------------------------------------------------------
@@ -492,7 +530,7 @@ class AudioPlayerController(
     fun startBedtimeMusic() {
         bedtimeMusic = true
         bedtimeFadeJob?.cancel()
-        startAmbient()
+        refreshBackground()
     }
 
     /** Deixa a caixinha tocar por [holdMs], abaixa até o silêncio em [fadeMs] e desliga. */
@@ -500,12 +538,10 @@ class AudioPlayerController(
         bedtimeFadeJob?.cancel()
         bedtimeFadeJob = scope.launch {
             delay(holdMs)
+            val from = backgroundVolume
             val steps = 30
             repeat(steps) { step ->
-                try {
-                    ambientTrack?.setVolume(AMBIENT_VOLUME * (1f - (step + 1f) / steps))
-                } catch (_: Exception) {
-                }
+                setBackgroundVolume(from * (1f - (step + 1f) / steps))
                 delay(fadeMs / steps)
             }
             stopBedtimeMusic()
@@ -516,7 +552,7 @@ class AudioPlayerController(
         bedtimeFadeJob?.cancel()
         bedtimeFadeJob = null
         bedtimeMusic = false
-        stopAmbient()
+        refreshBackground()
     }
 
     /** Nome técnico da voz do aparelho usada por último (diagnóstico nas configurações). */
@@ -598,63 +634,154 @@ class AudioPlayerController(
         progressJob = null
     }
 
-    // --- Música de ninar ---------------------------------------------------------------------------
+    // --- Som de fundo -------------------------------------------------------------------------------
 
-    private fun startAmbient() {
-        if (ambientTrack != null || ambientJob?.isActive == true) {
+    /** O fundo que deveria estar tocando agora. O ritual de dormir sempre usa a caixinha. */
+    private fun desiredLayer(): Layer? = when {
+        bedtimeMusic -> Layer.Lullaby
+        !readerActive -> null
+        else -> when (_playbackState.value.backgroundSound) {
+            BackgroundSound.AMBIENCE -> pageAmbience?.let { Layer.Page(it) }
+            BackgroundSound.LULLABY -> Layer.Lullaby
+            BackgroundSound.OFF -> null
+        }
+    }
+
+    /**
+     * Deixa tocando o fundo certo, sem corte seco: o som anterior some aos poucos enquanto o
+     * novo entra. Chamar de novo com o mesmo fundo só ajusta o volume.
+     */
+    private fun refreshBackground() {
+        val wanted = desiredLayer()
+        if (wanted == backgroundLayer && (wanted == null || backgroundTrack != null || backgroundJob?.isActive == true)) {
             applyDucking()
             return
         }
-        ambientJob = scope.launch {
-            val pcm = lullabyPcm ?: withContext(Dispatchers.Default) { LullabySynth.render() }.also { lullabyPcm = it }
-            if (!_playbackState.value.isAmbientSoundEnabled && !bedtimeMusic) return@launch
+        backgroundLayer = wanted
+        backgroundJob?.cancel()
+        fadingIn = false
+        backgroundTrack?.let { previous ->
+            val from = backgroundVolume
+            scope.launch { fadeOutAndRelease(previous, from) }
+        }
+        backgroundTrack = null
+        backgroundVolume = 0f
+        if (wanted == null) return
+        Log.d(TAG, "Som de fundo: " + if (wanted is Layer.Page) wanted.ambience.label else "caixinha de música")
+
+        backgroundJob = scope.launch {
+            val pcm = pcmFor(wanted)
+            if (backgroundLayer != wanted) return@launch
+            val track = buildLoopTrack(pcm) ?: return@launch
+            backgroundTrack = track
+            fadingIn = true
             try {
-                val track = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(LullabySynth.SAMPLE_RATE)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(pcm.size * 2)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
+                setBackgroundVolume(0f)
+                track.play()
+                val steps = 18
+                repeat(steps) { step ->
+                    setBackgroundVolume(targetVolume() * (step + 1f) / steps)
+                    delay(FADE_IN_MS / steps)
+                }
+            } catch (e: CancellationException) {
+                // Outro fundo assumiu: quem trocou já cuida desta faixa e do volume.
+                throw e
+            } catch (_: Exception) {
+            } finally {
+                if (backgroundTrack === track) fadingIn = false
+            }
+            applyDucking()
+        }
+    }
+
+    private suspend fun pcmFor(layer: Layer): ShortArray =
+        pcmCache[layer] ?: withContext(Dispatchers.Default) {
+            when (layer) {
+                Layer.Lullaby -> LullabySynth.render()
+                is Layer.Page -> AmbienceSynth.render(layer.ambience)
+            }
+        }.also { pcmCache[layer] = it }
+
+    private fun buildLoopTrack(pcm: ShortArray): AudioTrack? = try {
+        AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                     .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(LullabySynth.SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(pcm.size * 2)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+            .also { track ->
                 track.write(pcm, 0, pcm.size)
                 track.setLoopPoints(0, pcm.size, -1)
-                ambientTrack = track
-                applyDucking()
-                track.play()
-            } catch (_: Exception) {
-                ambientTrack = null
             }
-        }
+    } catch (_: Exception) {
+        null
     }
 
-    private fun stopAmbient() {
-        ambientJob?.cancel()
-        ambientJob = null
+    /** Some com a faixa a partir do volume em que ela está ([from]); se já está muda, só desliga. */
+    private suspend fun fadeOutAndRelease(track: AudioTrack, from: Float) {
         try {
-            ambientTrack?.stop()
+            if (from > 0.001f) {
+                val steps = 12
+                repeat(steps) { step ->
+                    track.setVolume(from * (1f - (step + 1f) / steps))
+                    delay(FADE_OUT_MS / steps)
+                }
+            }
+            track.stop()
         } catch (_: Exception) {
+        } finally {
+            track.release()
         }
-        ambientTrack?.release()
-        ambientTrack = null
     }
 
-    /** Abaixa a música enquanto o narrador fala. */
+    private fun targetVolume(): Float {
+        val speaking = _playbackState.value.status == NarrationStatus.PLAYING
+        return when (backgroundLayer) {
+            is Layer.Page -> if (speaking) PAGE_SOUND_DUCKED else PAGE_SOUND_VOLUME
+            Layer.Lullaby -> if (speaking) DUCKED_VOLUME else AMBIENT_VOLUME
+            null -> 0f
+        }
+    }
+
+    /** Abaixa o fundo enquanto o narrador fala (durante a entrada suave, o próprio fade cuida disso). */
     private fun applyDucking() {
-        val volume = if (_playbackState.value.status == NarrationStatus.PLAYING) DUCKED_VOLUME else AMBIENT_VOLUME
+        if (fadingIn || bedtimeFadeJob?.isActive == true) return
+        setBackgroundVolume(targetVolume())
+    }
+
+    private fun setBackgroundVolume(volume: Float) {
+        val track = backgroundTrack ?: return
         try {
-            ambientTrack?.setVolume(volume)
+            track.setVolume(volume)
+            backgroundVolume = volume
         } catch (_: Exception) {
         }
+    }
+
+    private fun stopBackgroundNow() {
+        backgroundJob?.cancel()
+        backgroundLayer = null
+        fadingIn = false
+        backgroundVolume = 0f
+        backgroundTrack?.let { track ->
+            try {
+                track.stop()
+            } catch (_: Exception) {
+            }
+            track.release()
+        }
+        backgroundTrack = null
     }
 
     // --- Utilidades --------------------------------------------------------------------------------
@@ -683,7 +810,7 @@ class AudioPlayerController(
     fun release() {
         loadJob?.cancel()
         stopProgressTracker()
-        stopAmbient()
+        stopBackgroundNow()
         player?.release()
         player = null
         deviceEngine.shutdown()

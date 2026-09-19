@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.MusicOff
+import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -78,6 +79,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.core.audio.BackgroundSound
 import com.livrovivo.app.core.audio.NarrationStatus
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
@@ -113,6 +115,15 @@ fun ReaderScreen(
     var rewindTarget by remember { mutableStateOf<Int?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showBackgroundLabel by remember { mutableStateOf(false) }
+
+    // Aviso curtinho depois de trocar o som de fundo, para os pais saberem o que ligaram.
+    LaunchedEffect(showBackgroundLabel, uiState.narration.backgroundSound) {
+        if (showBackgroundLabel) {
+            delay(2_500)
+            showBackgroundLabel = false
+        }
+    }
 
     if (confirmDelete) {
         AlertDialog(
@@ -202,7 +213,10 @@ fun ReaderScreen(
                     onReplay = viewModel::replayNarration,
                     onPersona = viewModel::setPersona,
                     onSpeed = viewModel::setSpeed,
-                    onToggleMusic = viewModel::toggleAmbientSound
+                    onToggleMusic = {
+                        viewModel.cycleBackgroundSound()
+                        showBackgroundLabel = true
+                    }
                 )
             }
         },
@@ -263,6 +277,17 @@ fun ReaderScreen(
             )
 
             ConfettiOverlay(visible = uiState.showCelebration, modifier = Modifier.fillMaxSize())
+
+            AnimatedVisibility(
+                visible = showBackgroundLabel,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+            ) {
+                BackgroundSoundPill(state = uiState.narration)
+            }
         }
     }
 }
@@ -679,6 +704,25 @@ private fun EndingCard(
     }
 }
 
+/** "🍃 Sons da página: grilos", "🎵 Música de ninar" ou "🔇 Sem som de fundo". */
+@Composable
+private fun BackgroundSoundPill(state: PlaybackState) {
+    val sound = state.backgroundSound
+    val detail = state.ambience?.takeIf { sound == BackgroundSound.AMBIENCE }?.let { ": ${it.label}" }.orEmpty()
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        shadowElevation = 6.dp
+    ) {
+        Text(
+            text = "${sound.emoji} ${sound.label}$detail",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.inverseOnSurface,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        )
+    }
+}
+
 @Composable
 private fun NarrationBar(
     state: PlaybackState,
@@ -799,9 +843,17 @@ private fun NarrationBar(
 
                 IconButton(onClick = onToggleMusic) {
                     Icon(
-                        imageVector = if (state.isAmbientSoundEnabled) Icons.Default.MusicNote else Icons.Default.MusicOff,
-                        contentDescription = if (state.isAmbientSoundEnabled) "Desligar música de ninar" else "Ligar música de ninar",
-                        tint = if (state.isAmbientSoundEnabled) FairyGold else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        imageVector = when (state.backgroundSound) {
+                            BackgroundSound.AMBIENCE -> Icons.Default.Park
+                            BackgroundSound.LULLABY -> Icons.Default.MusicNote
+                            BackgroundSound.OFF -> Icons.Default.MusicOff
+                        },
+                        contentDescription = "Som de fundo: ${state.backgroundSound.label}. Toque para trocar.",
+                        tint = when (state.backgroundSound) {
+                            BackgroundSound.AMBIENCE -> FairyEmerald
+                            BackgroundSound.LULLABY -> FairyGold
+                            BackgroundSound.OFF -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        }
                     )
                 }
                 IconButton(onClick = onReplay, enabled = state.status != NarrationStatus.PREPARING) {

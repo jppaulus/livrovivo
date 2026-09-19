@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.livrovivo.app.BuildConfig
+import com.livrovivo.app.core.audio.BackgroundSound
 import com.livrovivo.app.core.bedtime.Bedtime
 import com.livrovivo.app.core.bedtime.BedtimeMode
 import com.livrovivo.app.core.bedtime.BedtimeSettings
@@ -91,7 +92,8 @@ data class AppSettings(
     val illustrationStyle: IllustrationStyle = IllustrationStyle.AQUARELA,
     val autoPlayNarration: Boolean = true,
     val narrationSpeed: Float = 1.0f,
-    val ambientMusicEnabled: Boolean = false,
+    /** O que toca por baixo da narração: sons da página (padrão), música de ninar ou nada. */
+    val backgroundSound: BackgroundSound = BackgroundSound.AMBIENCE,
     val highlightReading: Boolean = true,
     val isPremium: Boolean = false,
     /** Total de histórias já criadas (não diminui ao apagar, para o limite gratuito ser justo). */
@@ -142,7 +144,9 @@ class SettingsManager(private val context: Context) {
         val ILLUSTRATION_STYLE = stringPreferencesKey("illustration_style")
         val AUTO_PLAY = booleanPreferencesKey("auto_play_narration")
         val NARRATION_SPEED = floatPreferencesKey("narration_speed")
+        /** Antiga liga/desliga da música de ninar; só é lida para migrar para [BACKGROUND_SOUND]. */
         val AMBIENT_MUSIC = booleanPreferencesKey("ambient_music")
+        val BACKGROUND_SOUND = stringPreferencesKey("background_sound")
         val HIGHLIGHT_READING = booleanPreferencesKey("highlight_reading")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val STORIES_CREATED = intPreferencesKey("stories_created")
@@ -209,7 +213,7 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setNarrationSpeed(speed: Float) = edit { it[NARRATION_SPEED] = speed.coerceIn(0.7f, 1.3f) }
 
-    suspend fun setAmbientMusic(enabled: Boolean) = edit { it[AMBIENT_MUSIC] = enabled }
+    suspend fun setBackgroundSound(sound: BackgroundSound) = edit { it[BACKGROUND_SOUND] = sound.id }
 
     suspend fun setHighlightReading(enabled: Boolean) = edit { it[HIGHLIGHT_READING] = enabled }
 
@@ -290,7 +294,7 @@ class SettingsManager(private val context: Context) {
             illustrationStyle = IllustrationStyle.fromId(this[ILLUSTRATION_STYLE]),
             autoPlayNarration = this[AUTO_PLAY] ?: true,
             narrationSpeed = this[NARRATION_SPEED] ?: 1.0f,
-            ambientMusicEnabled = this[AMBIENT_MUSIC] ?: false,
+            backgroundSound = BackgroundSound.fromStored(this[BACKGROUND_SOUND], this[AMBIENT_MUSIC]),
             highlightReading = this[HIGHLIGHT_READING] ?: true,
             isPremium = this[IS_PREMIUM] ?: false,
             storiesCreated = this[STORIES_CREATED] ?: 0,

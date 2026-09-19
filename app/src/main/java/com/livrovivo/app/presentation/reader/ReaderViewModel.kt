@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.ai.AiException
 import com.livrovivo.app.core.album.StickerBook
+import com.livrovivo.app.core.audio.Ambience
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
@@ -175,6 +176,8 @@ class ReaderViewModel(
             listenerAge = AgeGroup.fromCode(state.child?.ageGroup).illustrationAge + " child",
             autoPlay = play
         )
+        // O som de fundo acompanha o clima da página (grilos, vento, ondas...).
+        audioPlayerController.setPageAmbience(Ambience.forPage(chapter.mood, state.scene))
         ensureIllustration(chapter.index)
         viewModelScope.launch { storyRepository.markRead(story.id, chapter.index) }
         if (chapter.isEnding) {
@@ -307,7 +310,7 @@ class ReaderViewModel(
 
     fun setPersona(persona: VoicePersona) = audioPlayerController.setPersona(persona)
 
-    fun toggleAmbientSound() = audioPlayerController.toggleAmbientSound()
+    fun cycleBackgroundSound() = audioPlayerController.cycleBackgroundSound()
 
     fun setSpeed(speed: Float) = audioPlayerController.setSpeed(speed)
 

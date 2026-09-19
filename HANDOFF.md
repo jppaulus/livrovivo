@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 138 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
+- **Estado:** compila, 151 testes unitários passando, rodou no emulador. O Gemini (texto) já foi
   validado com chave real pelo usuário; imagem e ElevenLabs continuam sem teste real.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 62 testes
+./gradlew testDebugUnitTest   # 151 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 ```
@@ -59,11 +59,13 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ai/StoryWriter.kt` | Orquestra IA vs offline; `ChapterSanitizer.kt` valida a resposta do modelo |
 | `core/ai/OfflineStoryEngine.kt` | Histórias escritas à mão (8 temas + tema livre) para quando não há IA |
 | `core/ai/ElevenLabsService.kt` | TTS premium + listagem de vozes da conta |
-| `core/audio/AudioPlayerController.kt` | Narração: escolhe motor, **gera em partes**, toca com ExoPlayer, destaque de leitura, música de ninar, cache |
+| `core/audio/AudioPlayerController.kt` | Narração: escolhe motor, **gera em partes**, toca com ExoPlayer, destaque de leitura, cache; som de fundo com troca suave (`refreshBackground()`) |
 | `core/audio/NarrationText.kt` | `NarrationChunker` (divide a página) e `NarrationTimeline` (frases para o destaque) |
 | `core/audio/NarrationEngines.kt` | Motores: ElevenLabs, Gemini TTS, voz do aparelho (com escolha de voz por narrador) |
 | `core/audio/VoicePersona.kt` | 4 narradores + direção de atuação. **Não reordenar** (ver seção 4) |
 | `core/audio/LullabySynth.kt` | Caixinha de música sintetizada ("Brilha, Brilha, Estrelinha") |
+| `core/audio/AmbienceSynth.kt` | Sons da página sintetizados (grilos, lareira, vento, passarinhos, riacho, brilhinhos, ondas) e a regra `Ambience.forPage(mood, cena)` |
+| `core/audio/BackgroundSound.kt` | O que toca por baixo da narração (sons da página, ninar, nada) e a migração da antiga preferência |
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/ui/ChildSwitcher.kt` | Avatar, chip e folha de troca de criança (irmãos) |
@@ -194,6 +196,30 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
      gravado (evita perder a figurinha numa corrida com o banco).
    - **Espaço vazio mostra o ícone apagado, o número no canto e quanto falta** ("2 de 6") — para quem
      ainda não lê. Na hora de dormir obrigatória, o fim mostra as figurinhas novas mas não o botão do álbum.
+15. **Sons da página.** Decisões que valem a pena não refazer:
+   - **Sintetizados no aparelho, sem arquivo de áudio** (mesma ideia da caixinha): o APK não cresce, não há
+     licença de gravação para conferir e funciona offline. Cada som é um loop de 16 s que emenda sem
+     estalo (ruído periódico, filtros em duas passadas, LFOs com número inteiro de ciclos e eventos
+     circulares); há teste para a emenda, o volume e o pico.
+   - **O som vem do `mood` da página, com o lugar vencendo quando é marcante:** espaço → brilhinhos,
+     mar → ondas, noite → grilos (vento se misteriosa, lareira se aconchegante); "emocionante" → brilhinhos.
+     Nos demais lugares: sonolento → grilos, aconchegante → lareira, misterioso → vento, alegre →
+     passarinhos, aventura → riacho. Sem `mood`: lareira em casa, passarinhos no resto.
+   - **Um botão de três estados no leitor** (sons da página → música de ninar → nada), com um aviso curto
+     do que ficou ligado. A preferência antiga (`ambient_music`) só é lida para migrar: quem tinha ligado
+     a caixinha continua com ela; **os demais passam a ouvir os sons da página**, que é o novo padrão.
+   - **A caixinha continua sendo a música do ritual**, qualquer que seja a escolha no leitor (decisão 13).
+   - **Troca suave entre páginas:** o som anterior some em 0,6 s enquanto o novo entra em 0,9 s; página
+     com o mesmo som não reinicia o loop. Volume 0,45 (0,16 com o narrador falando), um pouco abaixo da
+     caixinha, porque é fundo e não trilha. Os três últimos sons ficam em cache (~700 KB cada).
+   - **A saída suave parte do volume real da faixa** (`backgroundVolume`), nunca do volume da camada
+     nova: calcular pela camada nova fazia a caixinha, já muda no fim do ritual, voltar baixinho por
+     meio segundo com a criança dormindo, e cortava o som ao sair do livro. O `scope` é
+     `Main.immediate`, então um fade cancelado roda o `finally` na hora: ele não mexe no volume.
+   - **Só toca dentro do leitor** (e no ritual): sair do livro desliga o fundo.
+   - ⚠️ **Ninguém ouviu ainda:** o emulador de teste roda sem áudio. O teste confirmou qual som toca, a
+     troca e o desligar (via `dumpsys audio` e o log `LivroVivoAudio`), mas o gosto de cada som precisa de
+     ouvido humano. `AmbienceSamplesExport` grava os sete em WAV se `AMBIENCE_WAV_DIR` estiver definida.
 ---
 
 ## 5. Estado do Git
@@ -210,7 +236,8 @@ dela** (`story.childId`). Misturar os dois é o que faz o nome trocar no meio da
 | `1248148` | Google Play Billing de verdade |
 | `deeab08` | Memória do companheiro e diálogo do limite sem venda para a criança |
 | `163a123` | Ritual da hora de dormir e modo dormindo |
-| *(este)* | Álbum de figurinhas por criança |
+| `b307d45` | Álbum de figurinhas por criança |
+| *(este)* | Sons da página pelo clima e lugar de cada página |
 
 ⚠️ O checkout principal (`%USERPROFILE%\Desktop\Creates\Livro Vivo`) ainda tem as mesmas mudanças
 do `5d0a608` soltas na cópia de trabalho. Depois de juntar a branch na `main`, dá para descartá-las lá
@@ -247,10 +274,15 @@ Princípio adotado: a retenção vem de **ritual** (os pais abrem toda noite por
 **antecipação** (a criança pede a próxima história) — nunca de culpa, sequência que zera, recompensa
 aleatória ligada a pagamento ou história emendada sozinha. Quem paga são os pais, e o uso principal é
 na hora de dormir. Já feito e testado no emulador: memória do companheiro, diálogo do limite, ritual de
-dormir e álbum de figurinhas. Na fila, em ordem:
-1. **Som ambiente pelo `mood`** de cada página (hoje ele só orienta a voz do Gemini e a ilustração).
-2. Depois: páginas que reagem ao toque, aventura dos irmãos, coautoria por voz (só com reconhecimento
-   no aparelho e consentimento dos pais — LGPD, art. 14), datas especiais e boletim semanal para os pais.
+dormir, álbum de figurinhas e sons da página. Na fila, em ordem:
+1. **Páginas que reagem ao toque** (tocar na ilustração faz algo pequeno: um brilho, um som, o
+   companheiro dizendo uma frase), sem virar jogo que tira a atenção da história.
+2. Depois: aventura dos irmãos, coautoria por voz (só com reconhecimento no aparelho e consentimento
+   dos pais — LGPD, art. 14), datas especiais e boletim semanal para os pais.
+- **Ouvir os sons da página num aparelho de verdade** e ajustar o que soar estranho (volume relativo à
+  voz, lareira e ondas são os mais difíceis de sintetizar). Os ajustes de cada som (volume de cada
+  camada, frequências, estalos por segundo) ficam na função dele em `AmbienceSynth.kt`; o volume de
+  todos juntos é o `PAGE_SOUND_VOLUME` do `AudioPlayerController`.
 - Detalhe de UX: a criança só descobre o limite gratuito depois de escolher o tema na criação; dá para
   checar ao abrir a tela (o limite da noite já é checado ao abrir).
 - Possível limpeza: no fim da história, "Conquistas desta história" (selos com a contagem) e
@@ -278,7 +310,7 @@ dormir e álbum de figurinhas. Na fila, em ordem:
 > `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > O trabalho recente está na branch `claude/projeto-conforme-md-8263f2`, ainda não enviada ao GitHub.
-> Minha prioridade agora é: [ex.: o som ambiente por clima / cadastrar as assinaturas no Play Console /
+> Minha prioridade agora é: [ex.: páginas que reagem ao toque / cadastrar as assinaturas no Play Console /
 > medir o tempo da narração].
 
 ---
