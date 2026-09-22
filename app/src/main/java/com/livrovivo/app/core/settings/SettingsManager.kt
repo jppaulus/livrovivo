@@ -20,6 +20,12 @@ import kotlinx.serialization.encodeToString
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "livro_vivo_settings")
 
+/** Narrador padrão do app (Capitão Aventura): voz animada e clara, boa em qualquer aparelho. */
+const val DEFAULT_PERSONA_ID = "aventureiro"
+
+/** Versão dos padrões do app; aumentar aplica os novos padrões uma vez em quem já usa o app. */
+private const val CURRENT_DEFAULTS_VERSION = 1
+
 enum class VoiceEngineChoice(val id: String, val title: String, val description: String) {
     AUTO("auto", "Automático", "Usa a voz mais natural disponível"),
     ELEVENLABS("elevenlabs", "ElevenLabs", "A mais expressiva (chave ElevenLabs)"),
@@ -37,8 +43,17 @@ object AiModelDefaults {
     const val TTS = "gemini-3.1-flash-tts-preview"
     const val ELEVENLABS = "eleven_v3"
 
-    /** Modelos tentados em sequência quando o configurado não existe mais (ex.: foi desativado). */
-    val TEXT_FALLBACKS = listOf("gemini-2.5-flash", "gemini-flash-latest")
+    /**
+     * Modelos tentados em sequência quando o configurado foi desativado ou não está liberado para a conta.
+     * Todos os de texto e voz abaixo fazem parte do plano gratuito do Gemini.
+     */
+    val TEXT_FALLBACKS = listOf(
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest"
+    )
     val IMAGE_FALLBACKS = listOf("gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image")
     val TTS_FALLBACKS = listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts")
 
@@ -60,7 +75,7 @@ data class AppSettings(
     val geminiKeyFromDevConfig: Boolean = false,
     val elevenLabsKeyFromDevConfig: Boolean = false,
     val voiceEngine: VoiceEngineChoice = VoiceEngineChoice.AUTO,
-    val defaultPersonaId: String = "fada",
+    val defaultPersonaId: String = DEFAULT_PERSONA_ID,
     val elevenLabsVoiceIds: Map<String, String> = emptyMap(),
     val elevenLabsModel: String = AiModelDefaults.ELEVENLABS,
     val textModel: String = AiModelDefaults.TEXT,
@@ -69,6 +84,7 @@ data class AppSettings(
     val illustrationsEnabled: Boolean = true,
     val illustrationStyle: IllustrationStyle = IllustrationStyle.AQUARELA,
     val autoPlayNarration: Boolean = true,
+    val prepareNextChoices: Boolean = true,
     val narrationSpeed: Float = 1.0f,
     val ambientMusicEnabled: Boolean = false,
     val highlightReading: Boolean = true,
@@ -80,7 +96,7 @@ data class AppSettings(
     val hasElevenLabsKey: Boolean get() = elevenLabsApiKey.isNotBlank()
 }
 
-class SettingsManager(private val context: Context) {
+class SettingsManager(context: Context, private val store: DataStore<Preferences> = context.dataStore) {
 
     companion object {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
@@ -94,15 +110,30 @@ class SettingsManager(private val context: Context) {
         val TTS_MODEL = stringPreferencesKey("tts_model")
         val ILLUSTRATIONS_ENABLED = booleanPreferencesKey("illustrations_enabled")
         val ILLUSTRATION_STYLE = stringPreferencesKey("illustration_style")
+        val PREPARE_CHOICES = booleanPreferencesKey("prepare_next_choices")
         val AUTO_PLAY = booleanPreferencesKey("auto_play_narration")
         val NARRATION_SPEED = floatPreferencesKey("narration_speed")
         val AMBIENT_MUSIC = booleanPreferencesKey("ambient_music")
         val HIGHLIGHT_READING = booleanPreferencesKey("highlight_reading")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val STORIES_CREATED = intPreferencesKey("stories_created")
+        val DEFAULTS_VERSION = intPreferencesKey("defaults_version")
     }
 
-    val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { it.toSettings() }
+    /**
+     * Aplica os padrões novos do app uma única vez (hoje: narrador Capitão Aventura),
+     * inclusive para quem já tinha outro narrador salvo. Depois disso, a escolha dos pais manda.
+     */
+    suspend fun applyPendingDefaults() {
+        store.edit { prefs ->
+            if ((prefs[DEFAULTS_VERSION] ?: 0) < CURRENT_DEFAULTS_VERSION) {
+                prefs[DEFAULT_PERSONA] = DEFAULT_PERSONA_ID
+                prefs[DEFAULTS_VERSION] = CURRENT_DEFAULTS_VERSION
+            }
+        }
+    }
+
+    val settingsFlow: Flow<AppSettings> = store.data.map { it.toSettings() }
 
     suspend fun current(): AppSettings = settingsFlow.first()
 
@@ -137,6 +168,8 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setIllustrationStyle(style: IllustrationStyle) = edit { it[ILLUSTRATION_STYLE] = style.id }
 
+    suspend fun setPrepareChoices(enabled: Boolean) = edit { it[PREPARE_CHOICES] = enabled }
+
     suspend fun setAutoPlay(enabled: Boolean) = edit { it[AUTO_PLAY] = enabled }
 
     suspend fun setNarrationSpeed(speed: Float) = edit { it[NARRATION_SPEED] = speed.coerceIn(0.7f, 1.3f) }
@@ -154,7 +187,7 @@ class SettingsManager(private val context: Context) {
     }
 
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
-        context.dataStore.edit { block(it) }
+        store.edit { block(it) }
     }
 
     private fun Preferences.toSettings(): AppSettings {
@@ -171,7 +204,7 @@ class SettingsManager(private val context: Context) {
             geminiKeyFromDevConfig = storedGemini.isBlank() && BuildConfig.DEV_GEMINI_API_KEY.isNotBlank(),
             elevenLabsKeyFromDevConfig = storedEleven.isBlank() && BuildConfig.DEV_ELEVENLABS_API_KEY.isNotBlank(),
             voiceEngine = VoiceEngineChoice.fromId(this[VOICE_ENGINE]),
-            defaultPersonaId = this[DEFAULT_PERSONA] ?: "fada",
+            defaultPersonaId = this[DEFAULT_PERSONA] ?: DEFAULT_PERSONA_ID,
             elevenLabsVoiceIds = voiceIds,
             elevenLabsModel = this[ELEVENLABS_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.ELEVENLABS,
             textModel = this[TEXT_MODEL]?.takeIf { it.isNotBlank() } ?: AiModelDefaults.TEXT,
@@ -180,6 +213,7 @@ class SettingsManager(private val context: Context) {
             illustrationsEnabled = this[ILLUSTRATIONS_ENABLED] ?: true,
             illustrationStyle = IllustrationStyle.fromId(this[ILLUSTRATION_STYLE]),
             autoPlayNarration = this[AUTO_PLAY] ?: true,
+            prepareNextChoices = this[PREPARE_CHOICES] ?: true,
             narrationSpeed = this[NARRATION_SPEED] ?: 1.0f,
             ambientMusicEnabled = this[AMBIENT_MUSIC] ?: false,
             highlightReading = this[HIGHLIGHT_READING] ?: true,

@@ -15,19 +15,19 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface StoryDao {
     @Transaction
-    @Query("SELECT * FROM stories ORDER BY updatedAt DESC, createdAt DESC")
+    @Query("SELECT * FROM stories WHERE deletedAt IS NULL ORDER BY updatedAt DESC, createdAt DESC")
     fun observeStoriesWithChapters(): Flow<List<StoryWithChapters>>
 
     @Transaction
-    @Query("SELECT * FROM stories WHERE id = :storyId LIMIT 1")
+    @Query("SELECT * FROM stories WHERE id = :storyId AND deletedAt IS NULL LIMIT 1")
     fun observeStoryWithChapters(storyId: String): Flow<StoryWithChapters?>
 
     @Transaction
-    @Query("SELECT * FROM stories WHERE id = :storyId LIMIT 1")
+    @Query("SELECT * FROM stories WHERE id = :storyId AND deletedAt IS NULL LIMIT 1")
     suspend fun getStoryWithChapters(storyId: String): StoryWithChapters?
 
     @Transaction
-    @Query("SELECT * FROM stories ORDER BY createdAt DESC")
+    @Query("SELECT * FROM stories WHERE deletedAt IS NULL ORDER BY createdAt DESC")
     suspend fun getAllStoriesWithChapters(): List<StoryWithChapters>
 
     @Query("SELECT * FROM stories WHERE id = :storyId LIMIT 1")
@@ -36,7 +36,7 @@ interface StoryDao {
     @Query("SELECT * FROM story_chapters WHERE storyId = :storyId ORDER BY chapterIndex ASC")
     suspend fun getChaptersForStory(storyId: String): List<ChapterEntity>
 
-    @Query("SELECT COUNT(*) FROM stories")
+    @Query("SELECT COUNT(*) FROM stories WHERE originId IS NULL")
     suspend fun getStoryCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -49,6 +49,28 @@ interface StoryDao {
     suspend fun insertStoryWithChapters(story: StoryEntity, chapters: List<ChapterEntity>) {
         insertStory(story)
         insertChapters(chapters)
+    }
+
+    @Transaction
+    @Query("SELECT * FROM stories WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC")
+    fun observeTrash(): Flow<List<StoryWithChapters>>
+
+    @Query("UPDATE stories SET deletedAt = :deletedAt WHERE id = :storyId")
+    suspend fun setDeletedAt(storyId: String, deletedAt: Long?)
+
+    @Query("UPDATE stories SET deletedAt = :deletedAt WHERE childId = :childId AND deletedAt IS NULL")
+    suspend fun moveChildStoriesToTrash(childId: String, deletedAt: Long)
+
+    @Query("UPDATE stories SET childSnapshotJson = :snapshot WHERE id = :storyId AND childSnapshotJson IS NULL")
+    suspend fun saveSnapshot(storyId: String, snapshot: String)
+
+    @Query("UPDATE story_chapters SET openedAt = COALESCE(openedAt, :openedAt) WHERE storyId = :storyId AND chapterIndex = :chapterIndex")
+    suspend fun markOpened(storyId: String, chapterIndex: Int, openedAt: Long)
+
+    @Transaction
+    suspend fun preserveAndRewind(copy: StoryEntity, chapters: List<ChapterEntity>, storyId: String, chapterIndex: Int, now: Long) {
+        insertStoryWithChapters(copy, chapters)
+        rewindTo(storyId, chapterIndex, now)
     }
 
     @Query("DELETE FROM stories WHERE id = :storyId")
@@ -95,18 +117,36 @@ interface StoryDao {
     @Query("SELECT COALESCE(SUM(durationMs), 0) FROM reading_sessions")
     suspend fun totalReadingMs(): Long
 
+    @Query("SELECT COALESCE(SUM(durationMs), 0) FROM reading_sessions WHERE childId = :childId")
+    suspend fun childReadingMs(childId: String): Long
+
     @Query("DELETE FROM reading_sessions WHERE storyId = :storyId")
     suspend fun deleteSessionsForStory(storyId: String)
 }
 
 @Dao
 interface ChildProfileDao {
-    @Query("SELECT * FROM child_profiles ORDER BY createdAt DESC LIMIT 1")
+    @Query("SELECT * FROM child_profiles ORDER BY isActive DESC, createdAt DESC LIMIT 1")
     fun getActiveProfileFlow(): Flow<ChildProfileEntity?>
 
-    @Query("SELECT * FROM child_profiles ORDER BY createdAt DESC LIMIT 1")
+    @Query("SELECT * FROM child_profiles ORDER BY isActive DESC, createdAt DESC LIMIT 1")
     suspend fun getActiveProfile(): ChildProfileEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfile(profile: ChildProfileEntity)
+
+    @Query("SELECT * FROM child_profiles ORDER BY createdAt ASC")
+    fun observeProfiles(): Flow<List<ChildProfileEntity>>
+
+    @Query("SELECT * FROM child_profiles WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): ChildProfileEntity?
+
+    @Query("UPDATE child_profiles SET isActive = CASE WHEN id = :id THEN 1 ELSE 0 END WHERE EXISTS (SELECT 1 FROM child_profiles WHERE id = :id)")
+    suspend fun activate(id: String)
+
+    @Transaction
+    suspend fun saveAndActivate(profile: ChildProfileEntity) {
+        insertProfile(profile)
+        activate(profile.id)
+    }
 }

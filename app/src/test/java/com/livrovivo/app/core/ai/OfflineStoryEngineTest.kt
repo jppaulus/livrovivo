@@ -52,7 +52,12 @@ class OfflineStoryEngineTest {
             val choice = last.choices[pick]
             val next = OfflineStoryEngine.continuation(brief, themeId, story, choice)
             assertEquals(last.index + 1, next.index)
-            assertTrue("a continuação reage à escolha", next.content.contains(choice.text.replaceFirstChar { it.lowercase() }))
+            if (!PictureBookLibrary.recognizes(story)) {
+                assertTrue("a continuação reage à escolha", next.content.contains(choice.text.replaceFirstChar { it.lowercase() }))
+            } else {
+                val other = OfflineStoryEngine.continuation(brief, themeId, story, last.choices[1 - pick])
+                assertTrue("as escolhas precisam produzir acontecimentos diferentes", next.content != other.content)
+            }
             story = story.copy(
                 chapters = story.chapters.map { if (it.index == last.index) it.copy(selectedChoiceText = choice.text) else it } + next
             )

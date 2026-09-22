@@ -12,6 +12,8 @@ import java.util.UUID
 class StoryWriter(
     private val gemini: GeminiService
 ) {
+    private val continuations = ContinuationCache<String, Chapter>()
+
     data class Draft(val story: Story, val usedAi: Boolean)
 
     /** Cria o capítulo 1. Sem IA configurada, usa o motor offline. Com IA e erro, falha (para a UI oferecer opções). */
@@ -51,6 +53,8 @@ class StoryWriter(
                 isOffline = false
             )
             Result.success(Draft(story, usedAi = true))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: AiException) {
             Result.failure(e)
         } catch (e: Exception) {
@@ -68,17 +72,21 @@ class StoryWriter(
             return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED))
         }
         return try {
-            val isFinal = nextIndex >= story.plannedChapters
-            val json = gemini.generateJson(
-                systemPrompt = StoryPrompts.SYSTEM_PROMPT,
-                userPrompt = StoryPrompts.continuationPrompt(brief, story, choice),
-                schema = StoryPrompts.schema(includeOpeningFields = false)
-            )
-            Result.success(
+            val key = story.id + "|" + story.sortedChapters.joinToString("|") { "${it.index}:${it.content}:${if (it.index == story.lastChapter?.index) null else it.selectedChoiceText}" } + "|" + choice.text
+            val chapter = continuations.get(key) {
+                val isFinal = nextIndex >= story.plannedChapters
+                val json = gemini.generateJson(
+                    systemPrompt = StoryPrompts.SYSTEM_PROMPT,
+                    userPrompt = StoryPrompts.continuationPrompt(brief, story, choice),
+                    schema = StoryPrompts.schema(includeOpeningFields = false)
+                )
                 ChapterSanitizer.toChapter(json, index = nextIndex, isFinal = isFinal) {
                     OfflineStoryEngine.fallbackChoices(brief.companion, nextIndex + 1)
                 }
-            )
+            }
+            Result.success(chapter)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: AiException) {
             Result.failure(e)
         } catch (e: Exception) {

@@ -21,6 +21,7 @@ object OfflineStoryEngine {
     fun plannedChapters(ageGroup: AgeGroup): Int = if (ageGroup == AgeGroup.TODDLER) 4 else 5
 
     fun opening(brief: StoryBrief, themeId: String?): Opening {
+        if (brief.ageGroup == AgeGroup.TODDLER) return PictureBookLibrary.opening(brief, themeId)
         val ctx = Ctx(brief)
         val world = worldFor(themeId, brief.theme)
         val planned = plannedChapters(brief.ageGroup)
@@ -35,17 +36,21 @@ object OfflineStoryEngine {
     }
 
     fun continuation(brief: StoryBrief, themeId: String?, story: Story, choice: Choice): Chapter {
+        if (PictureBookLibrary.recognizes(story)) return PictureBookLibrary.continuation(brief, story, choice)
+        if (brief.ageGroup == AgeGroup.TODDLER && story.chapters.firstOrNull()?.mood == "primeiras_aventuras") {
+            return youngContinuation(brief, themeId, story, choice)
+        }
         val ctx = Ctx(brief)
         val world = worldFor(themeId, brief.theme)
         val nextIndex = (story.lastChapter?.index ?: 1) + 1
         val planned = minOf(story.plannedChapters, 5).coerceAtLeast(3)
-        val intro = reaction(ctx, choice)
+        val intro = reaction(ctx, choice) + "\n\n" + consequence(ctx, choice)
 
         if (nextIndex >= planned) {
             val virtues = (story.chosenVirtues + listOfNotNull(choice.virtue)).distinct()
             return Chapter(
                 index = nextIndex,
-                content = "$intro\n\n${world.ending(ctx, virtueSummary(virtues))}",
+                content = "$intro\n\n${world.ending(ctx, virtueSummary(virtues))}\n\n${pathMemory(ctx, story, choice)}",
                 isEnding = true,
                 mood = "aconchegante"
             )
@@ -63,6 +68,72 @@ object OfflineStoryEngine {
             isEnding = false,
             mood = world.mood
         )
+    }
+
+    private fun consequence(ctx: Ctx, choice: Choice): String {
+        val action = StoryVocabulary.normalize(choice.text)
+        return when {
+            "lanterna" in action -> "A luz revelou pequenas pegadas brilhantes. ${ctx.name} seguiu as marcas e descobriu uma passagem que estava escondida."
+            "cantar" in action || "cancao" in action -> "A canção recebeu uma resposta: piu, piu! Um passarinho apareceu e mostrou outro caminho, acompanhando a melodia."
+            "abracar" in action || "abraco" in action -> "O abraço fez o novo amigo sorrir. Ele abriu sua bolsinha e compartilhou uma pequena pista que guardava só para si."
+            "respirar" in action -> "Com a respiração tranquila, ${ctx.name} percebeu um som baixinho. Era uma pista que a pressa tinha escondido."
+            "perguntar" in action || "conversar" in action -> "A pergunta trouxe uma novidade: havia outro jeito de continuar! ${ctx.c} desenhou a pista no chão para ninguém esquecer."
+            choice.virtue == Virtue.CRIATIVIDADE -> "A ideia virou um desenho colorido. Ao completar a última linha, ${ctx.name} encontrou no desenho um jeito novo de resolver o desafio."
+            choice.virtue == Virtue.COOPERACAO -> "${ctx.name} e ${ctx.c} dividiram a tarefa: um procurou pistas, enquanto o outro comparou as descobertas. Juntos encontraram uma peça que faltava."
+            choice.virtue == Virtue.EMPATIA -> "Ao escutar com carinho, ${ctx.name} descobriu o que o novo amigo precisava. O amigo retribuiu mostrando uma pista que ninguém conhecia."
+            choice.virtue == Virtue.CALMA -> "Todos fizeram uma pausa. No silêncio, uma luz pequenina ficou visível e mostrou por onde continuar."
+            else -> "${ctx.name} observou um cantinho diferente e encontrou um desenho escondido. ${ctx.c} reconheceu a pista, e os dois decidiram seguir por ali."
+        }
+    }
+
+    private fun pathMemory(ctx: Ctx, story: Story, choice: Choice): String {
+        val first = story.sortedChapters.firstNotNullOfOrNull { it.selectedChoiceText } ?: choice.text
+        return "Antes de guardar a aventura, ${ctx.name} lembrou de como tudo começou: ${first.replaceFirstChar { it.lowercase() }}. Essa decisão tinha aberto o seu próprio caminho."
+    }
+
+    private fun youngSetting(themeId: String?, theme: String): String = when (ThemeOption.sceneFor(themeId, theme)) {
+        SceneKind.NIGHT -> "um jardim de luar"
+        SceneKind.SCHOOL -> "uma escola cheia de cores"
+        SceneKind.SPACE -> "um planeta de estrelas macias"
+        SceneKind.OCEAN -> "um jardim no fundo do mar"
+        SceneKind.HOME -> "uma casa acolhedora"
+        SceneKind.PARTY -> "uma festa de brinquedos"
+        else -> "uma floresta encantada"
+    }
+
+    private fun youngOpening(brief: StoryBrief, themeId: String?): Opening {
+        val ctx = Ctx(brief)
+        return Opening("${ctx.name} e a Pequena Luz", Chapter(
+            index = 1,
+            content = "${ctx.name} e ${ctx.c} chegaram a ${youngSetting(themeId, brief.theme)}. Plim! Uma luzinha piscou.\n\n— Quero encontrar meus amigos — disse a luz.\n\n${ctx.name} sorriu. A aventura ia começar!",
+            choices = listOf(Choice("Acender a lanterna", 2, Virtue.CORAGEM), Choice("Cantar para a luz", 2, Virtue.CALMA)),
+            mood = "primeiras_aventuras", newWords = listOf("lanterna")
+        ), 4)
+    }
+
+    private fun youngContinuation(brief: StoryBrief, themeId: String?, story: Story, choice: Choice): Chapter {
+        val ctx = Ctx(brief)
+        val index = story.lastChapter!!.index + 1
+        val action = "${ctx.name} decidiu ${choice.text.replaceFirstChar { it.lowercase() }}."
+        val result = when {
+            "lanterna" in choice.text.lowercase() -> "A lanterna mostrou pegadas douradas. Elas levaram a luz até uma flor!"
+            "Cantar" in choice.text -> "Um passarinho ouviu a canção. Piu! Ele mostrou uma flor que brilhava!"
+            choice.virtue == Virtue.EMPATIA -> "O carinho animou a flor. Ela abriu suas pétalas e mostrou o caminho!"
+            choice.virtue == Virtue.CRIATIVIDADE -> "O desenho virou uma trilha colorida. Agora todos podiam seguir as cores!"
+            choice.virtue == Virtue.COOPERACAO -> "Cada amigo ajudou um pouquinho. Juntos, conseguiram acender a luz!"
+            else -> "Todos fizeram uma pausa. A luz ficou tranquila e começou a brilhar!"
+        }
+        val ending = index >= story.plannedChapters
+        val next = when {
+            ending -> "Os amigos se encontraram em ${youngSetting(themeId, brief.theme)}. Que alegria!\n\n${ctx.c} abraçou ${ctx.name}. ${virtueSummary(story.chosenVirtues + listOfNotNull(choice.virtue))} A luz piscou uma última vez: boa noite!"
+            index == 2 -> "A flor estava quietinha. Como ajudar?"
+            else -> "Lá estavam os amigos! Faltava acender a última luz. Como fazer?"
+        }
+        return Chapter(index, "$action\n\n$result\n\n$next",
+            choices = if (ending) emptyList() else if (index == 2) listOf(
+                Choice("Abraçar a flor", index + 1, Virtue.EMPATIA), Choice("Desenhar um caminho", index + 1, Virtue.CRIATIVIDADE)
+            ) else listOf(Choice("Ajudar todos juntos", index + 1, Virtue.COOPERACAO), Choice("Respirar bem devagar", index + 1, Virtue.CALMA)),
+            isEnding = ending, mood = "aconchegante", newWords = if ("trilha" in result) listOf("trilha") else emptyList())
     }
 
     /** Escolhas genéricas usadas se a IA devolver menos de duas opções. */

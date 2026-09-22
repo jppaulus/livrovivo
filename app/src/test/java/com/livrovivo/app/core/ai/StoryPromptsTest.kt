@@ -32,7 +32,7 @@ class StoryPromptsTest {
         val prompt = StoryPrompts.openingPrompt(brief)
         assertTrue(prompt.contains("Theo"))
         assertTrue(prompt.contains("capítulo 1 de 4"))
-        assertTrue(prompt.contains("80 a 120 palavras"))
+        assertTrue(prompt.contains("45 a 75 palavras"))
         assertTrue(prompt.contains("masculino"))
         assertTrue(prompt.contains("characterSheet"))
         assertTrue(prompt.contains("coily afro-textured black hair"))
@@ -60,7 +60,7 @@ class StoryPromptsTest {
         assertTrue(prompt.contains("escolheu: \"Ajudar o filhote\""))
         assertTrue(prompt.contains("CAPÍTULO 4 DE 4"))
         assertTrue(prompt.contains("ÚLTIMO capítulo"))
-        assertTrue(prompt.contains("curiosidade, empatia, coragem"))
+        assertTrue(prompt.contains("sem enumerar virtudes"))
     }
 
     @Test
@@ -88,7 +88,8 @@ class StoryPromptsTest {
     @Test
     fun `schema requires the fields the reader depends on`() {
         val schema = StoryPrompts.schema(includeOpeningFields = true).toString()
-        listOf("title", "characterSheet", "content", "narration", "choices", "isEnding", "illustrationPrompt", "virtue").forEach {
+        assertFalse("não gerar o texto inteiro duas vezes", schema.contains("\"narration\""))
+        listOf("title", "characterSheet", "content", "choices", "isEnding", "illustrationPrompt", "virtue").forEach {
             assertTrue("schema sem $it", schema.contains("\"$it\""))
         }
     }

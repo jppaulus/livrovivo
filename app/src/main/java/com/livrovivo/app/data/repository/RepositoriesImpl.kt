@@ -10,6 +10,8 @@ import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.toDomain
 import com.livrovivo.app.data.model.toEntity
+import com.livrovivo.app.data.model.appJson
+import kotlinx.serialization.encodeToString
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildProfile
@@ -18,17 +20,20 @@ import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.ObjectiveType
 import com.livrovivo.app.domain.model.ParentInsights
 import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.domain.model.StoryActivity
 import com.livrovivo.app.domain.model.ThemeOption
 import com.livrovivo.app.domain.model.Virtue
 import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.ChildProfileRepository
 import com.livrovivo.app.domain.repository.StoryRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 
 class StoryRepositoryImpl(
     private val storyDao: StoryDao,
@@ -42,10 +47,17 @@ class StoryRepositoryImpl(
         storyDao.observeStoriesWithChapters().map { list -> list.map { it.toDomain() } }
 
     override fun observeStory(storyId: String): Flow<Story?> =
-        storyDao.observeStoryWithChapters(storyId).map { it?.toDomain() }
+        storyDao.observeStoryWithChapters(storyId).map { it?.toDomain()?.let { story -> withSnapshot(story) } }
 
     override suspend fun getStoryById(storyId: String): Story? =
-        storyDao.getStoryWithChapters(storyId)?.toDomain()
+        storyDao.getStoryWithChapters(storyId)?.toDomain()?.let { withSnapshot(it) }
+
+    private suspend fun withSnapshot(story: Story): Story {
+        if (story.childSnapshot != null) return story
+        val child = childProfileDao.getById(story.childId)?.toDomain() ?: fallbackChild(story)
+        storyDao.saveSnapshot(story.id, appJson.encodeToString(child.toEntity()))
+        return story.copy(childSnapshot = child)
+    }
 
     override suspend fun createStory(
         child: ChildProfile,
@@ -55,16 +67,22 @@ class StoryRepositoryImpl(
         forceOffline: Boolean
     ): Result<Story> {
         val ageGroup = AgeGroup.fromCode(child.ageGroup)
+        val recent = storyDao.getAllStoriesWithChapters().map { it.toDomain() }
+            .filter { it.childId == child.id && it.themeId == themeId }.maxByOrNull { it.createdAt }
+        val previousVariant = recent?.chapters?.firstOrNull()?.sceneImagePrompt
+            ?.substringBefore(".")?.substringAfterLast(":")?.toIntOrNull()
+        val seed = if (previousVariant != null) listOf("c", "a", "b")[(previousVariant + 1) % 3] else UUID.randomUUID().toString()
         val brief = StoryBrief(
             child = child,
             companion = MagicalCompanion.findById(child.companionId),
             theme = theme,
             objective = objective,
-            plannedChapters = ageGroup.plannedChapters
+            plannedChapters = ageGroup.plannedChapters,
+            editionSeed = seed
         )
         return storyWriter.startStory(brief, themeId, objective.code, forceOffline).map { draft ->
             val now = System.currentTimeMillis()
-            val story = draft.story.copy(createdAt = now, updatedAt = now)
+            val story = draft.story.copy(createdAt = now, updatedAt = now, childSnapshot = child)
             storyDao.insertStoryWithChapters(story.toEntity(), story.chapters.map { it.toEntity(story.id) })
             settingsManager.registerStoryCreated(existingStories = storyDao.getStoryCount())
             story
@@ -83,7 +101,7 @@ class StoryRepositoryImpl(
             return Result.failure(IllegalStateException("A história já terminou."))
         }
 
-        val child = childProfileDao.getActiveProfile()?.toDomain() ?: fallbackChild(story)
+        val child = story.childSnapshot ?: fallbackChild(story)
         val brief = StoryBrief(
             child = child,
             companion = MagicalCompanion.findById(story.companionId),
@@ -97,7 +115,7 @@ class StoryRepositoryImpl(
             chapters = story.chapters.map { if (it.index == last.index) it.copy(selectedChoiceText = choice.text) else it }
         )
 
-        return storyWriter.continueStory(brief, storyWithChoice, choice)
+        return try { storyWriter.continueStory(brief, storyWithChoice, choice)
             .onSuccess { chapter ->
                 val now = System.currentTimeMillis()
                 storyDao.insertChapters(listOf(chapter.toEntity(storyId)))
@@ -111,18 +129,56 @@ class StoryRepositoryImpl(
                 // Libera as escolhas para a criança tentar de novo.
                 storyDao.updateSelectedChoice(storyId, last.index, null)
             }
+        } catch (cancelled: CancellationException) {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                if (storyDao.getChaptersForStory(storyId).none { it.chapterIndex > last.index }) {
+                    storyDao.updateSelectedChoice(storyId, last.index, null)
+                }
+            }
+            throw cancelled
+        }
+    }
+
+    override suspend fun prepareContinuations(storyId: String) = kotlinx.coroutines.supervisorScope {
+        val story = getStoryById(storyId) ?: return@supervisorScope
+        val last = story.lastChapter ?: return@supervisorScope
+        if (story.isOffline || last.isEnding || story.deletedAt != null) return@supervisorScope
+        val child = story.childSnapshot ?: fallbackChild(story)
+        val brief = StoryBrief(child, MagicalCompanion.findById(story.companionId), story.theme,
+            ObjectiveType.fromCode(story.objectiveType), story.plannedChapters)
+        // Only the two immediate paths; no images, no recursive tree, no database mutations.
+        last.choices.take(2).map { choice ->
+            async { storyWriter.continueStory(brief, story, choice) }
+        }.forEach { it.await() }
     }
 
     override suspend fun rewindTo(storyId: String, chapterIndex: Int) {
         val story = getStoryById(storyId) ?: return
-        story.chapters.filter { it.index > chapterIndex }.forEach { chapter ->
-            chapter.imagePath?.let { File(it).delete() }
+        require(story.chapters.any { it.index == chapterIndex }) { "Página não encontrada." }
+        if (story.chapters.none { it.index > chapterIndex }) return
+        val copyId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        try {
+            val preserved = illustrationService.copyStoryAssets(story, copyId).copy(
+                title = story.title.removeSuffix(" · caminho salvo") + " · caminho salvo",
+                originId = story.originId ?: story.id,
+                createdAt = now,
+                updatedAt = now
+            )
+            storyDao.preserveAndRewind(preserved.toEntity(), preserved.chapters.map { it.toEntity(copyId) },
+                storyId, chapterIndex, now)
+        } catch (error: Exception) {
+            // Database transaction failed: the original path is still intact.
+            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                if (storyDao.getStoryById(copyId) == null) illustrationService.deleteStoryAssets(copyId)
+            }
+            throw error
         }
-        storyDao.rewindTo(storyId, chapterIndex, System.currentTimeMillis())
     }
 
     override suspend fun markRead(storyId: String, chapterIndex: Int) {
         storyDao.updateLastRead(storyId, chapterIndex, System.currentTimeMillis())
+        storyDao.markOpened(storyId, chapterIndex, System.currentTimeMillis())
     }
 
     override suspend fun illustrateChapter(storyId: String, chapterIndex: Int): Result<String> {
@@ -135,7 +191,7 @@ class StoryRepositoryImpl(
             return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED))
         }
         return try {
-            val child = childProfileDao.getActiveProfile()?.toDomain()
+            val child = story.childSnapshot
             val file = illustrationService.illustrate(story, chapter, child)
             // A página pode ter sido apagada enquanto a ilustração era gerada (criança voltou atrás).
             val stillExists = storyDao.getChaptersForStory(storyId).any { it.chapterIndex == chapterIndex }
@@ -154,15 +210,24 @@ class StoryRepositoryImpl(
     }
 
     override suspend fun deleteStory(storyId: String) {
+        storyDao.setDeletedAt(storyId, System.currentTimeMillis())
+    }
+
+    override fun observeTrash(): Flow<List<Story>> = storyDao.observeTrash().map { rows -> rows.map { it.toDomain() } }
+
+    override suspend fun restoreStory(storyId: String) = storyDao.setDeletedAt(storyId, null)
+
+    override suspend fun permanentlyDeleteStory(storyId: String) {
+        val story = storyDao.getStoryById(storyId) ?: return
+        require(story.deletedAt != null) { "Mova a história para a lixeira primeiro." }
         storyDao.deleteStory(storyId)
         storyDao.deleteSessionsForStory(storyId)
         withContext(Dispatchers.IO) { illustrationService.deleteStoryAssets(storyId) }
     }
 
     override suspend fun deleteAllStories() {
-        storyDao.deleteAllStories()
-        storyDao.deleteAllSessions()
-        withContext(Dispatchers.IO) { illustrationService.deleteAllStoryAssets() }
+        val child = childProfileDao.getActiveProfile() ?: return
+        storyDao.moveChildStoriesToTrash(child.id, System.currentTimeMillis())
     }
 
     override suspend fun countGeneratedStories(): Int =
@@ -181,14 +246,13 @@ class StoryRepositoryImpl(
     }
 
     override suspend fun buildInsights(child: ChildProfile?): ParentInsights {
-        val stories = storyDao.getAllStoriesWithChapters().map { it.toDomain() }
+        val stories = storyDao.getAllStoriesWithChapters().map { it.toDomain() }.filter { it.childId == child?.id }
+        val activity = StoryActivity.from(stories)
         val name = child?.name ?: "a criança"
-        val virtues = stories.flatMap { it.chosenVirtues }
-        val vocabulary = stories.sortedByDescending { it.updatedAt }
-            .flatMap { story -> story.sortedChapters.flatMap { it.newWords } }
-            .distinctBy { it.lowercase() }
-            .take(24)
-        val themes = stories
+        val choices = activity.choices
+        val virtues = choices.mapNotNull { it.virtue }
+        val vocabulary = activity.vocabulary
+        val themes = stories.distinctBy { it.originId ?: it.id }
             .groupingBy { ThemeOption.findById(it.themeId)?.title ?: it.theme }
             .eachCount()
             .toList()
@@ -207,11 +271,11 @@ class StoryRepositoryImpl(
 
         return ParentInsights(
             childName = child?.name.orEmpty(),
-            storiesStarted = stories.size,
-            storiesCompleted = stories.count { it.isCompleted },
-            pagesRead = stories.sumOf { it.chapters.size },
-            minutesReading = (storyDao.totalReadingMs() / 60_000L).toInt(),
-            choicesMade = stories.sumOf { story -> story.chapters.count { it.selectedChoiceText != null } },
+            storiesStarted = stories.map { it.originId ?: it.id }.distinct().size,
+            storiesCompleted = stories.filter { it.isCompleted }.map { it.originId ?: it.id }.distinct().size,
+            pagesRead = activity.pagesOpened,
+            minutesReading = (storyDao.childReadingMs(child?.id.orEmpty()) / 60_000L).toInt(),
+            choicesMade = choices.size,
             virtueCounts = virtues.groupingBy { it }.eachCount(),
             vocabulary = vocabulary,
             favoriteThemes = themes,
@@ -246,8 +310,11 @@ class ChildProfileRepositoryImpl(
     override suspend fun getActiveProfile(): ChildProfile? = childProfileDao.getActiveProfile()?.toDomain()
 
     override suspend fun saveProfile(profile: ChildProfile) {
-        childProfileDao.insertProfile(profile.toEntity())
+        childProfileDao.saveAndActivate(profile.toEntity())
     }
+
+    override fun observeProfiles(): Flow<List<ChildProfile>> = childProfileDao.observeProfiles().map { rows -> rows.map { it.toDomain() } }
+    override suspend fun activateProfile(id: String) = childProfileDao.activate(id)
 }
 
 /**

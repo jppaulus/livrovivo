@@ -82,8 +82,15 @@ class ElevenLabsService(
         voices
     }
 
-    /** Sintetiza a fala e devolve MP3. */
-    suspend fun synthesize(text: String, voiceId: String, modelId: String, voiceSettings: JsonObject?): ByteArray {
+    /** Sintetiza a fala e devolve MP3. [previousText]/[nextText] são só contexto de entonação. */
+    suspend fun synthesize(
+        text: String,
+        voiceId: String,
+        modelId: String,
+        voiceSettings: JsonObject?,
+        previousText: String? = null,
+        nextText: String? = null
+    ): ByteArray {
         val path = "/v1/text-to-speech/${URLEncoder.encode(voiceId, "UTF-8")}?output_format=mp3_44100_128"
         var attemptSettings = voiceSettings
         repeat(2) {
@@ -91,6 +98,8 @@ class ElevenLabsService(
                 put("text", text)
                 put("model_id", modelId)
                 attemptSettings?.let { put("voice_settings", it) }
+                previousText?.takeIf { it.isNotBlank() }?.let { put("previous_text", it) }
+                nextText?.takeIf { it.isNotBlank() }?.let { put("next_text", it) }
             }
             val result = send(path, method = "POST", body = body, timeoutSeconds = 150)
             if (result.isSuccessful && result.body.isNotEmpty()) return result.body
@@ -150,6 +159,13 @@ class ElevenLabsService(
         if (result.code == 501) return AiException(AiException.Kind.NOT_CONFIGURED, combined, result.code)
         if (status == "voice_not_found" || result.code == 404) {
             return AiException(AiException.Kind.BAD_REQUEST, "Voz não encontrada na conta ElevenLabs. $combined", result.code)
+        }
+        if (result.code == 403) {
+            return AiException(
+                AiException.Kind.PERMISSION_DENIED,
+                "Na ElevenLabs, habilite na chave as permissões \"Text to Speech\" e \"Voices\" (leitura). $combined",
+                result.code
+            )
         }
         return AiException.classifyHttp(result.code, combined, status)
     }

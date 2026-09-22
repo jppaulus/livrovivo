@@ -22,7 +22,8 @@ data class StoryBrief(
     val companion: MagicalCompanion,
     val theme: String,
     val objective: ObjectiveType,
-    val plannedChapters: Int
+    val plannedChapters: Int,
+    val editionSeed: String = java.util.UUID.randomUUID().toString()
 ) {
     val ageGroup: AgeGroup get() = AgeGroup.fromCode(child.ageGroup)
 }
@@ -43,7 +44,11 @@ REGRAS DE SEGURANÇA (inegociáveis)
 ESTILO
 - Português do Brasil natural e musical, com frases que soam gostosas quando lidas em voz alta.
 - Detalhes sensoriais (cores, sons, cheiros, texturas), onomatopeias divertidas e diálogos curtos e expressivos, marcados com travessão (—).
-- O companheiro mágico participa ativamente, com falas carinhosas e bem-humoradas.
+- O companheiro tem vontades e pequenas falhas engraçadas; não é um tutor que elogia cada movimento.
+- Escreva como um livro ilustrado publicado: ação concreta, subtexto e surpresa visual. Nada de explicações pedagógicas, lições de moral ou listas de virtudes no final.
+- O tema determina o conflito e a solução. Uma história no espaço não pode virar uma história de floresta só trocando os nomes.
+- Evite fórmulas como "Era uma vez", "Em um dia especial", "a aventura ia começar", luzinhas que chamam para aventuras e portais genéricos.
+- Abra com um acontecimento, fala ou detalhe intrigante; apresente os personagens enquanto agem. A primeira frase deve dar vontade de virar a página.
 - Cada capítulo traz um pequeno momento de descoberta ou emoção e termina com um gancho que convida à escolha.
 - Parágrafos curtos (2 a 4 frases) separados por uma linha em branco. Não escreva o título nem "Capítulo X" dentro do texto.
 
@@ -54,7 +59,8 @@ ESCOLHAS
 - O capítulo seguinte sempre mostra consequências claras e positivas da escolha feita.
 
 NARRAÇÃO
-- Em "narration", repita o texto de "content" exatamente igual, palavra por palavra, apenas acrescentando marcações de emoção em inglês entre colchetes antes de alguns trechos, como [warmly], [whispers], [excited], [giggles], [gasp], [curious], [softly], [sighs]. No máximo uma marcação a cada duas ou três frases.
+- O texto de "content" será narrado diretamente. Não duplique a história em outro campo.
+- Primeira frase curta, com ritmo oral; diálogos que revelem personalidade.
 
 ILUSTRAÇÃO
 - Em "illustrationPrompt", descreva EM INGLÊS a cena mais marcante do capítulo para um ilustrador: cenário, o que cada personagem faz, expressões, luz e cores. Sem texto escrito na imagem.
@@ -68,8 +74,9 @@ ${childBlock(brief)}
 
 HISTÓRIA
 - Tema: ${sanitizeInput(brief.theme, 160)}
+- Direção editorial desta edição: ${openingDirection(brief.editionSeed)}
 - Objetivo pedagógico: ${brief.objective.title} — ${brief.objective.description}
-- A história terá ${brief.plannedChapters} capítulos. Este é o capítulo 1 de ${brief.plannedChapters}: apresente ${childName(brief)}, ${brief.companion.name} e o cenário, e faça surgir um convite à aventura ligado ao tema.
+- A história terá ${brief.plannedChapters} capítulos. Este é o capítulo 1 de ${brief.plannedChapters}: comece no meio de um acontecimento específico do tema. Revele o desejo do protagonista, um obstáculo pequeno e uma pergunta ainda sem resposta.
 - Tamanho do capítulo: ${brief.ageGroup.wordRange.first} a ${brief.ageGroup.wordRange.last} palavras.
 - Escolhas com no máximo ${maxChoiceWords(brief.ageGroup)} palavras cada.
 
@@ -91,10 +98,9 @@ Crie também:
             }
         }.trim()
 
-        val virtues = (story.chosenVirtues + listOfNotNull(choice.virtue)).distinct()
         val phase = when {
             isFinal -> """
-Este é o ÚLTIMO capítulo: resolva o conflito com um desfecho acolhedor e seguro, celebre as escolhas de ${childName(brief)} ao longo da história${virtuesText(virtues)} e termine com uma frase final calma e memorável.
+Este é o ÚLTIMO capítulo: resolva o conflito por uma ação que dependa das escolhas anteriores. Retome um detalhe da abertura com um significado novo. Termine com uma imagem ou fala memorável, sem explicar a moral e sem enumerar virtudes.
 Use "isEnding": true e "choices": [].
 """.trim()
             nextIndex == story.plannedChapters - 1 ->
@@ -131,7 +137,7 @@ AGORA ESCREVA O CAPÍTULO $nextIndex DE ${story.plannedChapters}
                 putJsonObject("characterSheet") { put("type", "STRING") }
             }
             putJsonObject("content") { put("type", "STRING") }
-            putJsonObject("narration") { put("type", "STRING") }
+
             putJsonObject("choices") {
                 put("type", "ARRAY")
                 putJsonObject("items") {
@@ -165,9 +171,18 @@ AGORA ESCREVA O CAPÍTULO $nextIndex DE ${story.plannedChapters}
                 add("title")
                 add("characterSheet")
             }
-            listOf("content", "narration", "choices", "isEnding", "illustrationPrompt", "mood", "newWords").forEach { add(it) }
+            listOf("content", "choices", "isEnding", "illustrationPrompt", "mood", "newWords").forEach { add(it) }
         }
     }
+
+    internal fun openingDirection(seed: String): String = listOf(
+        "Uma fala inesperada inicia um problema concreto; humor de situação, sem apresentação inicial.",
+        "Algo cotidiano está fora do lugar. Uma pista visual permite investigar, sem portal mágico.",
+        "Comece com uma tentativa que dá um resultado engraçado; o protagonista quer tentar de outro jeito.",
+        "Uma tarefa pequena ganha uma regra surpreendente. Use ritmo e repetição com variação.",
+        "Abra com um som e sua causa inesperada. O mistério pertence ao universo do tema.",
+        "O protagonista já fez um plano; a primeira frase revela o detalhe que o plano esqueceu."
+    )[Math.floorMod(seed.hashCode(), 6)]
 
     fun genderRule(gender: ChildGender, name: String): String = when (gender) {
         ChildGender.GIRL -> "$name é uma menina: use concordância no feminino ao se referir a ela."

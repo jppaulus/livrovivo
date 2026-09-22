@@ -73,7 +73,12 @@ fun StoryEntity.toDomain(chapters: List<ChapterEntity>): Story {
         isCompleted = isCompleted,
         lastReadChapter = lastReadChapter,
         updatedAt = if (updatedAt > 0) updatedAt else createdAt,
-        isOffline = isOffline
+        isOffline = isOffline,
+        childSnapshot = childSnapshotJson?.let { raw ->
+            runCatching { appJson.decodeFromString<ChildProfileEntity>(raw).toDomain() }.getOrNull()
+        },
+        deletedAt = deletedAt,
+        originId = originId
     )
 }
 
@@ -98,7 +103,8 @@ fun ChapterEntity.toDomain(): Chapter {
         narrationScript = narrationScript,
         selectedChoiceText = selectedChoiceText,
         newWords = decodeStringList(newWordsJson),
-        mood = mood
+        mood = mood,
+        openedAt = openedAt
     )
 }
 
@@ -118,7 +124,10 @@ fun Story.toEntity(): StoryEntity {
         isCompleted = isCompleted,
         lastReadChapter = lastReadChapter,
         updatedAt = updatedAt,
-        isOffline = isOffline
+        isOffline = isOffline,
+        childSnapshotJson = childSnapshot?.let { appJson.encodeToString(it.toEntity()) },
+        deletedAt = deletedAt,
+        originId = originId
     )
 }
 
@@ -136,6 +145,7 @@ fun Chapter.toEntity(storyId: String): ChapterEntity {
         narrationScript = narrationScript,
         selectedChoiceText = selectedChoiceText,
         newWordsJson = appJson.encodeToString(newWords),
-        mood = mood
+        mood = mood,
+        openedAt = openedAt
     )
 }

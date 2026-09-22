@@ -50,6 +50,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.livrovivo.app.core.audio.NarrationTimeline
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.domain.model.SceneKind
@@ -68,24 +70,22 @@ fun PageIllustration(
     isPainting: Boolean,
     modifier: Modifier = Modifier,
     companionEmoji: String? = null,
-    statusText: String? = null
+    statusText: String? = null,
+    animate: Boolean = true,
+    description: String = "Ilustração da página"
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(4f / 3f)
+            .semantics(mergeDescendants = true) { contentDescription = description }
             .shadow(8.dp, RoundedCornerShape(26.dp))
             .clip(RoundedCornerShape(26.dp))
     ) {
-        ProceduralScene(
-            scene = scene,
-            companionEmoji = if (imagePath == null) companionEmoji else null,
-            animate = imagePath == null,
-            modifier = Modifier.fillMaxSize()
-        )
+        BookScene(scene = scene, modifier = Modifier.fillMaxSize())
         LocalImage(
             path = imagePath,
-            contentDescription = "Ilustração da página",
+            contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )
         AnimatedVisibility(

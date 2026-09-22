@@ -21,6 +21,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +39,7 @@ enum class NarrationStatus { IDLE, PREPARING, READY, PLAYING, PAUSED, ENDED, ERR
 data class PlaybackState(
     val chapterKey: String? = null,
     val status: NarrationStatus = NarrationStatus.IDLE,
-    val activePersona: VoicePersona = VoicePersona.FADA,
+    val activePersona: VoicePersona = VoicePersona.AVENTUREIRO,
     val engine: EngineKind? = null,
     val notice: String? = null,
     val error: String? = null,
@@ -45,10 +48,14 @@ data class PlaybackState(
     val durationMs: Long = 0L,
     val highlightedSentence: Int = -1,
     val speed: Float = 1f,
-    val isAmbientSoundEnabled: Boolean = false
+    val isAmbientSoundEnabled: Boolean = false,
+    /** A página é narrada em partes para começar rápido: parte atual e total. */
+    val partIndex: Int = 1,
+    val partCount: Int = 1
 ) {
     val isPlaying: Boolean get() = status == NarrationStatus.PLAYING
     val isLoadingAudio: Boolean get() = status == NarrationStatus.PREPARING
+    val isChunked: Boolean get() = partCount > 1
 }
 
 /**
@@ -77,6 +84,13 @@ class AudioPlayerController(
         val listenerAge: String?
     )
 
+    /** Uma parte da página: o áudio dela e quais frases do texto ela cobre (para o destaque). */
+    private data class NarrationPart(
+        val chunk: NarrationChunker.Chunk,
+        val sentenceStart: Int,
+        val timeline: NarrationTimeline
+    )
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val narrationDir = File(context.filesDir, "narration").apply { mkdirs() }
     private val deviceCacheDir = File(context.cacheDir, "narration_device").apply { mkdirs() }
@@ -89,9 +103,12 @@ class AudioPlayerController(
     private var progressJob: Job? = null
     private var currentParams: LoadParams? = null
     private var currentFile: File? = null
-    private var timeline: NarrationTimeline? = null
     private var playWhenReady = false
     private var initialized = false
+
+    private var parts: List<NarrationPart> = emptyList()
+    private var queuedParts = 0
+    private var activeEngine: NarrationEngine? = null
 
     private var ambientTrack: AudioTrack? = null
     private var ambientJob: Job? = null
@@ -145,8 +162,14 @@ class AudioPlayerController(
                     }
                     Player.STATE_ENDED -> {
                         stopProgressTracker()
+                        // Se ainda faltam partes sendo geradas, continua "preparando" em vez de terminar.
+                        val waitingForNextPart = exo.mediaItemCount < parts.size
                         _playbackState.update {
-                            it.copy(status = NarrationStatus.ENDED, playbackProgress = 1f, highlightedSentence = -1)
+                            if (waitingForNextPart) {
+                                it.copy(status = NarrationStatus.PREPARING)
+                            } else {
+                                it.copy(status = NarrationStatus.ENDED, playbackProgress = 1f, highlightedSentence = -1)
+                            }
                         }
                         applyDucking()
                     }
@@ -182,7 +205,12 @@ class AudioPlayerController(
         if (text.isBlank()) return
         val sameChapter = currentParams?.key == key
         val status = _playbackState.value.status
+        if (sameChapter && loadJob?.isActive != true && (player?.mediaItemCount ?: 0) < parts.size) {
+            startLoad(LoadParams(key, text, script, mood, listenerAge), autoPlay)
+            return
+        }
         if (sameChapter && status != NarrationStatus.ERROR && status != NarrationStatus.IDLE) {
+            if (autoPlay && status == NarrationStatus.PREPARING) playWhenReady = true
             if (autoPlay && (status == NarrationStatus.READY || status == NarrationStatus.PAUSED)) player?.play()
             return
         }
@@ -196,7 +224,9 @@ class AudioPlayerController(
         player?.clearMediaItems()
         currentParams = params
         currentFile = null
-        timeline = NarrationTimeline.build(params.text)
+        activeEngine = null
+        queuedParts = 0
+        parts = buildParts(params)
         playWhenReady = autoPlay
         _playbackState.update {
             it.copy(
@@ -208,30 +238,109 @@ class AudioPlayerController(
                 playbackProgress = 0f,
                 currentPositionMs = 0L,
                 durationMs = 0L,
-                highlightedSentence = -1
+                highlightedSentence = -1,
+                partIndex = 1,
+                partCount = parts.size.coerceAtLeast(1)
             )
         }
 
         loadJob = scope.launch {
             ensureInitialized()
             val settings = settingsManager.current()
-            val request = NarrationRequest(
-                text = params.text,
-                script = params.script,
-                persona = _playbackState.value.activePersona,
-                mood = params.mood,
-                listenerAge = params.listenerAge
-            )
-            val result = synthesizeWithFallback(request, settings, orderedEngines(settings))
+            val pageParts = parts
+            if (pageParts.isEmpty()) return@launch
+
+            // 1) Só a primeira parte é esperada: a criança ouve em poucos segundos.
+            val first = synthesizeWithFallback(requestFor(params, pageParts, 0), settings, orderedEngines(settings))
             if (currentParams?.key != params.key) return@launch
-            result.fold(
-                onSuccess = { (file, kind, notice) -> startPlayback(file, kind, notice) },
-                onFailure = { error ->
-                    _playbackState.update {
-                        it.copy(status = NarrationStatus.ERROR, error = "Não foi possível narrar: ${friendly(error)}")
+            val (file, engine, notice) = first.getOrElse { error ->
+                _playbackState.update {
+                    it.copy(status = NarrationStatus.ERROR, error = "Não foi possível narrar: ${friendly(error)}")
+                }
+                return@launch
+            }
+            activeEngine = engine
+            startPlayback(file, engine.kind, notice)
+
+            // 2) O resto da página é gerado em segundo plano e entra na fila do player.
+            kotlinx.coroutines.supervisorScope {
+                // Keep at most two requests in flight, preserving playback order and one voice.
+                val ahead = mutableMapOf<Int, kotlinx.coroutines.Deferred<File>>()
+                fun prepare(index: Int) {
+                    if (index < pageParts.size) ahead[index] = async {
+                        cachedOrSynthesize(engine, requestFor(params, pageParts, index), settings)
                     }
                 }
+                prepare(1)
+                prepare(2)
+                for (index in 1 until pageParts.size) {
+                    if (currentParams?.key != params.key) { ahead.values.forEach { it.cancel() }; return@supervisorScope }
+                    val partFile = try {
+                        ahead.remove(index)!!.await()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        if (currentParams?.key == params.key) {
+                            // Encerra a página nas partes que já tocaram, senão o player ficaria esperando para sempre.
+                            parts = pageParts.take(index)
+                            _playbackState.update {
+                                it.copy(
+                                    notice = "Não consegui narrar o resto desta página (${friendly(e)}).",
+                                    partCount = index.coerceAtLeast(1),
+                                    status = if (it.status == NarrationStatus.PREPARING) NarrationStatus.ENDED else it.status
+                                )
+                            }
+                        }
+                        ahead.values.forEach { it.cancel() }
+                        return@supervisorScope
+                    }
+                    if (currentParams?.key != params.key) { ahead.values.forEach { it.cancel() }; return@supervisorScope }
+                    enqueuePart(partFile)
+                    prepare(index + 2)
+                }
+            }
+        }
+    }
+
+    /** Divide a página em partes e associa cada uma às frases que ela cobre. */
+    private fun buildParts(params: LoadParams): List<NarrationPart> {
+        val chunks = NarrationChunker.chunk(params.text, params.script)
+        if (chunks.isEmpty()) return emptyList()
+        val sentences = NarrationTimeline.build(params.text).sentences
+        return chunks.map { chunk ->
+            val displayed = params.text.substring(chunk.displayRange.first, chunk.displayRange.last + 1)
+            NarrationPart(
+                chunk = chunk,
+                sentenceStart = sentences.count { it.first < chunk.displayRange.first },
+                timeline = NarrationTimeline.build(displayed)
             )
+        }
+    }
+
+    private fun requestFor(params: LoadParams, pageParts: List<NarrationPart>, index: Int): NarrationRequest {
+        val part = pageParts[index]
+        return NarrationRequest(
+            text = params.text.substring(part.chunk.displayRange.first, part.chunk.displayRange.last + 1),
+            script = part.chunk.speakText,
+            persona = _playbackState.value.activePersona,
+            mood = params.mood,
+            listenerAge = params.listenerAge,
+            partIndex = index + 1,
+            partCount = pageParts.size,
+            previousText = pageParts.getOrNull(index - 1)?.chunk?.speakText,
+            nextText = pageParts.getOrNull(index + 1)?.chunk?.speakText
+        )
+    }
+
+    /** Coloca a parte pronta na fila; se o player já terminou esperando por ela, retoma. */
+    private fun enqueuePart(file: File) {
+        val exo = player ?: return
+        exo.addMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        queuedParts++
+        val waiting = _playbackState.value.status == NarrationStatus.PREPARING && exo.mediaItemCount > 1
+        if (waiting) {
+            exo.seekTo(exo.mediaItemCount - 1, 0L)
+            exo.playWhenReady = playWhenReady
         }
     }
 
@@ -239,19 +348,26 @@ class AudioPlayerController(
         request: NarrationRequest,
         settings: AppSettings,
         engines: List<NarrationEngine>
-    ): Result<Triple<File, EngineKind, String?>> {
+    ): Result<Triple<File, NarrationEngine, String?>> {
         var notice: String? = null
         var lastError: Throwable? = null
+        val remoteDeadline = System.nanoTime() + 8_000_000_000L
         for (engine in engines) {
             if (!engine.isAvailable(settings)) continue
             try {
-                val file = cachedOrSynthesize(engine, request, settings)
+                val file = if (engine.kind == EngineKind.DEVICE) {
+                    cachedOrSynthesize(engine, request, settings)
+                } else {
+                    val remainingMs = ((remoteDeadline - System.nanoTime()) / 1_000_000L).coerceAtLeast(1)
+                    withTimeoutOrNull(remainingMs) { cachedOrSynthesize(engine, request, settings) }
+                        ?: throw AiException(AiException.Kind.TIMEOUT, "Tempo inicial de voz excedido")
+                }
                 if (engine.kind == EngineKind.DEVICE && notice == null && settings.voiceEngine != VoiceEngineChoice.DEVICE &&
                     !settings.hasGeminiKey && !settings.hasElevenLabsKey
                 ) {
                     notice = "Dica para os pais: ative a IA na Área dos Pais para uma narração natural."
                 }
-                return Result.success(Triple(file, engine.kind, notice))
+                return Result.success(Triple(file, engine, notice))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -278,7 +394,13 @@ class AudioPlayerController(
                 return cached
             }
         }
-        val file = engine.synthesize(request, settings, base)
+        val started = System.nanoTime()
+        val file = if (isDevice) engine.synthesize(request, settings, base) else {
+            withTimeoutOrNull(20_000) { engine.synthesize(request, settings, base) }
+                ?: throw AiException(AiException.Kind.TIMEOUT, "Tempo de voz excedido")
+        }
+        if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.d("LivroVivoPerf",
+            "voice engine=${engine.kind} part=${request.partIndex} elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
         withContext(Dispatchers.IO) { trimCache() }
         return file
     }
@@ -329,7 +451,7 @@ class AudioPlayerController(
             currentParams?.let { startLoad(it, autoPlay = true) }
             return
         }
-        exo.seekTo(0)
+        exo.seekTo(0, 0L)
         exo.play()
     }
 
@@ -373,12 +495,14 @@ class AudioPlayerController(
         if (enabled) startAmbient() else stopAmbient()
     }
 
-    /** Chamado ao entrar no leitor: aplica preferências e retoma a música se estiver ligada. */
+    /** Chamado ao entrar no leitor: aplica preferências, aquece a voz do aparelho e retoma a música. */
     fun onReaderStarted() {
         scope.launch {
             ensureInitialized()
             if (_playbackState.value.isAmbientSoundEnabled) startAmbient()
         }
+        // Inicializar o motor de voz do Android leva ~1s: faz isso antes de a criança tocar em play.
+        scope.launch { deviceEngine.prewarm() }
     }
 
     /** Chamado ao sair do leitor. */
@@ -417,7 +541,8 @@ class AudioPlayerController(
             loadJob?.cancel()
             val file = cachedOrSynthesize(engine, request, settings)
             currentParams = null
-            timeline = null
+            parts = emptyList()
+            queuedParts = 0
             playWhenReady = true
             startPlayback(file, engine.kind, null)
             Result.success(engine.kind)
@@ -435,14 +560,24 @@ class AudioPlayerController(
                 val exo = player ?: break
                 val duration = exo.duration.takeIf { it > 0 } ?: 0L
                 val position = exo.currentPosition.coerceAtLeast(0L)
-                val progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
-                val sentence = timeline?.sentenceAt(progress) ?: -1
+                val withinPart = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+                val partIndex = exo.currentMediaItemIndex.coerceAtLeast(0)
+                val part = parts.getOrNull(partIndex)
+                // Progresso e destaque consideram a parte atual dentro da página inteira.
+                val progress = if (parts.size > 1) {
+                    ((partIndex + withinPart) / parts.size).coerceIn(0f, 1f)
+                } else {
+                    withinPart
+                }
+                val sentence = part?.let { it.sentenceStart + it.timeline.sentenceAt(withinPart) } ?: -1
                 _playbackState.update {
                     it.copy(
                         currentPositionMs = position,
                         durationMs = duration,
                         playbackProgress = progress,
-                        highlightedSentence = sentence
+                        highlightedSentence = sentence,
+                        partIndex = partIndex + 1,
+                        partCount = parts.size.coerceAtLeast(1)
                     )
                 }
                 delay(150)

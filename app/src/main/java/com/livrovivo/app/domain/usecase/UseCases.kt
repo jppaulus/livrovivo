@@ -101,6 +101,8 @@ class GetActiveChildUseCase(
 ) {
     operator fun invoke(): Flow<ChildProfile?> = childProfileRepository.getActiveProfileFlow()
     suspend fun getDirect(): ChildProfile? = childProfileRepository.getActiveProfile()
+    fun profiles(): Flow<List<ChildProfile>> = childProfileRepository.observeProfiles()
+    suspend fun activate(id: String) = childProfileRepository.activateProfile(id)
 }
 
 class CheckStoryQuotaUseCase(

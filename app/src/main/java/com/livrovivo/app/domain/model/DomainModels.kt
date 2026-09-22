@@ -47,7 +47,8 @@ data class Chapter(
     /** Escolha feita pela criança ao final desta página (null enquanto não escolheu). */
     val selectedChoiceText: String? = null,
     val newWords: List<String> = emptyList(),
-    val mood: String? = null
+    val mood: String? = null,
+    val openedAt: Long? = null
 ) {
     val selectedChoice: Choice?
         get() = selectedChoiceText?.let { selected -> choices.find { it.text == selected } }
@@ -71,7 +72,11 @@ data class Story(
     val lastReadChapter: Int = 1,
     val updatedAt: Long = createdAt,
     /** true quando a história foi escrita pelo motor offline (sem IA). */
-    val isOffline: Boolean = false
+    val isOffline: Boolean = false,
+    val childSnapshot: ChildProfile? = null,
+    val deletedAt: Long? = null,
+    /** Original adventure when this book preserves a previous path. */
+    val originId: String? = null
 ) {
     val sortedChapters: List<Chapter> get() = chapters.sortedBy { it.index }
     val lastChapter: Chapter? get() = chapters.maxByOrNull { it.index }
@@ -211,9 +216,9 @@ enum class AgeGroup(
     val wordRange: IntRange,
     val illustrationAge: String
 ) {
-    TODDLER("3-5", "3 a 5 anos", "Frases curtinhas, sons divertidos e muito aconchego.", "🧸", 4, 80..120, "4-year-old"),
-    KID("6-8", "6 a 8 anos", "Aventuras com empatia, cooperação e palavras novas.", "🎈", 5, 130..180, "7-year-old"),
-    EXPLORER("9+", "9+ anos", "Mistérios, enigmas e dilemas para decidir.", "🧭", 6, 170..230, "10-year-old");
+    TODDLER("3-5", "3 a 5 anos", "Frases curtinhas, sons divertidos e muito aconchego.", "🧸", 4, 45..75, "4-year-old"),
+    KID("6-8", "6 a 8 anos", "Aventuras com empatia, cooperação e palavras novas.", "🎈", 5, 90..130, "7-year-old"),
+    EXPLORER("9+", "9+ anos", "Mistérios, enigmas e dilemas para decidir.", "🧭", 6, 130..180, "10-year-old");
 
     companion object {
         fun fromCode(code: String?): AgeGroup = entries.find { it.code == code } ?: KID

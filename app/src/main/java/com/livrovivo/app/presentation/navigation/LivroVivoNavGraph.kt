@@ -22,6 +22,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
@@ -50,12 +51,16 @@ import org.koin.core.parameter.parametersOf
  * Decide a tela inicial uma única vez, depois de ler o perfil salvo
  * (evita "piscar" o onboarding e não troca o grafo de navegação depois).
  */
-class AppStartViewModel(getActiveChildUseCase: GetActiveChildUseCase) : ViewModel() {
+class AppStartViewModel(
+    getActiveChildUseCase: GetActiveChildUseCase,
+    settingsManager: SettingsManager
+) : ViewModel() {
     private val _startDestination = MutableStateFlow<String?>(null)
     val startDestination: StateFlow<String?> = _startDestination.asStateFlow()
 
     init {
         viewModelScope.launch {
+            settingsManager.applyPendingDefaults()
             val child = getActiveChildUseCase.getDirect()
             _startDestination.value = if (child != null) Screen.Home.route else Screen.Onboarding.route
         }
@@ -99,14 +104,20 @@ fun LivroVivoNavGraph(
             )
         }
 
+        composable(Screen.AddProfile.route) {
+            val viewModel: OnboardingViewModel = koinViewModel(parameters = { parametersOf(false) })
+            OnboardingScreen(viewModel = viewModel,
+                onFinished = { navController.popBackStack() },
+                onCancel = { navController.popBackStack() })
+        }
+
         composable(Screen.Home.route) {
             val viewModel: HomeViewModel = koinViewModel()
             HomeScreen(
                 viewModel = viewModel,
                 onNavigateToCreation = { navController.navigate(Screen.Creation.route) },
                 onNavigateToReader = { storyId -> navController.navigate(Screen.Reader.createRoute(storyId)) },
-                onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) },
-                onNavigateToEditProfile = { navController.navigate(Screen.EditProfile.route) }
+                onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) }
             )
         }
 
@@ -117,7 +128,8 @@ fun LivroVivoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigate(Screen.Settings.route) },
                 onOpenPaywall = { navController.navigate(Screen.Paywall.route) },
-                onEditProfile = { navController.navigate(Screen.EditProfile.route) }
+                onEditProfile = { navController.navigate(Screen.EditProfile.route) },
+                onAddProfile = { navController.navigate(Screen.AddProfile.route) }
             )
         }
 

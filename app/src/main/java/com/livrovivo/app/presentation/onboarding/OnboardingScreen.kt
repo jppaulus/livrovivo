@@ -85,9 +85,11 @@ data class OnboardingUiState(
     val appearance: ChildAppearance = ChildAppearance(),
     val selectedCompanion: MagicalCompanion = MagicalCompanion.ALL.first(),
     val selectedInterests: Set<String> = setOf("dinossauros", "espaço"),
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    val isSaving: Boolean = false,
+    val saveError: String? = null
 ) {
-    val canContinue: Boolean get() = step != 0 || childName.isNotBlank()
+    val canContinue: Boolean get() = !isSaving && (step != 0 || childName.isNotBlank())
     val isLastStep: Boolean get() = step == OnboardingViewModel.STEP_COUNT - 1
 }
 
@@ -172,8 +174,15 @@ class OnboardingViewModel(
 
     fun back() = _uiState.update { it.copy(step = (it.step - 1).coerceAtLeast(0)) }
 
+    fun startWithDefaults() {
+        val state = _uiState.value
+        if (!state.isEditMode && state.step == 1 && state.childName.isNotBlank()) saveProfile()
+    }
+
     private fun saveProfile() {
         val state = _uiState.value
+        if (state.isSaving || state.isSaved) return
+        _uiState.update { it.copy(isSaving = true, saveError = null) }
         val name = state.childName.trim().ifEmpty { "Pequeno Explorador" }
         viewModelScope.launch {
             val existing = state.existingProfile
@@ -187,8 +196,14 @@ class OnboardingViewModel(
                 gender = state.gender,
                 appearance = state.appearance
             )
-            saveChildProfileUseCase(profile)
-            _uiState.update { it.copy(isSaved = true) }
+            try {
+                saveChildProfileUseCase(profile)
+                _uiState.update { it.copy(isSaved = true, isSaving = false) }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isSaving = false, saveError = "Não foi possível guardar o perfil. Tente novamente.") }
+            }
         }
     }
 }
@@ -219,7 +234,7 @@ fun OnboardingScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
-                        repeat(OnboardingViewModel.STEP_COUNT) { index ->
+                        repeat(if (!uiState.isEditMode && uiState.step < 2) 2 else OnboardingViewModel.STEP_COUNT) { index ->
                             Box(
                                 modifier = Modifier
                                     .height(8.dp)
@@ -265,6 +280,12 @@ fun OnboardingScreen(
                     }
                 }
 
+                uiState.saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (uiState.step == 1 && !uiState.isEditMode) {
+                    TextButton(onClick = viewModel::next, enabled = !uiState.isSaving) {
+                        Text("Personalizar aparência e companheiro (opcional)")
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -280,7 +301,10 @@ fun OnboardingScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     BouncyCardButton(
-                        onClick = viewModel::next,
+                        onClick = {
+                            if (uiState.step == 1 && !uiState.isEditMode) viewModel.startWithDefaults()
+                            else viewModel.next()
+                        },
                         enabled = uiState.canContinue,
                         containerColor = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
@@ -289,6 +313,8 @@ fun OnboardingScreen(
                     ) {
                         Text(
                             text = when {
+                                uiState.isSaving -> "Salvando…"
+                                uiState.step == 1 && !uiState.isEditMode -> "Começar a aventura"
                                 !uiState.isLastStep -> "Continuar"
                                 uiState.isEditMode -> "Salvar alterações ✨"
                                 else -> "Abrir o Livro Vivo ✨"
@@ -333,7 +359,7 @@ private fun NameStep(uiState: OnboardingUiState, viewModel: OnboardingViewModel)
     OutlinedTextField(
         value = uiState.childName,
         onValueChange = viewModel::onNameChange,
-        label = { Text("Como se chama o pequeno leitor?") },
+        label = { Text("Nome ou apelido da criança") },
         placeholder = { Text("Ex.: Leo, Sofia, Arthur...") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),

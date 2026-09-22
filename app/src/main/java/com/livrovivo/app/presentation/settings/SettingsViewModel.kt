@@ -119,6 +119,8 @@ class SettingsViewModel(
 
     fun setImageModel(model: String) = viewModelScope.launch { settingsManager.setImageModel(model) }
 
+    fun setPrepareChoices(enabled: Boolean) { viewModelScope.launch { settingsManager.setPrepareChoices(enabled) } }
+
     fun setAutoPlay(enabled: Boolean) = viewModelScope.launch { settingsManager.setAutoPlay(enabled) }
 
     fun setHighlight(enabled: Boolean) = viewModelScope.launch { settingsManager.setHighlightReading(enabled) }
@@ -127,22 +129,63 @@ class SettingsViewModel(
 
     fun consumeSavedMessage() = _uiState.update { it.copy(savedMessage = null) }
 
-    /** Testa a geração de texto (chave, modelo e cota). */
+    /**
+     * Diagnóstico em duas etapas: (1) a chave é aceita pelo Google? (2) algum modelo de texto responde?
+     * Assim fica claro se o problema é a chave, a conta ou só o acesso a um modelo.
+     */
     fun testText() {
         viewModelScope.launch {
             persistPendingGeminiKey()
             _uiState.update { it.copy(textTest = TestState.Running) }
-            val result = runCatchingAi {
-                val json = gemini.generateJson(
+
+            val validation = gemini.validateKey()
+            val keyError = validation.error
+            if (!validation.valid && keyError != null) {
+                _uiState.update { it.copy(textTest = TestState.Failure(keyGuidance(keyError))) }
+                return@launch
+            }
+
+            val result = try {
+                gemini.generateJson(
                     systemPrompt = "Você é um assistente de testes. Responda somente JSON.",
                     userPrompt = "Responda exatamente com {\"ok\": true, \"mensagem\": \"Olá do Livro Vivo!\"}",
                     schema = null,
                     temperature = 0.0
                 )
-                "Conectado! A IA respondeu: ${json["mensagem"]?.toString()?.trim('"') ?: "ok"}"
+                val model = gemini.lastTextModel ?: settingsManager.current().textModel
+                TestState.Success(
+                    "Conectado! Chave válida e histórias funcionando com $model. " +
+                        "Ilustrações exigem faturamento ativo no AI Studio; as vozes Gemini funcionam no plano gratuito."
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AiException) {
+                TestState.Failure("A chave foi aceita, mas nenhum modelo de texto respondeu.\n${keyGuidance(e)}")
+            } catch (e: Exception) {
+                TestState.Failure(describe(e))
             }
             _uiState.update { it.copy(textTest = result) }
         }
+    }
+
+    /** Explica o erro e o que fazer, conforme o tipo de falha do Google. */
+    private fun keyGuidance(error: AiException): String {
+        if (error.detail.contains("ElevenLabs")) return error.diagnosticMessage
+        val steps = when (error.kind) {
+            AiException.Kind.PERMISSION_DENIED, AiException.Kind.ACCOUNT_BLOCKED -> """
+O que fazer:
+1. Na sua Conta Google, confirme a idade e o telefone e ative a verificação em duas etapas.
+2. Crie uma nova chave em aistudio.google.com/apikey (use uma conta pessoal; contas de escola ou empresa costumam ser bloqueadas).
+3. Veja os modelos liberados para você em aistudio.google.com/rate-limit.
+4. Chaves novas podem levar alguns minutos para funcionar: aguarde e teste de novo.
+""".trim()
+            AiException.Kind.INVALID_KEY -> "O que fazer: copie a chave novamente no AI Studio, sem espaços, e cole de novo."
+            AiException.Kind.API_DISABLED -> "O que fazer: crie a chave diretamente em aistudio.google.com/apikey."
+            AiException.Kind.KEY_RESTRICTED -> "O que fazer: no Google Cloud (Credenciais), remova a restrição de aplicativo da chave ou adicione o pacote com.livrovivo.app."
+            AiException.Kind.QUOTA -> "O que fazer: aguarde alguns minutos (limite por minuto/dia do plano gratuito) e teste de novo."
+            else -> null
+        }
+        return listOfNotNull(error.diagnosticMessage, steps).joinToString("\n\n")
     }
 
     /** Toca uma amostra da persona com o motor escolhido (ou o melhor disponível no modo automático). */
@@ -232,16 +275,8 @@ class SettingsViewModel(
         }
     }
 
-    private suspend fun runCatchingAi(block: suspend () -> String): TestState = try {
-        TestState.Success(block())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        TestState.Failure(describe(e))
-    }
-
     private fun describe(error: Throwable): String = when (error) {
-        is AiException -> error.diagnosticMessage
+        is AiException -> keyGuidance(error)
         else -> error.message ?: "Erro desconhecido"
     }
 }

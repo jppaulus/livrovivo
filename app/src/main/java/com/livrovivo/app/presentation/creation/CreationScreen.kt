@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,6 +56,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,7 +77,7 @@ import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.ui.BouncyCardButton
 import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.core.ui.MagicalSparklesEffect
-import com.livrovivo.app.core.ui.ProceduralScene
+import com.livrovivo.app.core.ui.BookScene
 import com.livrovivo.app.core.ui.SectionHeader
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
@@ -95,8 +97,9 @@ import kotlinx.coroutines.launch
 data class CreationUiState(
     val selectedThemeId: String = ThemeOption.PRESETS.first().id,
     val customTheme: String = "",
+    val useCollection: Boolean = false,
     val selectedObjective: ObjectiveType = ThemeOption.PRESETS.first().defaultObjective,
-    val selectedPersona: VoicePersona = VoicePersona.FADA,
+    val selectedPersona: VoicePersona = VoicePersona.DEFAULT,
     val child: ChildProfile? = null,
     val isGenerating: Boolean = false,
     val generatedStoryId: String? = null,
@@ -151,6 +154,10 @@ class CreationViewModel(
         }
     }
 
+    fun selectCollection(enabled: Boolean) {
+        _uiState.update { it.copy(useCollection = enabled, errorMessage = null) }
+    }
+
     fun updateCustomTheme(text: String) {
         _uiState.update { it.copy(customTheme = text.take(120), errorMessage = null) }
     }
@@ -175,7 +182,7 @@ class CreationViewModel(
                 theme = themeText,
                 objectiveType = state.selectedObjective.code,
                 themeId = state.selectedThemeId,
-                forceOffline = forceOffline
+                forceOffline = forceOffline || (state.useCollection && !state.isCustom)
             ).onSuccess { story ->
                 // Mantém isGenerating = true até sair da tela: evita criar uma segunda história com um toque extra.
                 _uiState.update { it.copy(generatedStoryId = story.id) }
@@ -214,6 +221,7 @@ fun CreationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showGate by remember { mutableStateOf(false) }
+    var showPersonalization by rememberSaveable { mutableStateOf(false) }
     val companion = MagicalCompanion.findById(uiState.child?.companionId)
 
     LaunchedEffect(uiState.generatedStoryId) {
@@ -260,6 +268,24 @@ fun CreationScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
+        bottomBar = {
+            Surface(shadowElevation = 8.dp) {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
+                    Button(
+                        onClick = { viewModel.generateStory() },
+                        enabled = uiState.canGenerate,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Spacer(Modifier.width(10.dp))
+                        Text(if (uiState.isGenerating) "Preparando a aventura…" else if (uiState.useCollection && !uiState.isCustom) "Abrir meu livro" else "Começar a história", fontSize = 19.sp)
+                    }
+                    if (uiState.isCustom && uiState.customTheme.trim().length < 3) {
+                        Text("Escreva uma ideia com pelo menos 3 letras.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
@@ -287,6 +313,15 @@ fun CreationScreen(
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
+                if (!uiState.isCustom) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = uiState.useCollection, onClick = { viewModel.selectCollection(true) }, label = { Text("Coleção pronta") })
+                        FilterChip(selected = !uiState.useCollection, onClick = { viewModel.selectCollection(false) }, label = { Text("Criar com IA") })
+                    }
+                    Text(if (uiState.useCollection) "Um livro da coleção com o nome da criança. O texto abre sem esperar pela IA."
+                        else "Uma história inédita a partir deste tema. Precisa de IA configurada; sem ela, usamos a coleção.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 SectionHeader("Escolha o tema")
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -348,59 +383,75 @@ fun CreationScreen(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                SectionHeader("O que a história vai estimular?")
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    ObjectiveType.entries.forEach { objective ->
-                        val selected = uiState.selectedObjective == objective
-                        Card(
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
-                            ),
-                            border = if (selected) BorderStroke(2.dp, FairyGold) else null,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { viewModel.selectObjective(objective) }
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 96.dp)
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(text = objective.iconRes, fontSize = 26.sp)
-                                Text(
-                                    text = objective.shortTitle,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
+                OutlinedButton(
+                    onClick = { showPersonalization = !showPersonalization },
+                    enabled = !uiState.isGenerating,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (showPersonalization) "Fechar personalização" else "Personalizar a aventura")
+                }
+                Text(
+                    "Já está tudo pronto. Escolha um tema e comece!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                AnimatedVisibility(visible = showPersonalization) {
+                    Column {
+                        SectionHeader("O que a história vai estimular?")
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            ObjectiveType.entries.forEach { objective ->
+                                val selected = uiState.selectedObjective == objective
+                                Card(
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+                                    ),
+                                    border = if (selected) BorderStroke(2.dp, FairyGold) else null,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { viewModel.selectObjective(objective) }
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 96.dp)
+                                            .padding(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(text = objective.iconRes, fontSize = 26.sp)
+                                        Text(
+                                            text = objective.shortTitle,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+                        SectionHeader("Quem vai contar a história?")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            VoicePersona.entries.forEach { persona ->
+                                FilterChip(
+                                    selected = uiState.selectedPersona == persona,
+                                    onClick = { viewModel.selectPersona(persona) },
+                                    label = { Text("${persona.emoji} ${persona.title}") },
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                             }
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-                SectionHeader("Quem vai contar a história?")
-                Spacer(modifier = Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    VoicePersona.entries.forEach { persona ->
-                        FilterChip(
-                            selected = uiState.selectedPersona == persona,
-                            onClick = { viewModel.selectPersona(persona) },
-                            label = { Text("${persona.emoji} ${persona.title}") },
-                            shape = RoundedCornerShape(14.dp)
+                        Text(
+                            text = uiState.selectedPersona.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                         )
                     }
                 }
-                Text(
-                    text = uiState.selectedPersona.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                )
 
                 if (uiState.errorMessage != null) {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -433,26 +484,6 @@ fun CreationScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                BouncyCardButton(
-                    onClick = { viewModel.generateStory() },
-                    enabled = uiState.canGenerate,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = FairyGold)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Começar a história",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontSize = 19.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(36.dp))
             }
 
@@ -483,16 +514,10 @@ private fun ThemeCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(112.dp)
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
         ) {
-            ProceduralScene(scene = scene, animate = false, modifier = Modifier.fillMaxSize())
-            Text(
-                text = emoji,
-                fontSize = 30.sp,
-                modifier = Modifier
-                    .align(Alignment.Center)
-            )
+            BookScene(scene = scene, modifier = Modifier.fillMaxSize())
         }
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(

@@ -216,6 +216,8 @@ fun SettingsScreen(
                         )
                     }
                 }
+                SwitchRow("Preparar os próximos caminhos durante a leitura", settings.prepareNextChoices) { viewModel.setPrepareChoices(it) }
+                Text("Reduz a espera após escolher. Gera até duas continuações por página e pode aumentar o consumo de IA.", style = MaterialTheme.typography.bodySmall)
                 SwitchRow("Narrar automaticamente ao abrir a página", settings.autoPlayNarration) { viewModel.setAutoPlay(it) }
                 SwitchRow("Destacar a frase que está sendo lida", settings.highlightReading) { viewModel.setHighlight(it) }
             }

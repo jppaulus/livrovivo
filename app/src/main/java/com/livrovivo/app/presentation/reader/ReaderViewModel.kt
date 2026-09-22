@@ -3,7 +3,9 @@ package com.livrovivo.app.presentation.reader
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.ai.AiException
+import com.livrovivo.app.core.ai.StoryVocabulary
 import com.livrovivo.app.core.audio.AudioPlayerController
+import com.livrovivo.app.core.audio.ChoiceNarration
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
 import com.livrovivo.app.core.settings.SettingsManager
@@ -55,6 +57,15 @@ data class ReaderUiState(
     val companion: MagicalCompanion get() = MagicalCompanion.findById(story?.companionId)
     val scene: SceneKind get() = ThemeOption.sceneFor(story?.themeId, story?.theme.orEmpty())
     val childName: String get() = child?.name ?: "Pequeno Leitor"
+    val isReadingChoices: Boolean get() = narration.chapterKey?.endsWith("#choices") == true
+    val narrationPlan: ChoiceNarration? get() = currentChapter?.let {
+        ChoiceNarration.build(it, isLatestPage, choicesOnly = isReadingChoices)
+    }
+    val activeChoice: Int get() = if (narration.isPlaying &&
+        (narration.chapterKey?.endsWith("#page") == true || isReadingChoices) &&
+        narration.chapterKey?.startsWith("${story?.id}#$pageIndex#") == true) {
+        narrationPlan?.choiceAt(narration.highlightedSentence) ?: -1
+    } else -1
 }
 
 class ReaderViewModel(
@@ -74,8 +85,13 @@ class ReaderViewModel(
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
     private val sessionStart = System.currentTimeMillis()
+    private var activeSince: Long? = null
+    private var activeDurationMs = 0L
+    private var pendingAutoplay = false
     private var lastChoice: Choice? = null
     private val illustrationJobs = mutableMapOf<Int, Job>()
+    private var preparedPage: String? = null
+    private var preparationJob: Job? = null
     private var autoPlay = true
     private var pageInitialized = false
     private var deleted = false
@@ -105,7 +121,7 @@ class ReaderViewModel(
                     } else {
                         state.pageIndex.coerceAtMost(story.lastChapter?.index ?: 1)
                     }
-                    state.copy(isLoading = false, story = story, pageIndex = page)
+                    state.copy(isLoading = false, story = story, pageIndex = page, child = story.childSnapshot ?: state.child)
                 }
                 if (firstLoad) {
                     pageInitialized = true
@@ -128,16 +144,33 @@ class ReaderViewModel(
         val state = _uiState.value
         val story = state.story ?: return
         val chapter = state.currentChapter ?: return
+        val plan = ChoiceNarration.build(chapter, state.isLatestPage)
+        pendingAutoplay = play && activeSince == null
         audioPlayerController.load(
-            key = "${story.id}#${chapter.index}#${chapter.content.hashCode()}",
-            text = chapter.content,
-            script = chapter.narrationScript,
+            key = "${story.id}#${chapter.index}#${plan.text.hashCode()}#page",
+            text = plan.text,
+            script = plan.script,
             mood = chapter.mood,
             listenerAge = AgeGroup.fromCode(state.child?.ageGroup).illustrationAge + " child",
-            autoPlay = play
+            autoPlay = play && activeSince != null
         )
         ensureIllustration(chapter.index)
-        viewModelScope.launch { storyRepository.markRead(story.id, chapter.index) }
+        val preparationKey = "${story.id}:${chapter.index}:${chapter.content.hashCode()}"
+        if (state.isLatestPage && !chapter.isEnding && !story.isOffline && activeSince != null && preparedPage != preparationKey) {
+            preparationJob?.cancel()
+            preparedPage = preparationKey
+            preparationJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(1_500) // Let first audio and visible illustration start first.
+                try {
+                    if (settingsManager.current().prepareNextChoices) storyRepository.prepareContinuations(story.id)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Speculation is optional; the explicit choice retains its normal retry path.
+                }
+            }
+        }
+        if (activeSince != null) viewModelScope.launch { storyRepository.markRead(story.id, chapter.index) }
         if (chapter.isEnding) _uiState.update { it.copy(showCelebration = true) }
     }
 
@@ -228,18 +261,26 @@ class ReaderViewModel(
 
     /** Volta para a página [chapterIndex], apagando as seguintes, para escolher outro caminho. */
     fun chooseAnotherPath(chapterIndex: Int) {
+        if (_uiState.value.isGeneratingNextChapter) return
         audioPlayerController.stop()
-        illustrationJobs.filterKeys { it > chapterIndex }.values.forEach { it.cancel() }
+        illustrationJobs.values.forEach { it.cancel() }
+        _uiState.update { it.copy(isGeneratingNextChapter = true, pendingChoice = "Explorar outro caminho", errorMessage = null) }
         viewModelScope.launch {
-            rewindStoryUseCase(storyId, chapterIndex)
-            _uiState.update {
-                it.copy(
-                    pageIndex = chapterIndex,
-                    showCelebration = false,
-                    illustrationStatus = it.illustrationStatus.filterKeys { key -> key <= chapterIndex }
-                )
+            try {
+                rewindStoryUseCase(storyId, chapterIndex)
+                val updated = getStoryByIdUseCase(storyId)
+                _uiState.update {
+                    it.copy(story = updated ?: it.story, pageIndex = chapterIndex, showCelebration = false,
+                        isGeneratingNextChapter = false, pendingChoice = null,
+                        illustrationStatus = it.illustrationStatus.filterKeys { key -> key <= chapterIndex })
+                }
+                onPageShown(false)
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isGeneratingNextChapter = false, pendingChoice = null,
+                    errorMessage = "Não foi possível guardar o caminho anterior. Sua história foi preservada.", canRetry = false) }
             }
-            onPageShown(false)
         }
     }
 
@@ -250,7 +291,61 @@ class ReaderViewModel(
 
     fun toggleAudio() = audioPlayerController.togglePlayPause()
 
-    fun replayNarration() = audioPlayerController.replay()
+    fun onReaderResumed() {
+        if (activeSince == null) activeSince = android.os.SystemClock.elapsedRealtime()
+        audioPlayerController.onReaderStarted()
+        if (pageInitialized && !_uiState.value.isGeneratingNextChapter) {
+            onPageShown(pendingAutoplay)
+        }
+    }
+
+    fun onReaderPaused() {
+        preparationJob?.cancel()
+        preparedPage = null
+        activeSince?.let { activeDurationMs += android.os.SystemClock.elapsedRealtime() - it }
+        activeSince = null
+        pendingAutoplay = false
+        if (audioPlayerController.playbackState.value.chapterKey?.startsWith("$storyId#") == true) {
+            audioPlayerController.onReaderStopped()
+        }
+    }
+
+    fun explainWord(word: String) {
+        val state = _uiState.value
+        val chapter = state.currentChapter ?: return
+        val story = state.story ?: return
+        if (state.isGeneratingNextChapter) return
+        val text = StoryVocabulary.explanation(word, chapter.content)
+        val key = "${story.id}#${chapter.index}#${text.hashCode()}#word"
+        if (state.narration.chapterKey == key) audioPlayerController.replay()
+        else audioPlayerController.load(key, text, null, "aconchegante", null, true)
+    }
+
+    fun replayNarration() {
+        if (_uiState.value.isReadingChoices || _uiState.value.narration.chapterKey?.endsWith("#word") == true) onPageShown(true)
+        else audioPlayerController.replay()
+    }
+
+    fun readChoices() {
+        val state = _uiState.value
+        val story = state.story ?: return
+        val chapter = state.currentChapter ?: return
+        if (!state.isLatestPage || chapter.isEnding || state.isGeneratingNextChapter) return
+        val plan = ChoiceNarration.build(chapter, includeChoices = true, choicesOnly = true)
+        if (chapter.choices.isEmpty()) return
+        if (state.isReadingChoices) {
+            audioPlayerController.replay()
+        } else {
+            audioPlayerController.load(
+                key = "${story.id}#${chapter.index}#${chapter.content.hashCode()}#choices",
+                text = plan.text,
+                script = null,
+                mood = chapter.mood,
+                listenerAge = AgeGroup.fromCode(state.child?.ageGroup).illustrationAge + " child",
+                autoPlay = true
+            )
+        }
+    }
 
     fun setPersona(persona: VoicePersona) = audioPlayerController.setPersona(persona)
 
@@ -269,17 +364,24 @@ class ReaderViewModel(
         audioPlayerController.onReaderStopped()
         illustrationJobs.values.forEach { it.cancel() }
         viewModelScope.launch {
-            deleteStoryUseCase(storyId)
-            onDeleted()
+            try {
+                deleteStoryUseCase(storyId)
+                onDeleted()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                deleted = false
+                _uiState.update { it.copy(errorMessage = "Não foi possível mover a história para a lixeira.") }
+            }
         }
     }
 
     override fun onCleared() {
+        onReaderPaused()
         super.onCleared()
-        if (deleted) return
         val state = _uiState.value
         val story = state.story ?: return
-        val duration = System.currentTimeMillis() - sessionStart
+        val duration = activeDurationMs
         // viewModelScope já foi cancelado aqui: registra a sessão em um escopo próprio.
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             storyRepository.recordReadingSession(story.id, story.childId, sessionStart, duration)

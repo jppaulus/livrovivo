@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +40,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
+import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.theme.FairyPurple
@@ -74,7 +79,7 @@ import com.livrovivo.app.core.ui.CompanionGreetingCard
 import com.livrovivo.app.core.ui.InfoPill
 import com.livrovivo.app.core.ui.LocalImage
 import com.livrovivo.app.core.ui.MagicalSparklesEffect
-import com.livrovivo.app.core.ui.ProceduralScene
+import com.livrovivo.app.core.ui.BookScene
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.Story
@@ -93,6 +98,7 @@ import java.util.Calendar
 
 data class HomeUiState(
     val activeChild: ChildProfile? = null,
+    val profiles: List<ChildProfile> = emptyList(),
     val stories: List<Story> = emptyList(),
     val quotaStatus: QuotaStatus = QuotaStatus.Limited(remaining = 3, max = 3),
     val aiConfigured: Boolean = true
@@ -102,11 +108,12 @@ data class HomeUiState(
 
 class HomeViewModel(
     getStoriesUseCase: GetStoriesUseCase,
-    getActiveChildUseCase: GetActiveChildUseCase,
+    private val getActiveChildUseCase: GetActiveChildUseCase,
     private val checkStoryQuotaUseCase: CheckStoryQuotaUseCase,
     private val deleteStoryUseCase: DeleteStoryUseCase,
     settingsManager: SettingsManager,
-    backendConfigured: Boolean
+    backendConfigured: Boolean,
+    private val audioPlayerController: AudioPlayerController
 ) : ViewModel() {
 
     private val quota = kotlinx.coroutines.flow.MutableStateFlow<QuotaStatus>(QuotaStatus.Limited(3, 3))
@@ -115,11 +122,13 @@ class HomeViewModel(
         getStoriesUseCase(),
         getActiveChildUseCase(),
         settingsManager.settingsFlow,
-        quota
-    ) { stories, child, settings, quotaStatus ->
+        quota,
+        getActiveChildUseCase.profiles()
+    ) { stories, child, settings, quotaStatus, profiles ->
         HomeUiState(
             activeChild = child,
-            stories = stories,
+            profiles = profiles,
+            stories = stories.filter { it.childId == child?.id },
             quotaStatus = quotaStatus,
             aiConfigured = settings.hasGeminiKey || backendConfigured
         )
@@ -131,6 +140,25 @@ class HomeViewModel(
 
     fun refreshQuota() {
         viewModelScope.launch { quota.value = checkStoryQuotaUseCase() }
+    }
+
+    fun selectProfile(id: String) {
+        stopHelp()
+        viewModelScope.launch { getActiveChildUseCase.activate(id) }
+    }
+
+    fun speakHelp() {
+        val name = uiState.value.activeChild?.name ?: "pequeno leitor"
+        val text = "Olá, $name! Toque em Nova aventura para escolher um tema. Para continuar uma história, toque na capa do livro. Vamos imaginar juntos?"
+        val key = "home-help#${text.hashCode()}"
+        if (audioPlayerController.playbackState.value.chapterKey == key) audioPlayerController.replay()
+        else audioPlayerController.load(key, text, null, "alegre", null, true)
+    }
+
+    fun stopHelp() {
+        if (audioPlayerController.playbackState.value.chapterKey?.startsWith("home-help#") == true) {
+            audioPlayerController.onReaderStopped()
+        }
     }
 
     fun deleteStory(storyId: String) {
@@ -156,19 +184,20 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToCreation: () -> Unit,
     onNavigateToReader: (String) -> Unit,
-    onNavigateToParentArea: () -> Unit,
-    onNavigateToEditProfile: () -> Unit
+    onNavigateToParentArea: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showParentalGate by remember { mutableStateOf(false) }
+    DisposableEffect(viewModel) { onDispose { viewModel.stopHelp() } }
+    var afterParentalGate by remember { mutableStateOf<(() -> Unit)?>(null) }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
 
-    if (showParentalGate) {
+    if (afterParentalGate != null) {
         ParentalGateDialog(
-            onDismiss = { showParentalGate = false },
+            onDismiss = { afterParentalGate = null },
             onSuccess = {
-                showParentalGate = false
-                onNavigateToParentArea()
+                val action = afterParentalGate
+                afterParentalGate = null
+                action?.invoke()
             }
         )
     }
@@ -176,16 +205,16 @@ fun HomeScreen(
     storyToDelete?.let { story ->
         AlertDialog(
             onDismissRequest = { storyToDelete = null },
-            title = { Text("Apagar história?") },
-            text = { Text("\"${story.title}\" e suas ilustrações serão removidas deste aparelho.") },
+            title = { Text("Guardar na lixeira?") },
+            text = { Text("\"${story.title}\" poderá ser restaurada na Área dos Pais.") },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteStory(story.id)
+                        afterParentalGate = { viewModel.deleteStory(story.id) }
                         storyToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Apagar") }
+                ) { Text("Mover para a lixeira") }
             },
             dismissButton = { TextButton(onClick = { storyToDelete = null }) { Text("Cancelar") } }
         )
@@ -207,7 +236,7 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { showParentalGate = true }) {
+                    IconButton(onClick = { afterParentalGate = onNavigateToParentArea }) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Área dos Pais",
@@ -255,18 +284,34 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                if (uiState.profiles.size > 1) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            Text("Quem vai viver a aventura?", style = MaterialTheme.typography.titleMedium)
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                uiState.profiles.forEach { profile ->
+                                    FilterChip(
+                                        selected = profile.id == child?.id,
+                                        onClick = { viewModel.selectProfile(profile.id) },
+                                        label = { Text("${MagicalCompanion.findById(profile.companionId).emoji} ${profile.name}") }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     CompanionGreetingCard(
                         companion = companion,
                         childName = childName,
                         speechText = greetingFor(),
-                        onClick = onNavigateToEditProfile
+                        onClick = viewModel::speakHelp
                     )
                 }
 
                 if (!uiState.aiConfigured) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        ParentHintCard(onClick = { showParentalGate = true })
+                        ParentHintCard(onClick = { afterParentalGate = onNavigateToParentArea })
                     }
                 }
 
@@ -371,7 +416,7 @@ private fun ContinueReadingCard(story: Story, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
         ) {
-            ProceduralScene(scene = scene, animate = false, modifier = Modifier.fillMaxSize())
+            BookScene(scene = scene, modifier = Modifier.fillMaxSize())
             LocalImage(path = story.coverPath, maxSide = 900, modifier = Modifier.fillMaxSize())
             Box(
                 modifier = Modifier
@@ -450,7 +495,7 @@ private fun BookCover(story: Story, onClick: () -> Unit, onDelete: () -> Unit) {
                 .fillMaxWidth()
                 .aspectRatio(4f / 3f)
         ) {
-            ProceduralScene(scene = scene, companionEmoji = companion.emoji, animate = false, modifier = Modifier.fillMaxSize())
+            BookScene(scene = scene, modifier = Modifier.fillMaxSize())
             LocalImage(path = story.coverPath, maxSide = 600, modifier = Modifier.fillMaxSize())
             InfoPill(
                 text = if (story.isCompleted) "Concluída ⭐" else "Pág. ${story.lastChapter?.index ?: 1}/${story.plannedChapters}",

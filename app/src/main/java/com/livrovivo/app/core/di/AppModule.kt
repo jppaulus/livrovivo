@@ -55,7 +55,7 @@ val appModule = module {
     // IA (texto, imagem e voz)
     single { AiHttp.createClient() }
     single { BackendConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) }
-    single { GeminiService(get(), get(), get()) }
+    single { GeminiService(androidContext(), get(), get(), get()) }
     single { ElevenLabsService(get(), get(), get()) }
     single { StoryWriter(get()) }
     single { IllustrationService(androidContext(), get(), get()) }
@@ -86,16 +86,16 @@ val appModule = module {
     factory { GetParentInsightsUseCase(get(), get()) }
 
     // ViewModels
-    viewModel { AppStartViewModel(get()) }
+    viewModel { AppStartViewModel(get(), get()) }
     viewModel { (isEditMode: Boolean) -> OnboardingViewModel(get(), get(), isEditMode) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get()) }
     viewModel { CreationViewModel(get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     viewModel { PaywallViewModel(get()) }
     viewModel {
-        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured)
+        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get())
     }
     viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
 }

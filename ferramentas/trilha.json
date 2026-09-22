@@ -1,0 +1,4137 @@
+{
+  "versao": 1,
+  "palavras_de_apoio": [
+    "O",
+    "A",
+    "E",
+    "É",
+    "UM",
+    "UMA",
+    "OS",
+    "AS",
+    "DE",
+    "DO",
+    "DA",
+    "NO",
+    "NA",
+    "COM",
+    "EM",
+    "NÃO",
+    "SIM",
+    "TEM",
+    "ESTÁ",
+    "SÃO"
+  ],
+  "vocabulario": [
+    {
+      "palavra": "BOLA",
+      "silabas": [
+        "BO",
+        "LA"
+      ],
+      "imagem": "img_bola",
+      "artigo": "A"
+    },
+    {
+      "palavra": "CASA",
+      "silabas": [
+        "CA",
+        "SA"
+      ],
+      "imagem": "img_casa",
+      "artigo": "A"
+    },
+    {
+      "palavra": "GATO",
+      "silabas": [
+        "GA",
+        "TO"
+      ],
+      "imagem": "img_gato",
+      "artigo": "O"
+    },
+    {
+      "palavra": "PATO",
+      "silabas": [
+        "PA",
+        "TO"
+      ],
+      "imagem": "img_pato",
+      "artigo": "O"
+    },
+    {
+      "palavra": "MALA",
+      "silabas": [
+        "MA",
+        "LA"
+      ],
+      "imagem": "img_mala",
+      "artigo": "A"
+    },
+    {
+      "palavra": "SAPO",
+      "silabas": [
+        "SA",
+        "PO"
+      ],
+      "imagem": "img_sapo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "DADO",
+      "silabas": [
+        "DA",
+        "DO"
+      ],
+      "imagem": "img_dado",
+      "artigo": "O"
+    },
+    {
+      "palavra": "FACA",
+      "silabas": [
+        "FA",
+        "CA"
+      ],
+      "imagem": "img_faca",
+      "artigo": "A"
+    },
+    {
+      "palavra": "VACA",
+      "silabas": [
+        "VA",
+        "CA"
+      ],
+      "imagem": "img_vaca",
+      "artigo": "A"
+    },
+    {
+      "palavra": "BOCA",
+      "silabas": [
+        "BO",
+        "CA"
+      ],
+      "imagem": "img_boca",
+      "artigo": "A"
+    },
+    {
+      "palavra": "CAMA",
+      "silabas": [
+        "CA",
+        "MA"
+      ],
+      "imagem": "img_cama",
+      "artigo": "A"
+    },
+    {
+      "palavra": "COPO",
+      "silabas": [
+        "CO",
+        "PO"
+      ],
+      "imagem": "img_copo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "DEDO",
+      "silabas": [
+        "DE",
+        "DO"
+      ],
+      "imagem": "img_dedo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "FOGO",
+      "silabas": [
+        "FO",
+        "GO"
+      ],
+      "imagem": "img_fogo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "GALO",
+      "silabas": [
+        "GA",
+        "LO"
+      ],
+      "imagem": "img_galo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "LATA",
+      "silabas": [
+        "LA",
+        "TA"
+      ],
+      "imagem": "img_lata",
+      "artigo": "A"
+    },
+    {
+      "palavra": "LOBO",
+      "silabas": [
+        "LO",
+        "BO"
+      ],
+      "imagem": "img_lobo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "MOLA",
+      "silabas": [
+        "MO",
+        "LA"
+      ],
+      "imagem": "img_mola",
+      "artigo": "A"
+    },
+    {
+      "palavra": "NAVE",
+      "silabas": [
+        "NA",
+        "VE"
+      ],
+      "imagem": "img_nave",
+      "artigo": "A"
+    },
+    {
+      "palavra": "PENA",
+      "silabas": [
+        "PE",
+        "NA"
+      ],
+      "imagem": "img_pena",
+      "artigo": "A"
+    },
+    {
+      "palavra": "PIPA",
+      "silabas": [
+        "PI",
+        "PA"
+      ],
+      "imagem": "img_pipa",
+      "artigo": "A"
+    },
+    {
+      "palavra": "RODA",
+      "silabas": [
+        "RO",
+        "DA"
+      ],
+      "imagem": "img_roda",
+      "artigo": "A"
+    },
+    {
+      "palavra": "RATO",
+      "silabas": [
+        "RA",
+        "TO"
+      ],
+      "imagem": "img_rato",
+      "artigo": "O"
+    },
+    {
+      "palavra": "SACO",
+      "silabas": [
+        "SA",
+        "CO"
+      ],
+      "imagem": "img_saco",
+      "artigo": "O"
+    },
+    {
+      "palavra": "SELO",
+      "silabas": [
+        "SE",
+        "LO"
+      ],
+      "imagem": "img_selo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "TATU",
+      "silabas": [
+        "TA",
+        "TU"
+      ],
+      "imagem": "img_tatu",
+      "artigo": "O"
+    },
+    {
+      "palavra": "TUBO",
+      "silabas": [
+        "TU",
+        "BO"
+      ],
+      "imagem": "img_tubo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "VELA",
+      "silabas": [
+        "VE",
+        "LA"
+      ],
+      "imagem": "img_vela",
+      "artigo": "A"
+    },
+    {
+      "palavra": "BALA",
+      "silabas": [
+        "BA",
+        "LA"
+      ],
+      "imagem": "img_bala",
+      "artigo": "A"
+    },
+    {
+      "palavra": "BOLO",
+      "silabas": [
+        "BO",
+        "LO"
+      ],
+      "imagem": "img_bolo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "BULE",
+      "silabas": [
+        "BU",
+        "LE"
+      ],
+      "imagem": "img_bule",
+      "artigo": "O"
+    },
+    {
+      "palavra": "COLA",
+      "silabas": [
+        "CO",
+        "LA"
+      ],
+      "imagem": "img_cola",
+      "artigo": "A"
+    },
+    {
+      "palavra": "FADA",
+      "silabas": [
+        "FA",
+        "DA"
+      ],
+      "imagem": "img_fada",
+      "artigo": "A"
+    },
+    {
+      "palavra": "FITA",
+      "silabas": [
+        "FI",
+        "TA"
+      ],
+      "imagem": "img_fita",
+      "artigo": "A"
+    },
+    {
+      "palavra": "LUPA",
+      "silabas": [
+        "LU",
+        "PA"
+      ],
+      "imagem": "img_lupa",
+      "artigo": "A"
+    },
+    {
+      "palavra": "MAPA",
+      "silabas": [
+        "MA",
+        "PA"
+      ],
+      "imagem": "img_mapa",
+      "artigo": "O"
+    },
+    {
+      "palavra": "MESA",
+      "silabas": [
+        "ME",
+        "SA"
+      ],
+      "imagem": "img_mesa",
+      "artigo": "A"
+    },
+    {
+      "palavra": "MOTO",
+      "silabas": [
+        "MO",
+        "TO"
+      ],
+      "imagem": "img_moto",
+      "artigo": "A"
+    },
+    {
+      "palavra": "NABO",
+      "silabas": [
+        "NA",
+        "BO"
+      ],
+      "imagem": "img_nabo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "PERA",
+      "silabas": [
+        "PE",
+        "RA"
+      ],
+      "imagem": "img_pera",
+      "artigo": "A"
+    },
+    {
+      "palavra": "SUCO",
+      "silabas": [
+        "SU",
+        "CO"
+      ],
+      "imagem": "img_suco",
+      "artigo": "O"
+    },
+    {
+      "palavra": "TELA",
+      "silabas": [
+        "TE",
+        "LA"
+      ],
+      "imagem": "img_tela",
+      "artigo": "A"
+    },
+    {
+      "palavra": "VASO",
+      "silabas": [
+        "VA",
+        "SO"
+      ],
+      "imagem": "img_vaso",
+      "artigo": "O"
+    },
+    {
+      "palavra": "FOCA",
+      "silabas": [
+        "FO",
+        "CA"
+      ],
+      "imagem": "img_foca",
+      "artigo": "A"
+    },
+    {
+      "palavra": "DOCE",
+      "silabas": [
+        "DO",
+        "CE"
+      ],
+      "imagem": "img_doce",
+      "artigo": "O"
+    },
+    {
+      "palavra": "LUVA",
+      "silabas": [
+        "LU",
+        "VA"
+      ],
+      "imagem": "img_luva",
+      "artigo": "A"
+    },
+    {
+      "palavra": "REDE",
+      "silabas": [
+        "RE",
+        "DE"
+      ],
+      "imagem": "img_rede",
+      "artigo": "A"
+    },
+    {
+      "palavra": "SOPA",
+      "silabas": [
+        "SO",
+        "PA"
+      ],
+      "imagem": "img_sopa",
+      "artigo": "A"
+    },
+    {
+      "palavra": "GELO",
+      "silabas": [
+        "GE",
+        "LO"
+      ],
+      "imagem": "img_gelo",
+      "artigo": "O"
+    },
+    {
+      "palavra": "TOCA",
+      "silabas": [
+        "TO",
+        "CA"
+      ],
+      "imagem": "img_toca",
+      "artigo": "A"
+    }
+  ],
+  "modulos": [
+    {
+      "id": "vogais",
+      "titulo": "Vogais",
+      "ordem": 1,
+      "fases": [
+        {
+          "id": "vogais_a",
+          "titulo": "Letra A",
+          "gratis": true,
+          "ensina": [
+            "A"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "E",
+                "U",
+                "A"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Abelha começa com qual letra?",
+              "resposta": "A",
+              "opcoes": [
+                "E",
+                "A",
+                "I"
+              ],
+              "pecas": [],
+              "imagem": "img_abelha"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra A?",
+              "resposta": "A",
+              "opcoes": [
+                "A",
+                "E",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "U",
+                "A",
+                "E"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "U",
+                "A",
+                "E"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "vogais_e",
+          "titulo": "Letra E",
+          "gratis": true,
+          "ensina": [
+            "E"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra E",
+              "resposta": "E",
+              "opcoes": [
+                "A",
+                "U",
+                "E"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Elefante começa com qual letra?",
+              "resposta": "E",
+              "opcoes": [
+                "I",
+                "E",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": "img_elefante"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra E?",
+              "resposta": "E",
+              "opcoes": [
+                "E",
+                "A",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "O",
+                "I",
+                "A"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "A",
+                "O",
+                "U"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "vogais_i",
+          "titulo": "Letra I",
+          "gratis": true,
+          "ensina": [
+            "I"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra I",
+              "resposta": "I",
+              "opcoes": [
+                "A",
+                "I",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Ilha começa com qual letra?",
+              "resposta": "I",
+              "opcoes": [
+                "O",
+                "I",
+                "E"
+              ],
+              "pecas": [],
+              "imagem": "img_ilha"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra I?",
+              "resposta": "I",
+              "opcoes": [
+                "U",
+                "I",
+                "E"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "U",
+                "A",
+                "I"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra A",
+              "resposta": "A",
+              "opcoes": [
+                "A",
+                "I",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "vogais_o",
+          "titulo": "Letra O",
+          "gratis": true,
+          "ensina": [
+            "O"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra O",
+              "resposta": "O",
+              "opcoes": [
+                "I",
+                "A",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Ovo começa com qual letra?",
+              "resposta": "O",
+              "opcoes": [
+                "E",
+                "O",
+                "A"
+              ],
+              "pecas": [],
+              "imagem": "img_ovo"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra O?",
+              "resposta": "O",
+              "opcoes": [
+                "U",
+                "I",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra I",
+              "resposta": "I",
+              "opcoes": [
+                "I",
+                "U",
+                "A"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra O",
+              "resposta": "O",
+              "opcoes": [
+                "O",
+                "A",
+                "I"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "vogais_u",
+          "titulo": "Letra U",
+          "gratis": true,
+          "ensina": [
+            "U"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra U",
+              "resposta": "U",
+              "opcoes": [
+                "E",
+                "U",
+                "I"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Uva começa com qual letra?",
+              "resposta": "U",
+              "opcoes": [
+                "U",
+                "O",
+                "A"
+              ],
+              "pecas": [],
+              "imagem": "img_uva"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra U?",
+              "resposta": "U",
+              "opcoes": [
+                "E",
+                "I",
+                "U"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra U",
+              "resposta": "U",
+              "opcoes": [
+                "O",
+                "U",
+                "I"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra E",
+              "resposta": "E",
+              "opcoes": [
+                "E",
+                "I",
+                "O"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "consoantes",
+      "titulo": "Consoantes",
+      "ordem": 2,
+      "fases": [
+        {
+          "id": "consoantes_b",
+          "titulo": "Letra B",
+          "gratis": true,
+          "ensina": [
+            "B"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "D",
+                "B",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Bola começa com qual letra?",
+              "resposta": "B",
+              "opcoes": [
+                "N",
+                "T",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": "img_bola"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra B?",
+              "resposta": "B",
+              "opcoes": [
+                "N",
+                "V",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "C",
+                "R",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "B",
+                "M",
+                "T"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_c",
+          "titulo": "Letra C",
+          "gratis": true,
+          "ensina": [
+            "C"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "C",
+                "N",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Casa começa com qual letra?",
+              "resposta": "C",
+              "opcoes": [
+                "L",
+                "V",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": "img_casa"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra C?",
+              "resposta": "C",
+              "opcoes": [
+                "R",
+                "D",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "M",
+                "B",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "C",
+                "B",
+                "P"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_d",
+          "titulo": "Letra D",
+          "gratis": true,
+          "ensina": [
+            "D"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "G",
+                "D",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Dado começa com qual letra?",
+              "resposta": "D",
+              "opcoes": [
+                "D",
+                "C",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": "img_dado"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra D?",
+              "resposta": "D",
+              "opcoes": [
+                "R",
+                "D",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "D",
+                "R",
+                "P"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "N",
+                "D",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_f",
+          "titulo": "Letra F",
+          "gratis": true,
+          "ensina": [
+            "F"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra F",
+              "resposta": "F",
+              "opcoes": [
+                "V",
+                "F",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Faca começa com qual letra?",
+              "resposta": "F",
+              "opcoes": [
+                "F",
+                "P",
+                "R"
+              ],
+              "pecas": [],
+              "imagem": "img_faca"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra F?",
+              "resposta": "F",
+              "opcoes": [
+                "F",
+                "V",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "R",
+                "B",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "T",
+                "B",
+                "D"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_g",
+          "titulo": "Letra G",
+          "gratis": true,
+          "ensina": [
+            "G"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra G",
+              "resposta": "G",
+              "opcoes": [
+                "G",
+                "C",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Gato começa com qual letra?",
+              "resposta": "G",
+              "opcoes": [
+                "R",
+                "G",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": "img_gato"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra G?",
+              "resposta": "G",
+              "opcoes": [
+                "G",
+                "R",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "N",
+                "C",
+                "P"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "T",
+                "B",
+                "N"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_l",
+          "titulo": "Letra L",
+          "gratis": true,
+          "ensina": [
+            "L"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra L",
+              "resposta": "L",
+              "opcoes": [
+                "P",
+                "N",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Lata começa com qual letra?",
+              "resposta": "L",
+              "opcoes": [
+                "V",
+                "T",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": "img_lata"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra L?",
+              "resposta": "L",
+              "opcoes": [
+                "B",
+                "N",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "B",
+                "V",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "N",
+                "C",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_m",
+          "titulo": "Letra M",
+          "gratis": true,
+          "ensina": [
+            "M"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra M",
+              "resposta": "M",
+              "opcoes": [
+                "M",
+                "F",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Mala começa com qual letra?",
+              "resposta": "M",
+              "opcoes": [
+                "T",
+                "B",
+                "M"
+              ],
+              "pecas": [],
+              "imagem": "img_mala"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra M?",
+              "resposta": "M",
+              "opcoes": [
+                "M",
+                "F",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra F",
+              "resposta": "F",
+              "opcoes": [
+                "F",
+                "P",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "N",
+                "C",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_n",
+          "titulo": "Letra N",
+          "gratis": true,
+          "ensina": [
+            "N"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra N",
+              "resposta": "N",
+              "opcoes": [
+                "P",
+                "N",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Nave começa com qual letra?",
+              "resposta": "N",
+              "opcoes": [
+                "N",
+                "D",
+                "F"
+              ],
+              "pecas": [],
+              "imagem": "img_nave"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra N?",
+              "resposta": "N",
+              "opcoes": [
+                "S",
+                "B",
+                "N"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra L",
+              "resposta": "L",
+              "opcoes": [
+                "B",
+                "V",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "R",
+                "D",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_p",
+          "titulo": "Letra P",
+          "gratis": true,
+          "ensina": [
+            "P"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra P",
+              "resposta": "P",
+              "opcoes": [
+                "S",
+                "P",
+                "C"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Pato começa com qual letra?",
+              "resposta": "P",
+              "opcoes": [
+                "C",
+                "M",
+                "P"
+              ],
+              "pecas": [],
+              "imagem": "img_pato"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra P?",
+              "resposta": "P",
+              "opcoes": [
+                "V",
+                "P",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra M",
+              "resposta": "M",
+              "opcoes": [
+                "T",
+                "S",
+                "M"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra G",
+              "resposta": "G",
+              "opcoes": [
+                "F",
+                "T",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_r",
+          "titulo": "Letra R",
+          "gratis": true,
+          "ensina": [
+            "R"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra R",
+              "resposta": "R",
+              "opcoes": [
+                "R",
+                "F",
+                "G"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Rato começa com qual letra?",
+              "resposta": "R",
+              "opcoes": [
+                "T",
+                "R",
+                "V"
+              ],
+              "pecas": [],
+              "imagem": "img_rato"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra R?",
+              "resposta": "R",
+              "opcoes": [
+                "R",
+                "C",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra R",
+              "resposta": "R",
+              "opcoes": [
+                "C",
+                "R",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra P",
+              "resposta": "P",
+              "opcoes": [
+                "P",
+                "G",
+                "D"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_s",
+          "titulo": "Letra S",
+          "gratis": true,
+          "ensina": [
+            "S"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra S",
+              "resposta": "S",
+              "opcoes": [
+                "S",
+                "F",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Sapo começa com qual letra?",
+              "resposta": "S",
+              "opcoes": [
+                "N",
+                "P",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": "img_sapo"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra S?",
+              "resposta": "S",
+              "opcoes": [
+                "T",
+                "R",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra S",
+              "resposta": "S",
+              "opcoes": [
+                "G",
+                "P",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "C",
+                "D",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_t",
+          "titulo": "Letra T",
+          "gratis": true,
+          "ensina": [
+            "T"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra T",
+              "resposta": "T",
+              "opcoes": [
+                "V",
+                "G",
+                "T"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Tatu começa com qual letra?",
+              "resposta": "T",
+              "opcoes": [
+                "T",
+                "L",
+                "V"
+              ],
+              "pecas": [],
+              "imagem": "img_tatu"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra T?",
+              "resposta": "T",
+              "opcoes": [
+                "T",
+                "P",
+                "N"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra C",
+              "resposta": "C",
+              "opcoes": [
+                "C",
+                "T",
+                "N"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra B",
+              "resposta": "B",
+              "opcoes": [
+                "M",
+                "F",
+                "B"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "consoantes_v",
+          "titulo": "Letra V",
+          "gratis": true,
+          "ensina": [
+            "V"
+          ],
+          "perguntas": [
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra V",
+              "resposta": "V",
+              "opcoes": [
+                "D",
+                "N",
+                "V"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Vaca começa com qual letra?",
+              "resposta": "V",
+              "opcoes": [
+                "B",
+                "V",
+                "P"
+              ],
+              "pecas": [],
+              "imagem": "img_vaca"
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Cadê a letra V?",
+              "resposta": "V",
+              "opcoes": [
+                "D",
+                "T",
+                "V"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra L",
+              "resposta": "L",
+              "opcoes": [
+                "L",
+                "R",
+                "S"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na letra D",
+              "resposta": "D",
+              "opcoes": [
+                "D",
+                "B",
+                "L"
+              ],
+              "pecas": [],
+              "imagem": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "silabas",
+      "titulo": "Sílabas",
+      "ordem": 3,
+      "fases": [
+        {
+          "id": "silabas_b",
+          "titulo": "Sílabas com B",
+          "gratis": true,
+          "ensina": [
+            "BA",
+            "BE",
+            "BI",
+            "BO",
+            "BU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme BA",
+              "resposta": "BA",
+              "opcoes": [],
+              "pecas": [
+                "B",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba BE",
+              "resposta": "BE",
+              "opcoes": [
+                "BO",
+                "BE",
+                "BI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme BI",
+              "resposta": "BI",
+              "opcoes": [],
+              "pecas": [
+                "B",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba BO",
+              "resposta": "BO",
+              "opcoes": [
+                "BI",
+                "BU",
+                "BO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme BU",
+              "resposta": "BU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "B"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_c",
+          "titulo": "Sílabas com C",
+          "gratis": true,
+          "ensina": [
+            "CA",
+            "CE",
+            "CI",
+            "CO",
+            "CU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme CA",
+              "resposta": "CA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "C"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba CE",
+              "resposta": "CE",
+              "opcoes": [
+                "CU",
+                "CE",
+                "CI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme CI",
+              "resposta": "CI",
+              "opcoes": [],
+              "pecas": [
+                "C",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba CO",
+              "resposta": "CO",
+              "opcoes": [
+                "CI",
+                "CU",
+                "CO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme CU",
+              "resposta": "CU",
+              "opcoes": [],
+              "pecas": [
+                "C",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_d",
+          "titulo": "Sílabas com D",
+          "gratis": false,
+          "ensina": [
+            "DA",
+            "DE",
+            "DI",
+            "DO",
+            "DU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme DA",
+              "resposta": "DA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "D"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba DE",
+              "resposta": "DE",
+              "opcoes": [
+                "DE",
+                "DI",
+                "DA"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme DI",
+              "resposta": "DI",
+              "opcoes": [],
+              "pecas": [
+                "I",
+                "D"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba DO",
+              "resposta": "DO",
+              "opcoes": [
+                "DE",
+                "DO",
+                "DU"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme DU",
+              "resposta": "DU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "D"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_f",
+          "titulo": "Sílabas com F",
+          "gratis": false,
+          "ensina": [
+            "FA",
+            "FE",
+            "FI",
+            "FO",
+            "FU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme FA",
+              "resposta": "FA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "F"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba FE",
+              "resposta": "FE",
+              "opcoes": [
+                "FE",
+                "FO",
+                "FA"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme FI",
+              "resposta": "FI",
+              "opcoes": [],
+              "pecas": [
+                "F",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba FO",
+              "resposta": "FO",
+              "opcoes": [
+                "FI",
+                "FO",
+                "FA"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme FU",
+              "resposta": "FU",
+              "opcoes": [],
+              "pecas": [
+                "F",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_g",
+          "titulo": "Sílabas com G",
+          "gratis": false,
+          "ensina": [
+            "GA",
+            "GE",
+            "GI",
+            "GO",
+            "GU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme GA",
+              "resposta": "GA",
+              "opcoes": [],
+              "pecas": [
+                "G",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba GE",
+              "resposta": "GE",
+              "opcoes": [
+                "GE",
+                "GA",
+                "GU"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme GI",
+              "resposta": "GI",
+              "opcoes": [],
+              "pecas": [
+                "G",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba GO",
+              "resposta": "GO",
+              "opcoes": [
+                "GA",
+                "GU",
+                "GO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme GU",
+              "resposta": "GU",
+              "opcoes": [],
+              "pecas": [
+                "G",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_l",
+          "titulo": "Sílabas com L",
+          "gratis": false,
+          "ensina": [
+            "LA",
+            "LE",
+            "LI",
+            "LO",
+            "LU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme LA",
+              "resposta": "LA",
+              "opcoes": [],
+              "pecas": [
+                "L",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba LE",
+              "resposta": "LE",
+              "opcoes": [
+                "LO",
+                "LU",
+                "LE"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme LI",
+              "resposta": "LI",
+              "opcoes": [],
+              "pecas": [
+                "L",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba LO",
+              "resposta": "LO",
+              "opcoes": [
+                "LO",
+                "LU",
+                "LE"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme LU",
+              "resposta": "LU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "L"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_m",
+          "titulo": "Sílabas com M",
+          "gratis": false,
+          "ensina": [
+            "MA",
+            "ME",
+            "MI",
+            "MO",
+            "MU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme MA",
+              "resposta": "MA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "M"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba ME",
+              "resposta": "ME",
+              "opcoes": [
+                "ME",
+                "MI",
+                "MO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme MI",
+              "resposta": "MI",
+              "opcoes": [],
+              "pecas": [
+                "M",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba MO",
+              "resposta": "MO",
+              "opcoes": [
+                "MA",
+                "MO",
+                "MI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme MU",
+              "resposta": "MU",
+              "opcoes": [],
+              "pecas": [
+                "M",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_n",
+          "titulo": "Sílabas com N",
+          "gratis": false,
+          "ensina": [
+            "NA",
+            "NE",
+            "NI",
+            "NO",
+            "NU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme NA",
+              "resposta": "NA",
+              "opcoes": [],
+              "pecas": [
+                "N",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba NE",
+              "resposta": "NE",
+              "opcoes": [
+                "NE",
+                "NU",
+                "NO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme NI",
+              "resposta": "NI",
+              "opcoes": [],
+              "pecas": [
+                "I",
+                "N"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba NO",
+              "resposta": "NO",
+              "opcoes": [
+                "NO",
+                "NU",
+                "NI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme NU",
+              "resposta": "NU",
+              "opcoes": [],
+              "pecas": [
+                "N",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_p",
+          "titulo": "Sílabas com P",
+          "gratis": false,
+          "ensina": [
+            "PA",
+            "PE",
+            "PI",
+            "PO",
+            "PU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme PA",
+              "resposta": "PA",
+              "opcoes": [],
+              "pecas": [
+                "P",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba PE",
+              "resposta": "PE",
+              "opcoes": [
+                "PE",
+                "PA",
+                "PI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme PI",
+              "resposta": "PI",
+              "opcoes": [],
+              "pecas": [
+                "P",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba PO",
+              "resposta": "PO",
+              "opcoes": [
+                "PI",
+                "PO",
+                "PE"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme PU",
+              "resposta": "PU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "P"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_r",
+          "titulo": "Sílabas com R",
+          "gratis": false,
+          "ensina": [
+            "RA",
+            "RE",
+            "RI",
+            "RO",
+            "RU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme RA",
+              "resposta": "RA",
+              "opcoes": [],
+              "pecas": [
+                "R",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba RE",
+              "resposta": "RE",
+              "opcoes": [
+                "RE",
+                "RO",
+                "RI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme RI",
+              "resposta": "RI",
+              "opcoes": [],
+              "pecas": [
+                "R",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba RO",
+              "resposta": "RO",
+              "opcoes": [
+                "RA",
+                "RU",
+                "RO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme RU",
+              "resposta": "RU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "R"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_s",
+          "titulo": "Sílabas com S",
+          "gratis": false,
+          "ensina": [
+            "SA",
+            "SE",
+            "SI",
+            "SO",
+            "SU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme SA",
+              "resposta": "SA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "S"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba SE",
+              "resposta": "SE",
+              "opcoes": [
+                "SA",
+                "SE",
+                "SI"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme SI",
+              "resposta": "SI",
+              "opcoes": [],
+              "pecas": [
+                "S",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba SO",
+              "resposta": "SO",
+              "opcoes": [
+                "SO",
+                "SA",
+                "SE"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme SU",
+              "resposta": "SU",
+              "opcoes": [],
+              "pecas": [
+                "S",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_t",
+          "titulo": "Sílabas com T",
+          "gratis": false,
+          "ensina": [
+            "TA",
+            "TE",
+            "TI",
+            "TO",
+            "TU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme TA",
+              "resposta": "TA",
+              "opcoes": [],
+              "pecas": [
+                "T",
+                "A"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba TE",
+              "resposta": "TE",
+              "opcoes": [
+                "TA",
+                "TE",
+                "TU"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme TI",
+              "resposta": "TI",
+              "opcoes": [],
+              "pecas": [
+                "I",
+                "T"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba TO",
+              "resposta": "TO",
+              "opcoes": [
+                "TO",
+                "TA",
+                "TU"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme TU",
+              "resposta": "TU",
+              "opcoes": [],
+              "pecas": [
+                "U",
+                "T"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "silabas_v",
+          "titulo": "Sílabas com V",
+          "gratis": false,
+          "ensina": [
+            "VA",
+            "VE",
+            "VI",
+            "VO",
+            "VU"
+          ],
+          "perguntas": [
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme VA",
+              "resposta": "VA",
+              "opcoes": [],
+              "pecas": [
+                "A",
+                "V"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba VE",
+              "resposta": "VE",
+              "opcoes": [
+                "VE",
+                "VI",
+                "VA"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme VI",
+              "resposta": "VI",
+              "opcoes": [],
+              "pecas": [
+                "V",
+                "I"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ouvir_tocar",
+              "fala": "Toque na sílaba VO",
+              "resposta": "VO",
+              "opcoes": [
+                "VU",
+                "VI",
+                "VO"
+              ],
+              "pecas": [],
+              "imagem": null
+            },
+            {
+              "tipo": "juntar",
+              "fala": "Junte as letras e forme VU",
+              "resposta": "VU",
+              "opcoes": [],
+              "pecas": [
+                "V",
+                "U"
+              ],
+              "imagem": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "palavras",
+      "titulo": "Primeiras palavras",
+      "ordem": 4,
+      "fases": [
+        {
+          "id": "palavras_01",
+          "titulo": "Palavras 1",
+          "gratis": true,
+          "ensina": [
+            "BOLA",
+            "CASA",
+            "GATO",
+            "PATO",
+            "MALA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra bola",
+              "resposta": "BOLA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "BO"
+              ],
+              "imagem": "img_bola"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "CASA",
+              "opcoes": [
+                "GELO",
+                "CASA",
+                "COLA"
+              ],
+              "pecas": [],
+              "imagem": "img_casa"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra gato",
+              "resposta": "GATO",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "GA"
+              ],
+              "imagem": "img_gato"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "PATO",
+              "opcoes": [
+                "TELA",
+                "NAVE",
+                "PATO"
+              ],
+              "pecas": [],
+              "imagem": "img_pato"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra mala",
+              "resposta": "MALA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "MA"
+              ],
+              "imagem": "img_mala"
+            }
+          ]
+        },
+        {
+          "id": "palavras_02",
+          "titulo": "Palavras 2",
+          "gratis": true,
+          "ensina": [
+            "SAPO",
+            "DADO",
+            "FACA",
+            "VACA",
+            "BOCA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra sapo",
+              "resposta": "SAPO",
+              "opcoes": [],
+              "pecas": [
+                "PO",
+                "SA"
+              ],
+              "imagem": "img_sapo"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "DADO",
+              "opcoes": [
+                "DADO",
+                "PENA",
+                "REDE"
+              ],
+              "pecas": [],
+              "imagem": "img_dado"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra faca",
+              "resposta": "FACA",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "FA"
+              ],
+              "imagem": "img_faca"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "VACA",
+              "opcoes": [
+                "VACA",
+                "CAMA",
+                "BOCA"
+              ],
+              "pecas": [],
+              "imagem": "img_vaca"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra boca",
+              "resposta": "BOCA",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "BO"
+              ],
+              "imagem": "img_boca"
+            }
+          ]
+        },
+        {
+          "id": "palavras_03",
+          "titulo": "Palavras 3",
+          "gratis": false,
+          "ensina": [
+            "CAMA",
+            "COPO",
+            "DEDO",
+            "FOGO",
+            "GALO"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra cama",
+              "resposta": "CAMA",
+              "opcoes": [],
+              "pecas": [
+                "MA",
+                "CA"
+              ],
+              "imagem": "img_cama"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "COPO",
+              "opcoes": [
+                "MALA",
+                "COPO",
+                "VELA"
+              ],
+              "pecas": [],
+              "imagem": "img_copo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra dedo",
+              "resposta": "DEDO",
+              "opcoes": [],
+              "pecas": [
+                "DO",
+                "DE"
+              ],
+              "imagem": "img_dedo"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "FOGO",
+              "opcoes": [
+                "FOGO",
+                "GALO",
+                "VELA"
+              ],
+              "pecas": [],
+              "imagem": "img_fogo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra galo",
+              "resposta": "GALO",
+              "opcoes": [],
+              "pecas": [
+                "LO",
+                "GA"
+              ],
+              "imagem": "img_galo"
+            }
+          ]
+        },
+        {
+          "id": "palavras_04",
+          "titulo": "Palavras 4",
+          "gratis": false,
+          "ensina": [
+            "LATA",
+            "LOBO",
+            "MOLA",
+            "NAVE",
+            "PENA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra lata",
+              "resposta": "LATA",
+              "opcoes": [],
+              "pecas": [
+                "TA",
+                "LA"
+              ],
+              "imagem": "img_lata"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "LOBO",
+              "opcoes": [
+                "FADA",
+                "LOBO",
+                "GALO"
+              ],
+              "pecas": [],
+              "imagem": "img_lobo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra mola",
+              "resposta": "MOLA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "MO"
+              ],
+              "imagem": "img_mola"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "NAVE",
+              "opcoes": [
+                "TATU",
+                "RATO",
+                "NAVE"
+              ],
+              "pecas": [],
+              "imagem": "img_nave"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra pena",
+              "resposta": "PENA",
+              "opcoes": [],
+              "pecas": [
+                "NA",
+                "PE"
+              ],
+              "imagem": "img_pena"
+            }
+          ]
+        },
+        {
+          "id": "palavras_05",
+          "titulo": "Palavras 5",
+          "gratis": false,
+          "ensina": [
+            "PIPA",
+            "RODA",
+            "RATO",
+            "SACO",
+            "SELO"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra pipa",
+              "resposta": "PIPA",
+              "opcoes": [],
+              "pecas": [
+                "PA",
+                "PI"
+              ],
+              "imagem": "img_pipa"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "RODA",
+              "opcoes": [
+                "RODA",
+                "MAPA",
+                "SUCO"
+              ],
+              "pecas": [],
+              "imagem": "img_roda"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra rato",
+              "resposta": "RATO",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "RA"
+              ],
+              "imagem": "img_rato"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "SACO",
+              "opcoes": [
+                "SACO",
+                "SAPO",
+                "VASO"
+              ],
+              "pecas": [],
+              "imagem": "img_saco"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra selo",
+              "resposta": "SELO",
+              "opcoes": [],
+              "pecas": [
+                "LO",
+                "SE"
+              ],
+              "imagem": "img_selo"
+            }
+          ]
+        },
+        {
+          "id": "palavras_06",
+          "titulo": "Palavras 6",
+          "gratis": false,
+          "ensina": [
+            "TATU",
+            "TUBO",
+            "VELA",
+            "BALA",
+            "BOLO"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra tatu",
+              "resposta": "TATU",
+              "opcoes": [],
+              "pecas": [
+                "TU",
+                "TA"
+              ],
+              "imagem": "img_tatu"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "TUBO",
+              "opcoes": [
+                "TUBO",
+                "LOBO",
+                "SELO"
+              ],
+              "pecas": [],
+              "imagem": "img_tubo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra vela",
+              "resposta": "VELA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "VE"
+              ],
+              "imagem": "img_vela"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "BALA",
+              "opcoes": [
+                "CASA",
+                "COLA",
+                "BALA"
+              ],
+              "pecas": [],
+              "imagem": "img_bala"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra bolo",
+              "resposta": "BOLO",
+              "opcoes": [],
+              "pecas": [
+                "LO",
+                "BO"
+              ],
+              "imagem": "img_bolo"
+            }
+          ]
+        },
+        {
+          "id": "palavras_07",
+          "titulo": "Palavras 7",
+          "gratis": false,
+          "ensina": [
+            "BULE",
+            "COLA",
+            "FADA",
+            "FITA",
+            "LUPA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra bule",
+              "resposta": "BULE",
+              "opcoes": [],
+              "pecas": [
+                "LE",
+                "BU"
+              ],
+              "imagem": "img_bule"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "COLA",
+              "opcoes": [
+                "GATO",
+                "COLA",
+                "VASO"
+              ],
+              "pecas": [],
+              "imagem": "img_cola"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra fada",
+              "resposta": "FADA",
+              "opcoes": [],
+              "pecas": [
+                "DA",
+                "FA"
+              ],
+              "imagem": "img_fada"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "FITA",
+              "opcoes": [
+                "SUCO",
+                "FITA",
+                "CASA"
+              ],
+              "pecas": [],
+              "imagem": "img_fita"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra lupa",
+              "resposta": "LUPA",
+              "opcoes": [],
+              "pecas": [
+                "PA",
+                "LU"
+              ],
+              "imagem": "img_lupa"
+            }
+          ]
+        },
+        {
+          "id": "palavras_08",
+          "titulo": "Palavras 8",
+          "gratis": false,
+          "ensina": [
+            "MAPA",
+            "MESA",
+            "MOTO",
+            "NABO",
+            "PERA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra mapa",
+              "resposta": "MAPA",
+              "opcoes": [],
+              "pecas": [
+                "PA",
+                "MA"
+              ],
+              "imagem": "img_mapa"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "MESA",
+              "opcoes": [
+                "MOTO",
+                "MESA",
+                "FOGO"
+              ],
+              "pecas": [],
+              "imagem": "img_mesa"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra moto",
+              "resposta": "MOTO",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "MO"
+              ],
+              "imagem": "img_moto"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "NABO",
+              "opcoes": [
+                "GELO",
+                "PERA",
+                "NABO"
+              ],
+              "pecas": [],
+              "imagem": "img_nabo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra pera",
+              "resposta": "PERA",
+              "opcoes": [],
+              "pecas": [
+                "RA",
+                "PE"
+              ],
+              "imagem": "img_pera"
+            }
+          ]
+        },
+        {
+          "id": "palavras_09",
+          "titulo": "Palavras 9",
+          "gratis": false,
+          "ensina": [
+            "SUCO",
+            "TELA",
+            "VASO",
+            "FOCA",
+            "DOCE"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra suco",
+              "resposta": "SUCO",
+              "opcoes": [],
+              "pecas": [
+                "CO",
+                "SU"
+              ],
+              "imagem": "img_suco"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "TELA",
+              "opcoes": [
+                "MOTO",
+                "TELA",
+                "CASA"
+              ],
+              "pecas": [],
+              "imagem": "img_tela"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra vaso",
+              "resposta": "VASO",
+              "opcoes": [],
+              "pecas": [
+                "SO",
+                "VA"
+              ],
+              "imagem": "img_vaso"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "FOCA",
+              "opcoes": [
+                "MOTO",
+                "MALA",
+                "FOCA"
+              ],
+              "pecas": [],
+              "imagem": "img_foca"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra doce",
+              "resposta": "DOCE",
+              "opcoes": [],
+              "pecas": [
+                "CE",
+                "DO"
+              ],
+              "imagem": "img_doce"
+            }
+          ]
+        },
+        {
+          "id": "palavras_10",
+          "titulo": "Palavras 10",
+          "gratis": false,
+          "ensina": [
+            "LUVA",
+            "REDE",
+            "SOPA",
+            "GELO",
+            "TOCA"
+          ],
+          "perguntas": [
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra luva",
+              "resposta": "LUVA",
+              "opcoes": [],
+              "pecas": [
+                "VA",
+                "LU"
+              ],
+              "imagem": "img_luva"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "REDE",
+              "opcoes": [
+                "MESA",
+                "REDE",
+                "GATO"
+              ],
+              "pecas": [],
+              "imagem": "img_rede"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra sopa",
+              "resposta": "SOPA",
+              "opcoes": [],
+              "pecas": [
+                "PA",
+                "SO"
+              ],
+              "imagem": "img_sopa"
+            },
+            {
+              "tipo": "figura_palavra",
+              "fala": "Qual é o nome desta figura?",
+              "resposta": "GELO",
+              "opcoes": [
+                "GELO",
+                "FADA",
+                "TELA"
+              ],
+              "pecas": [],
+              "imagem": "img_gelo"
+            },
+            {
+              "tipo": "montar_palavra",
+              "fala": "Monte a palavra toca",
+              "resposta": "TOCA",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "TO"
+              ],
+              "imagem": "img_toca"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ditado",
+      "titulo": "Ditado",
+      "ordem": 5,
+      "fases": [
+        {
+          "id": "ditado_01",
+          "titulo": "Ditado 1",
+          "gratis": true,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra dado",
+              "resposta": "DADO",
+              "opcoes": [],
+              "pecas": [
+                "DA",
+                "NI",
+                "MO",
+                "DO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra tatu",
+              "resposta": "TATU",
+              "opcoes": [],
+              "pecas": [
+                "PE",
+                "TA",
+                "TU",
+                "RA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra gato",
+              "resposta": "GATO",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "GA",
+                "FO",
+                "TO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra nabo",
+              "resposta": "NABO",
+              "opcoes": [],
+              "pecas": [
+                "NA",
+                "PU",
+                "BO",
+                "GA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra mapa",
+              "resposta": "MAPA",
+              "opcoes": [],
+              "pecas": [
+                "MA",
+                "RU",
+                "PA",
+                "LI"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_02",
+          "titulo": "Ditado 2",
+          "gratis": true,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra casa",
+              "resposta": "CASA",
+              "opcoes": [],
+              "pecas": [
+                "SA",
+                "GA",
+                "CA",
+                "FO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra moto",
+              "resposta": "MOTO",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "DI",
+                "MO",
+                "RI"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra gelo",
+              "resposta": "GELO",
+              "opcoes": [],
+              "pecas": [
+                "GE",
+                "DI",
+                "LO",
+                "DO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra doce",
+              "resposta": "DOCE",
+              "opcoes": [],
+              "pecas": [
+                "VU",
+                "DO",
+                "CI",
+                "CE"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra vaso",
+              "resposta": "VASO",
+              "opcoes": [],
+              "pecas": [
+                "SO",
+                "DE",
+                "VA",
+                "GO"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_03",
+          "titulo": "Ditado 3",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra fogo",
+              "resposta": "FOGO",
+              "opcoes": [],
+              "pecas": [
+                "BI",
+                "GO",
+                "FI",
+                "FO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra mala",
+              "resposta": "MALA",
+              "opcoes": [],
+              "pecas": [
+                "MA",
+                "VI",
+                "RE",
+                "LA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra rato",
+              "resposta": "RATO",
+              "opcoes": [],
+              "pecas": [
+                "TE",
+                "TO",
+                "CE",
+                "RA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra lobo",
+              "resposta": "LOBO",
+              "opcoes": [],
+              "pecas": [
+                "BO",
+                "MA",
+                "LO",
+                "MI"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra pato",
+              "resposta": "PATO",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "FE",
+                "PA",
+                "VI"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_04",
+          "titulo": "Ditado 4",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra tubo",
+              "resposta": "TUBO",
+              "opcoes": [],
+              "pecas": [
+                "BO",
+                "MI",
+                "LE",
+                "TU"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra cola",
+              "resposta": "COLA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "SO",
+                "CO",
+                "DA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra tela",
+              "resposta": "TELA",
+              "opcoes": [],
+              "pecas": [
+                "LA",
+                "TE",
+                "CI",
+                "NE"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra fada",
+              "resposta": "FADA",
+              "opcoes": [],
+              "pecas": [
+                "FA",
+                "SE",
+                "DA",
+                "NA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra bola",
+              "resposta": "BOLA",
+              "opcoes": [],
+              "pecas": [
+                "GA",
+                "BO",
+                "LA",
+                "TI"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_05",
+          "titulo": "Ditado 5",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra cama",
+              "resposta": "CAMA",
+              "opcoes": [],
+              "pecas": [
+                "MA",
+                "PE",
+                "VO",
+                "CA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra dedo",
+              "resposta": "DEDO",
+              "opcoes": [],
+              "pecas": [
+                "DO",
+                "FO",
+                "PU",
+                "DE"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra roda",
+              "resposta": "RODA",
+              "opcoes": [],
+              "pecas": [
+                "DA",
+                "DI",
+                "NE",
+                "RO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra pena",
+              "resposta": "PENA",
+              "opcoes": [],
+              "pecas": [
+                "LE",
+                "PE",
+                "NA",
+                "LO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra nave",
+              "resposta": "NAVE",
+              "opcoes": [],
+              "pecas": [
+                "NA",
+                "VE",
+                "FO",
+                "DU"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_06",
+          "titulo": "Ditado 6",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra mesa",
+              "resposta": "MESA",
+              "opcoes": [],
+              "pecas": [
+                "BU",
+                "ME",
+                "PU",
+                "SA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra selo",
+              "resposta": "SELO",
+              "opcoes": [],
+              "pecas": [
+                "CI",
+                "SE",
+                "LI",
+                "LO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra faca",
+              "resposta": "FACA",
+              "opcoes": [],
+              "pecas": [
+                "FU",
+                "VA",
+                "FA",
+                "CA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra galo",
+              "resposta": "GALO",
+              "opcoes": [],
+              "pecas": [
+                "GA",
+                "LO",
+                "SI",
+                "DA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra bala",
+              "resposta": "BALA",
+              "opcoes": [],
+              "pecas": [
+                "BA",
+                "LA",
+                "MA",
+                "CO"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_07",
+          "titulo": "Ditado 7",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra vaca",
+              "resposta": "VACA",
+              "opcoes": [],
+              "pecas": [
+                "VA",
+                "CA",
+                "LE",
+                "RA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra sapo",
+              "resposta": "SAPO",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "LO",
+                "PO",
+                "SA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra lata",
+              "resposta": "LATA",
+              "opcoes": [],
+              "pecas": [
+                "TA",
+                "NU",
+                "FE",
+                "LA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra pipa",
+              "resposta": "PIPA",
+              "opcoes": [],
+              "pecas": [
+                "RA",
+                "PA",
+                "VO",
+                "PI"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra sopa",
+              "resposta": "SOPA",
+              "opcoes": [],
+              "pecas": [
+                "SO",
+                "NE",
+                "BI",
+                "PA"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_08",
+          "titulo": "Ditado 8",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra foca",
+              "resposta": "FOCA",
+              "opcoes": [],
+              "pecas": [
+                "FO",
+                "FU",
+                "VA",
+                "CA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra rede",
+              "resposta": "REDE",
+              "opcoes": [],
+              "pecas": [
+                "PE",
+                "DE",
+                "RE",
+                "SU"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra bule",
+              "resposta": "BULE",
+              "opcoes": [],
+              "pecas": [
+                "LO",
+                "BU",
+                "LE",
+                "GO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra lupa",
+              "resposta": "LUPA",
+              "opcoes": [],
+              "pecas": [
+                "LU",
+                "DA",
+                "PA",
+                "TE"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra pera",
+              "resposta": "PERA",
+              "opcoes": [],
+              "pecas": [
+                "RA",
+                "PE",
+                "FO",
+                "PO"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_09",
+          "titulo": "Ditado 9",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra mola",
+              "resposta": "MOLA",
+              "opcoes": [],
+              "pecas": [
+                "MO",
+                "CA",
+                "LA",
+                "MA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra fita",
+              "resposta": "FITA",
+              "opcoes": [],
+              "pecas": [
+                "TA",
+                "FI",
+                "CI",
+                "VU"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra copo",
+              "resposta": "COPO",
+              "opcoes": [],
+              "pecas": [
+                "PU",
+                "CO",
+                "PO",
+                "TI"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra toca",
+              "resposta": "TOCA",
+              "opcoes": [],
+              "pecas": [
+                "TO",
+                "CA",
+                "MU",
+                "DO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra boca",
+              "resposta": "BOCA",
+              "opcoes": [],
+              "pecas": [
+                "PI",
+                "CA",
+                "MA",
+                "BO"
+              ],
+              "imagem": null
+            }
+          ]
+        },
+        {
+          "id": "ditado_10",
+          "titulo": "Ditado 10",
+          "gratis": false,
+          "ensina": [],
+          "perguntas": [
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra luva",
+              "resposta": "LUVA",
+              "opcoes": [],
+              "pecas": [
+                "LU",
+                "CO",
+                "VA",
+                "NE"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra bolo",
+              "resposta": "BOLO",
+              "opcoes": [],
+              "pecas": [
+                "BE",
+                "BO",
+                "CO",
+                "LO"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra suco",
+              "resposta": "SUCO",
+              "opcoes": [],
+              "pecas": [
+                "NE",
+                "CO",
+                "GA",
+                "SU"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra saco",
+              "resposta": "SACO",
+              "opcoes": [],
+              "pecas": [
+                "CA",
+                "FA",
+                "CO",
+                "SA"
+              ],
+              "imagem": null
+            },
+            {
+              "tipo": "ditado",
+              "fala": "Escreva a palavra vela",
+              "resposta": "VELA",
+              "opcoes": [],
+              "pecas": [
+                "VE",
+                "PI",
+                "SU",
+                "LA"
+              ],
+              "imagem": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

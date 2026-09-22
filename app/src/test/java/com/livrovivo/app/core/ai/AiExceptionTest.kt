@@ -9,9 +9,40 @@ class AiExceptionTest {
 
     @Test
     fun `invalid gemini key arrives as http 400 and is not retried with other models`() {
-        val error = AiException.classifyHttp(400, "API key not valid. Please pass a valid API key.", "INVALID_ARGUMENT")
+        val error = AiException.classifyHttp(400, "API key not valid. Please pass a valid API key. API_KEY_INVALID", "INVALID_ARGUMENT")
         assertEquals(AiException.Kind.INVALID_KEY, error.kind)
         assertFalse(error.shouldTryNextModel)
+    }
+
+    @Test
+    fun `generic 403 means no access to that model and tries the next one`() {
+        val error = AiException.classifyHttp(403, "The caller does not have permission", "PERMISSION_DENIED")
+        assertEquals(AiException.Kind.PERMISSION_DENIED, error.kind)
+        assertTrue(error.shouldTryNextModel)
+        assertFalse("não deve culpar a chave", error.friendlyMessage.contains("inválida"))
+    }
+
+    @Test
+    fun `account and project level 403 errors are distinguished`() {
+        assertEquals(
+            AiException.Kind.ACCOUNT_BLOCKED,
+            AiException.classifyHttp(403, "Your project has been denied access. Please contact support.", "PERMISSION_DENIED").kind
+        )
+        assertEquals(
+            AiException.Kind.ACCOUNT_BLOCKED,
+            AiException.classifyHttp(403, "Your API key was reported as leaked. Please use another API key.", "PERMISSION_DENIED").kind
+        )
+        assertEquals(
+            AiException.Kind.API_DISABLED,
+            AiException.classifyHttp(403, "Generative Language API has not been used in project 123 before or it is disabled. SERVICE_DISABLED").kind
+        )
+        assertEquals(
+            AiException.Kind.KEY_RESTRICTED,
+            AiException.classifyHttp(403, "Requests from this Android client application <empty> are blocked. API_KEY_ANDROID_APP_BLOCKED").kind
+        )
+        listOf(AiException.Kind.ACCOUNT_BLOCKED, AiException.Kind.API_DISABLED, AiException.Kind.KEY_RESTRICTED).forEach {
+            assertFalse(AiException(it).shouldTryNextModel)
+        }
     }
 
     @Test
@@ -31,10 +62,12 @@ class AiExceptionTest {
     }
 
     @Test
-    fun `invalid key is reported instead of model unavailable`() {
+    fun `key problems are reported before per-model access problems`() {
         val invalid = AiException(AiException.Kind.INVALID_KEY)
+        val permission = AiException(AiException.Kind.PERMISSION_DENIED)
         val missing = AiException(AiException.Kind.MODEL_UNAVAILABLE)
-        assertTrue(invalid.reportPriority > missing.reportPriority)
+        assertTrue(invalid.reportPriority > permission.reportPriority)
+        assertTrue(permission.reportPriority > missing.reportPriority)
         assertTrue(invalid.friendlyMessage.isNotBlank())
     }
 }

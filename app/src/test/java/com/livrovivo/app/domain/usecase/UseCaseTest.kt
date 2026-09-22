@@ -76,6 +76,9 @@ class FakeStoryRepository(
     override suspend fun deleteAllStories() {
         stories.clear()
     }
+    override fun observeTrash(): Flow<List<Story>> = flowOf(emptyList())
+    override suspend fun restoreStory(storyId: String) = Unit
+    override suspend fun permanentlyDeleteStory(storyId: String) = Unit
     override suspend fun countGeneratedStories(): Int = count
     override suspend fun recordReadingSession(storyId: String, childId: String, startedAt: Long, durationMs: Long) = Unit
     override suspend fun buildInsights(child: ChildProfile?): ParentInsights = ParentInsights(childName = child?.name.orEmpty())
@@ -89,6 +92,8 @@ class FakeChildProfileRepository(
     override suspend fun saveProfile(profile: ChildProfile) {
         activeProfile = profile
     }
+    override fun observeProfiles(): Flow<List<ChildProfile>> = flowOf(listOfNotNull(activeProfile))
+    override suspend fun activateProfile(id: String) = Unit
 }
 
 class UseCaseTest {

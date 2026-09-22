@@ -72,6 +72,7 @@ import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.ParentInsights
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
+import com.livrovivo.app.domain.repository.StoryRepository
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.DeleteAllStoriesUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
@@ -83,6 +84,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -96,7 +98,9 @@ data class ParentDashboardUiState(
     val settings: AppSettings = AppSettings(),
     val backendConfigured: Boolean = false,
     val stories: List<Story> = emptyList(),
-    val isDeleting: Boolean = false
+    val trash: List<Story> = emptyList(),
+    val isDeleting: Boolean = false,
+    val error: String? = null
 )
 
 class ParentDashboardViewModel(
@@ -108,7 +112,8 @@ class ParentDashboardViewModel(
     private val deleteStoryUseCase: DeleteStoryUseCase,
     private val deleteAllStoriesUseCase: DeleteAllStoriesUseCase,
     private val audioPlayerController: AudioPlayerController,
-    private val backendConfigured: Boolean
+    private val backendConfigured: Boolean,
+    private val storyRepository: StoryRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ParentDashboardUiState(backendConfigured = backendConfigured))
@@ -116,27 +121,37 @@ class ParentDashboardViewModel(
 
     init {
         viewModelScope.launch {
-            getStoriesUseCase().collect { stories -> _uiState.update { it.copy(stories = stories) } }
+            combine(getStoriesUseCase(), getActiveChildUseCase(), storyRepository.observeTrash()) { stories, child, trash ->
+                Triple(stories.filter { it.childId == child?.id }, child, trash.filter { it.childId == child?.id })
+            }.collect { (stories, child, trash) ->
+                _uiState.update { it.copy(stories = stories, child = child, trash = trash) }
+                refresh()
+            }
         }
     }
 
-    fun deleteStory(storyId: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isDeleting = true) }
-            deleteStoryUseCase(storyId)
-            _uiState.update { it.copy(isDeleting = false) }
-            refresh()
-        }
-    }
+    fun deleteStory(storyId: String) = manageTrash { deleteStoryUseCase(storyId) }
 
-    fun deleteAllStories() {
+    fun deleteAllStories() = manageTrash {
+        audioPlayerController.stop()
+        deleteAllStoriesUseCase()
+    }
+    fun restore(storyId: String) = manageTrash { storyRepository.restoreStory(storyId) }
+    fun permanentlyDelete(storyId: String) = manageTrash { storyRepository.permanentlyDeleteStory(storyId) }
+
+    private fun manageTrash(action: suspend () -> Unit) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isDeleting = true) }
-            audioPlayerController.stop()
-            deleteAllStoriesUseCase()
-            audioPlayerController.clearNarrationCache()
-            _uiState.update { it.copy(isDeleting = false) }
-            refresh()
+            _uiState.update { it.copy(isDeleting = true, error = null) }
+            try {
+                action()
+                refresh()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(error = "Não foi possível alterar a lixeira. Tente novamente.") }
+            } finally {
+                _uiState.update { it.copy(isDeleting = false) }
+            }
         }
     }
 
@@ -162,18 +177,33 @@ fun ParentDashboardScreen(
     onNavigateBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPaywall: () -> Unit,
-    onEditProfile: () -> Unit
+    onEditProfile: () -> Unit,
+    onAddProfile: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refresh() }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
+    var permanentDeletion by remember { mutableStateOf<Story?>(null) }
+
+    permanentDeletion?.let { story ->
+        AlertDialog(
+            onDismissRequest = { permanentDeletion = null },
+            title = { Text("Apagar definitivamente?") },
+            text = { Text("\"${story.title}\" e suas ilustrações serão apagadas. Não será possível restaurar.") },
+            confirmButton = { TextButton(onClick = {
+                viewModel.permanentlyDelete(story.id)
+                permanentDeletion = null
+            }) { Text("Apagar definitivamente") } },
+            dismissButton = { TextButton(onClick = { permanentDeletion = null }) { Text("Cancelar") } }
+        )
+    }
 
     storyToDelete?.let { story ->
         AlertDialog(
             onDismissRequest = { storyToDelete = null },
-            title = { Text("Apagar história?") },
-            text = { Text("\"${story.title}\", suas ilustrações e o progresso serão removidos deste aparelho.") },
+            title = { Text("Mover história para a lixeira?") },
+            text = { Text("\"${story.title}\" poderá ser restaurada aqui, com suas ilustrações e seu progresso.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -181,7 +211,7 @@ fun ParentDashboardScreen(
                         storyToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Apagar") }
+                ) { Text("Mover para a lixeira") }
             },
             dismissButton = { TextButton(onClick = { storyToDelete = null }) { Text("Cancelar") } }
         )
@@ -190,9 +220,9 @@ fun ParentDashboardScreen(
     if (confirmDeleteAll) {
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Apagar todas as histórias?") },
+            title = { Text("Mover histórias para a lixeira?") },
             text = {
-                Text("As ${uiState.stories.size} histórias, com ilustrações, narrações salvas e o histórico de leitura, serão removidas deste aparelho. Não dá para desfazer.")
+                Text("As ${uiState.stories.size} histórias deste perfil serão guardadas na lixeira. Você poderá restaurá-las aqui.")
             },
             confirmButton = {
                 Button(
@@ -201,7 +231,7 @@ fun ParentDashboardScreen(
                         confirmDeleteAll = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Apagar todas") }
+                ) { Text("Mover para a lixeira") }
             },
             dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancelar") } }
         )
@@ -250,7 +280,7 @@ fun ParentDashboardScreen(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                text = "Leitura, escolhas e desenvolvimento socioemocional",
+                                text = "Atividade deste perfil no aplicativo",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -260,9 +290,28 @@ fun ParentDashboardScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         MetricItem("Histórias", "${insights.storiesCompleted}/${insights.storiesStarted}", Icons.Default.AutoAwesome)
-                        MetricItem("Páginas", "${insights.pagesRead}", Icons.AutoMirrored.Filled.MenuBook)
-                        MetricItem("Minutos", "${insights.minutesReading}", Icons.Default.Timer)
+                        MetricItem("Abertas", "${insights.pagesRead}", Icons.AutoMirrored.Filled.MenuBook)
+                        MetricItem("Min. no leitor", "${insights.minutesReading}", Icons.Default.Timer)
                         MetricItem("Escolhas", "${insights.choicesMade}", Icons.Default.TouchApp)
+                    }
+                }
+            }
+
+            OutlinedButton(onClick = onAddProfile, modifier = Modifier.fillMaxWidth()) { Text("Adicionar outra criança") }
+            Text("Páginas abertas e palavras apresentadas não medem aprendizagem. O tempo indica permanência no leitor.",
+                style = MaterialTheme.typography.bodySmall)
+            uiState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (uiState.trash.isNotEmpty()) {
+                SectionHeader("Lixeira (${uiState.trash.size})", subtitle = "Histórias deste perfil. Restaurar não consome uma história grátis.")
+                uiState.trash.forEach { story ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(story.title, fontWeight = FontWeight.Bold)
+                            Row {
+                                TextButton(onClick = { viewModel.restore(story.id) }, enabled = !uiState.isDeleting) { Text("Restaurar") }
+                                TextButton(onClick = { permanentDeletion = story }, enabled = !uiState.isDeleting) { Text("Apagar de vez") }
+                            }
+                        }
                     }
                 }
             }
@@ -286,7 +335,7 @@ fun ParentDashboardScreen(
 
             SectionHeader(
                 title = "Virtudes nas escolhas",
-                subtitle = "Cada decisão na história estimula uma competência."
+                subtitle = "Temas presentes nas decisões, sem avaliação da personalidade da criança."
             )
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -313,7 +362,7 @@ fun ParentDashboardScreen(
                 SectionHeader(title = "Palavras novas 💡", subtitle = "Vocabulário apresentado pelo contexto das histórias.")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     insights.vocabulary.forEach { word ->
-                        SuggestionChip(onClick = {}, label = { Text(word, fontWeight = FontWeight.SemiBold) })
+                        Text(text = word, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
                     }
                 }
             }
@@ -327,7 +376,7 @@ fun ParentDashboardScreen(
 
             SectionHeader(
                 title = "Histórias salvas (${uiState.stories.size})",
-                subtitle = "Apague histórias para liberar espaço ou recomeçar a estante."
+                subtitle = "Mova histórias para a lixeira e restaure quando quiser."
             )
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -370,7 +419,7 @@ fun ParentDashboardScreen(
                             IconButton(onClick = { storyToDelete = story }, enabled = !uiState.isDeleting) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Apagar ${story.title}",
+                                    contentDescription = "Mover ${story.title} para a lixeira",
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -387,7 +436,7 @@ fun ParentDashboardScreen(
                 ) {
                     Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Apagar todas as histórias")
+                    Text("Mover todas para a lixeira")
                 }
                 if (uiState.quota is QuotaStatus.Limited) {
                     Text(

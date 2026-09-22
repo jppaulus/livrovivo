@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 // --- Room Entities ---
 
 @Entity(tableName = "child_profiles")
+@Serializable
 data class ChildProfileEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -22,7 +23,8 @@ data class ChildProfileEntity(
     val skinTone: String? = null,
     val hairColor: String? = null,
     val hairStyle: String? = null,
-    val wearsGlasses: Boolean = false
+    val wearsGlasses: Boolean = false,
+    @androidx.room.ColumnInfo(defaultValue = "0") val isActive: Boolean = false
 )
 
 @Entity(tableName = "stories")
@@ -41,7 +43,10 @@ data class StoryEntity(
     val isCompleted: Boolean = false,
     val lastReadChapter: Int = 1,
     val updatedAt: Long = 0,
-    val isOffline: Boolean = false
+    val isOffline: Boolean = false,
+    val childSnapshotJson: String? = null,
+    val deletedAt: Long? = null,
+    val originId: String? = null
 )
 
 @Entity(
@@ -69,7 +74,8 @@ data class ChapterEntity(
     val narrationScript: String? = null,
     val selectedChoiceText: String? = null,
     val newWordsJson: String = "[]",
-    val mood: String? = null
+    val mood: String? = null,
+    val openedAt: Long? = null
 )
 
 @Entity(

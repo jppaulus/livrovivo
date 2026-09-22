@@ -12,6 +12,8 @@ import com.livrovivo.app.data.model.ChapterEntity
 import com.livrovivo.app.data.model.ChildProfileEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.StoryEntity
+import com.livrovivo.app.data.model.appJson
+import kotlinx.serialization.encodeToString
 
 @Database(
     entities = [
@@ -20,7 +22,7 @@ import com.livrovivo.app.data.model.StoryEntity
         ChapterEntity::class,
         ReadingSessionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class LivroVivoDatabase : RoomDatabase() {
@@ -84,6 +86,34 @@ abstract class LivroVivoDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE child_profiles ADD COLUMN isActive INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE child_profiles SET isActive = 1 WHERE id = (SELECT id FROM child_profiles ORDER BY createdAt DESC LIMIT 1)")
+                db.execSQL("ALTER TABLE stories ADD COLUMN childSnapshotJson TEXT")
+                db.execSQL("ALTER TABLE stories ADD COLUMN deletedAt INTEGER")
+                db.execSQL("ALTER TABLE stories ADD COLUMN originId TEXT")
+                db.execSQL("ALTER TABLE story_chapters ADD COLUMN openedAt INTEGER")
+                // Freeze the known profile at upgrade time, before the family can edit it.
+                db.query("SELECT p.*, s.id AS story_id FROM stories s JOIN child_profiles p ON s.childId = p.id").use { cursor ->
+                    fun text(name: String): String? = cursor.getColumnIndexOrThrow(name).let { index ->
+                        if (cursor.isNull(index)) null else cursor.getString(index)
+                    }
+                    while (cursor.moveToNext()) {
+                        val profile = ChildProfileEntity(
+                            id = text("id")!!, name = text("name")!!, ageGroup = text("ageGroup")!!,
+                            interestsJson = text("interestsJson")!!, companionId = text("companionId")!!,
+                            createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("createdAt")),
+                            gender = text("gender")!!, skinTone = text("skinTone"), hairColor = text("hairColor"),
+                            hairStyle = text("hairStyle"), wearsGlasses = cursor.getInt(cursor.getColumnIndexOrThrow("wearsGlasses")) != 0
+                        )
+                        db.execSQL("UPDATE stories SET childSnapshotJson = ? WHERE id = ?",
+                            arrayOf(appJson.encodeToString(profile), text("story_id")))
+                    }
+                }
+            }
+        }
+
         fun getInstance(context: Context): LivroVivoDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -91,8 +121,7 @@ abstract class LivroVivoDatabase : RoomDatabase() {
                     LivroVivoDatabase::class.java,
                     "livro_vivo.db"
                 )
-                    .addMigrations(MIGRATION_2_3)
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

@@ -77,6 +77,16 @@ IMPORTANT: no text, no letters, no words, no watermarks.
         File(context.filesDir, "stories/$storyId").deleteRecursively()
     }
 
+    suspend fun copyStoryAssets(story: Story, newId: String): Story = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, "stories/$newId").apply { mkdirs() }
+        val chapters = story.chapters.map { chapter ->
+            val image = chapter.imagePath?.let(::File)?.takeIf { it.isFile }
+            val copy = image?.copyTo(File(dir, "page_${chapter.index}_saved.jpg"))
+            chapter.copy(imagePath = copy?.path)
+        }
+        story.copy(id = newId, chapters = chapters, coverImageUrl = chapters.firstNotNullOfOrNull { it.imagePath })
+    }
+
     fun deleteAllStoryAssets() {
         File(context.filesDir, "stories").deleteRecursively()
     }
@@ -106,6 +116,8 @@ IMPORTANT: no text, no letters, no words, no watermarks.
         return buildString {
             appendLine("Create a single illustration for page ${chapter.index} of a children's picture book titled \"${story.title}\".")
             appendLine("ART STYLE: ${style.prompt}. Keep exactly the same art style on every page.")
+            appendLine("ART DIRECTION: professional published picture-book quality; deliberate composition, convincing anatomy and perspective, layered depth, controlled color palette, tactile materials and expressive acting. Avoid generic clipart, emoji faces, primitive shape drawings and plastic stock-art gloss.")
+            appendLine("VISUAL STORYTELLING: depict one specific action from this page, not a generic portrait. Vary camera distance and framing between pages; use foreground details and purposeful lighting. Leave room for the reader to discover a detail not stated in the text.")
             appendLine("CHARACTERS (must look identical on every page): $characters")
             appendLine("SCENE: $scene")
             appendLine("MOOD: $mood.")

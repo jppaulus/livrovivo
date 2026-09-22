@@ -36,14 +36,22 @@ enum class EngineKind(val label: String) {
 }
 
 data class NarrationRequest(
-    /** Texto exibido na tela. */
+    /** Texto exibido na tela (da parte que será narrada). */
     val text: String,
     /** Texto com marcações de emoção ([whispers]...), quando disponível. */
     val script: String?,
     val persona: VoicePersona,
     val mood: String? = null,
-    val listenerAge: String? = null
-)
+    val listenerAge: String? = null,
+    /** Posição desta parte na página (1..partCount): a página é narrada em partes para começar rápido. */
+    val partIndex: Int = 1,
+    val partCount: Int = 1,
+    /** Trechos vizinhos, usados apenas como contexto de entonação (não são falados). */
+    val previousText: String? = null,
+    val nextText: String? = null
+) {
+    val isSinglePart: Boolean get() = partCount <= 1
+}
 
 interface NarrationEngine {
     val kind: EngineKind
@@ -93,6 +101,14 @@ class GeminiNarrationEngine(private val gemini: GeminiService) : NarrationEngine
                 else -> "A warm, cheerful living room. The storyteller sits with a picture book beside a delighted child."
             }
             val transcript = request.script?.takeIf { it.isNotBlank() } ?: request.text
+            val continuity = if (request.isSinglePart) {
+                ""
+            } else {
+                "\nContinuity: this is part ${request.partIndex} of ${request.partCount} of the same page, " +
+                    "read in one sitting. Keep exactly the same voice, tone and energy as the other parts, " +
+                    "without re-introducing anything." +
+                    (request.previousText?.takeIf { it.isNotBlank() }?.let { "\nPrevious part ended with: \"${it.takeLast(160)}\"" } ?: "")
+            }
             return """
 # AUDIO PROFILE: ${persona.title}
 ## ${persona.character}
@@ -103,7 +119,7 @@ $scene The storyteller is reading aloud to ${request.listenerAge ?: "a young chi
 ### DIRECTOR'S NOTES
 Style: ${persona.style} Give dialogue lines (after the dash) a slightly different, characterful voice. Make onomatopoeias playful.
 Pace: ${persona.pace}
-Accent: Native Brazilian Portuguese (pt-BR), natural and friendly.
+Accent: Native Brazilian Portuguese (pt-BR), natural and friendly.$continuity
 
 ### TRANSCRIPT
 $transcript
@@ -145,7 +161,15 @@ class ElevenLabsNarrationEngine(private val elevenLabs: ElevenLabsService) : Nar
                 put("speed", request.persona.deviceSpeechRate.coerceIn(0.85f, 1.05f).toDouble())
             }
         }
-        val mp3 = elevenLabs.synthesize(text.take(4_800), voiceId, model, voiceSettings)
+        // previous_text/next_text dão continuidade de entonação entre as partes da página.
+        val mp3 = elevenLabs.synthesize(
+            text = text.take(4_800),
+            voiceId = voiceId,
+            modelId = model,
+            voiceSettings = voiceSettings,
+            previousText = request.previousText?.takeLast(500),
+            nextText = request.nextText?.take(500)
+        )
         return withContext(Dispatchers.IO) {
             File(outputBase.path + ".mp3").also { it.writeBytes(mp3) }
         }
@@ -212,10 +236,13 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
         engine.setPitch(persona.devicePitch)
 
         val speaker = speakerFor(engine, persona)
+        val online = isOnline()
+        if (!online && speaker?.local == null) {
+            throw IllegalStateException("Instale a voz em português nas configurações de texto para fala do Android para ouvir sem internet.")
+        }
         val attempts = buildList {
-            if (isOnline()) speaker?.network?.let(::add)
             speaker?.local?.let(::add)
-            if (isEmpty()) speaker?.network?.let(::add)
+            if (online) speaker?.network?.let(::add)
             add(null) // voz padrão do idioma como última tentativa
         }.distinct()
 
@@ -258,8 +285,12 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
             engine.synthesizeToFile(text, Bundle(), output, utteranceId)
         }
         if (result != TextToSpeech.SUCCESS) return false
-        val ok = withTimeoutOrNull(90_000) { done.await() } ?: false
-        return ok && output.exists() && output.length() > 1_000
+        try {
+            val ok = withTimeoutOrNull(12_000) { done.await() } ?: false
+            return ok && output.exists() && output.length() > 1_000
+        } finally {
+            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) { engine.stop() }
+        }
     }
 
     /** Vozes PT-BR agrupadas por pessoa, em ordem estável; cada narrador fica com uma diferente. */
@@ -322,6 +353,15 @@ class DeviceNarrationEngine(private val context: Context) : NarrationEngine {
         tts = engine
         ready = true
         return engine
+    }
+
+    /** Inicializa o mecanismo de voz antes do primeiro uso (evita ~1s de espera). */
+    suspend fun prewarm() {
+        try {
+            mutex.withLock { ensureReady() }
+        } catch (_: Exception) {
+            // Sem voz do aparelho disponível: o erro real aparece quando a narração for pedida.
+        }
     }
 
     fun shutdown() {

@@ -28,10 +28,15 @@ interface StoryRepository {
     /** Volta para uma página, apagando o que veio depois, para a criança escolher outro caminho. */
     suspend fun rewindTo(storyId: String, chapterIndex: Int)
 
+    suspend fun prepareContinuations(storyId: String) {}
+
     suspend fun markRead(storyId: String, chapterIndex: Int)
     suspend fun illustrateChapter(storyId: String, chapterIndex: Int): Result<String>
     suspend fun deleteStory(storyId: String)
     suspend fun deleteAllStories()
+    fun observeTrash(): Flow<List<Story>>
+    suspend fun restoreStory(storyId: String)
+    suspend fun permanentlyDeleteStory(storyId: String)
 
     /** Histórias já criadas (inclusive apagadas), usado no limite do plano gratuito. */
     suspend fun countGeneratedStories(): Int
@@ -43,6 +48,8 @@ interface ChildProfileRepository {
     fun getActiveProfileFlow(): Flow<ChildProfile?>
     suspend fun getActiveProfile(): ChildProfile?
     suspend fun saveProfile(profile: ChildProfile)
+    fun observeProfiles(): Flow<List<ChildProfile>>
+    suspend fun activateProfile(id: String)
 }
 
 interface BillingRepository {

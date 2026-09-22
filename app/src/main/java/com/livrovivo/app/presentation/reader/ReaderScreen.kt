@@ -8,6 +8,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +44,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,6 +62,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -68,6 +75,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,14 +84,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.livrovivo.app.core.audio.NarrationStatus
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
+import com.livrovivo.app.core.audio.actionSymbol
+import com.livrovivo.app.core.ai.StoryVocabulary
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.theme.FairyEmerald
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.theme.FairyPurple
+import com.livrovivo.app.core.theme.LivroVivoTheme
 import com.livrovivo.app.core.ui.BouncyCardButton
 import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.core.ui.ConfettiOverlay
@@ -93,6 +110,7 @@ import com.livrovivo.app.core.ui.PageIllustration
 import com.livrovivo.app.core.ui.StoryBookPageFrame
 import com.livrovivo.app.core.ui.VirtueBadge
 import com.livrovivo.app.domain.model.Chapter
+import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Choice
 import com.livrovivo.app.domain.model.MagicalCompanion
 import kotlinx.coroutines.delay
@@ -108,12 +126,24 @@ fun ReaderScreen(
     var rewindTarget by remember { mutableStateOf<Int?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var requestDelete by remember { mutableStateOf(false) }
+    var bedtime by rememberSaveable { mutableStateOf(false) }
+
+    if (requestDelete) {
+        ParentalGateDialog(
+            onDismiss = { requestDelete = false },
+            onSuccess = {
+                requestDelete = false
+                confirmDelete = true
+            }
+        )
+    }
 
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Apagar esta história?") },
-            text = { Text("\"${uiState.story?.title.orEmpty()}\", suas ilustrações e o progresso serão removidos deste aparelho. Não dá para desfazer.") },
+            title = { Text("Mover para a lixeira?") },
+            text = { Text("\"${uiState.story?.title.orEmpty()}\" poderá ser restaurada na Área dos Pais.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -121,15 +151,27 @@ fun ReaderScreen(
                         viewModel.deleteStory(onDeleted = onNavigateBack)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Apagar") }
+                ) { Text("Mover para a lixeira") }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
         )
     }
 
-    DisposableEffect(Unit) {
-        viewModel.audioPlayerController.onReaderStarted()
-        onDispose { viewModel.audioPlayerController.onReaderStopped() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.onReaderResumed()
+                Lifecycle.Event.ON_PAUSE -> viewModel.onReaderPaused()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) viewModel.onReaderResumed()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onReaderPaused()
+        }
     }
 
     rewindTarget?.let { target ->
@@ -137,7 +179,7 @@ fun ReaderScreen(
             onDismissRequest = { rewindTarget = null },
             title = { Text("Escolher outro caminho?") },
             text = {
-                Text("A história volta para a página $target e continua a partir da nova escolha. As páginas seguintes serão reescritas.")
+                Text("O caminho atual ficará salvo como outro livro na estante. Esta aventura volta para a página $target para você escolher de novo.")
             },
             confirmButton = {
                 Button(onClick = {
@@ -149,113 +191,125 @@ fun ReaderScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = uiState.story?.title ?: "Livro Vivo",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Fechar livro")
-                    }
-                },
-                actions = {
-                    if (uiState.story != null) {
-                        InfoPill(text = "${uiState.pageIndex} de ${uiState.totalPages}")
-                        Box {
-                            IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Mais opções")
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Apagar esta história") },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                                    onClick = {
-                                        menuOpen = false
-                                        confirmDelete = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        },
-        bottomBar = {
-            if (!uiState.isLoading && uiState.story != null) {
-                NarrationBar(
-                    state = uiState.narration,
-                    onTogglePlay = viewModel::toggleAudio,
-                    onReplay = viewModel::replayNarration,
-                    onPersona = viewModel::setPersona,
-                    onSpeed = viewModel::setSpeed,
-                    onToggleMusic = viewModel::toggleAmbientSound
-                )
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when {
-                uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-
-                uiState.story == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(uiState.errorMessage ?: "História não encontrada.", style = MaterialTheme.typography.titleMedium)
-                }
-
-                else -> AnimatedContent(
-                    targetState = uiState.pageIndex,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 3 } + fadeOut())
-                        } else {
-                            (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { it / 3 } + fadeOut())
+    LivroVivoTheme(darkTheme = bedtime || isSystemInDarkTheme()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = uiState.story?.title ?: "Livro Vivo",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Fechar livro")
                         }
                     },
-                    label = "page",
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    val chapter = uiState.chapters.find { it.index == page }
-                    if (chapter != null) {
-                        PageContent(
-                            uiState = uiState,
-                            chapter = chapter,
-                            onChoose = viewModel::selectChoice,
-                            onRetry = viewModel::retryLastChoice,
-                            onDismissError = viewModel::dismissError,
-                            onPrevious = viewModel::previousPage,
-                            onNext = viewModel::nextPage,
-                            onChooseAnother = { rewindTarget = it },
-                            onRestart = viewModel::restartStory,
-                            onNewStory = onNewStory,
-                            onShelf = onNavigateBack,
-                            onRetryIllustration = viewModel::retryIllustration
-                        )
+                    actions = {
+                        if (uiState.story != null) {
+                            InfoPill(text = "${uiState.pageIndex} de ${uiState.totalPages}")
+                            Box {
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Mais opções")
+                                }
+                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (bedtime) "Desligar hora de dormir" else "Hora de dormir") },
+                                        onClick = {
+                                            bedtime = !bedtime
+                                            menuOpen = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Mover para a lixeira") },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                        onClick = {
+                                            menuOpen = false
+                                            requestDelete = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                )
+            },
+            bottomBar = {
+                if (!uiState.isLoading && uiState.story != null) {
+                    NarrationBar(
+                        state = uiState.narration,
+                        onTogglePlay = viewModel::toggleAudio,
+                        onReplay = viewModel::replayNarration,
+                        onPersona = viewModel::setPersona,
+                        onSpeed = viewModel::setSpeed,
+                        onToggleMusic = viewModel::toggleAmbientSound
+                    )
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                when {
+                    uiState.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    uiState.story == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(uiState.errorMessage ?: "História não encontrada.", style = MaterialTheme.typography.titleMedium)
+                    }
+
+                    else -> AnimatedContent(
+                        targetState = uiState.pageIndex,
+                        transitionSpec = {
+                            if (targetState > initialState) {
+                                (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 3 } + fadeOut())
+                            } else {
+                                (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { it / 3 } + fadeOut())
+                            }
+                        },
+                        label = "page",
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        val chapter = uiState.chapters.find { it.index == page }
+                        if (chapter != null) {
+                            PageContent(
+                                uiState = uiState,
+                                bedtime = bedtime,
+                                chapter = chapter,
+                                onChoose = viewModel::selectChoice,
+                                onReadChoices = viewModel::readChoices,
+                                onExplainWord = viewModel::explainWord,
+                                onRetry = viewModel::retryLastChoice,
+                                onDismissError = viewModel::dismissError,
+                                onPrevious = viewModel::previousPage,
+                                onNext = viewModel::nextPage,
+                                onChooseAnother = { rewindTarget = it },
+                                onRestart = viewModel::restartStory,
+                                onNewStory = onNewStory,
+                                onShelf = onNavigateBack,
+                                onRetryIllustration = viewModel::retryIllustration
+                            )
+                        }
                     }
                 }
+
+                GeneratingOverlay(
+                    visible = uiState.isGeneratingNextChapter,
+                    companion = uiState.companion,
+                    choice = uiState.pendingChoice
+                )
+
+                ConfettiOverlay(visible = uiState.showCelebration && !bedtime, modifier = Modifier.fillMaxSize())
             }
-
-            GeneratingOverlay(
-                visible = uiState.isGeneratingNextChapter,
-                companion = uiState.companion,
-                choice = uiState.pendingChoice
-            )
-
-            ConfettiOverlay(visible = uiState.showCelebration, modifier = Modifier.fillMaxSize())
         }
     }
 }
@@ -264,8 +318,11 @@ fun ReaderScreen(
 @Composable
 private fun PageContent(
     uiState: ReaderUiState,
+    bedtime: Boolean,
     chapter: Chapter,
     onChoose: (Choice) -> Unit,
+    onReadChoices: () -> Unit,
+    onExplainWord: (String) -> Unit,
     onRetry: () -> Unit,
     onDismissError: () -> Unit,
     onPrevious: () -> Unit,
@@ -276,8 +333,24 @@ private fun PageContent(
     onShelf: () -> Unit,
     onRetryIllustration: () -> Unit
 ) {
-    val isCurrentNarration = uiState.narration.chapterKey?.startsWith("${uiState.story?.id}#${chapter.index}#") == true
+    val isCurrentNarration = uiState.narration.chapterKey?.endsWith("#page") == true && uiState.narration.chapterKey?.startsWith("${uiState.story?.id}#${chapter.index}#") == true
     val status = uiState.illustrationStatus[chapter.index]
+    var showText by rememberSaveable(uiState.story?.id) {
+        mutableStateOf(AgeGroup.fromCode(uiState.child?.ageGroup) != AgeGroup.TODDLER)
+    }
+    LaunchedEffect(isCurrentNarration, uiState.narration.status) {
+        if (isCurrentNarration && uiState.narration.status == NarrationStatus.ERROR) showText = true
+    }
+    var selectedWord by remember(chapter.index) { mutableStateOf<String?>(null) }
+    selectedWord?.let { word ->
+        AlertDialog(
+            onDismissRequest = { selectedWord = null },
+            title = { Text(word) },
+            text = { Text(StoryVocabulary.explanation(word, chapter.content)) },
+            confirmButton = { TextButton(onClick = { onExplainWord(word) }) { Text("Ouvir") } },
+            dismissButton = { TextButton(onClick = { selectedWord = null }) { Text("Voltar à história") } }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -290,6 +363,8 @@ private fun PageContent(
             scene = uiState.scene,
             imagePath = chapter.imagePath,
             isPainting = status == IllustrationStatus.PAINTING,
+            animate = !bedtime,
+            description = "Cena da história: ${chapter.content.substringBefore('\n').take(240)}",
             companionEmoji = uiState.companion.emoji
         )
 
@@ -314,25 +389,32 @@ private fun PageContent(
         PageDots(total = uiState.totalPages, current = chapter.index, available = uiState.lastIndex)
         Spacer(modifier = Modifier.height(14.dp))
 
-        StoryBookPageFrame(pageNumber = chapter.index) {
-            HighlightedStoryText(
-                text = chapter.content,
-                highlightedSentence = if (isCurrentNarration) uiState.narration.highlightedSentence else -1,
-                enabled = uiState.highlightReading,
-                style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
-            )
-            if (chapter.newWords.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = FairyGold.copy(alpha = 0.3f))
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "✨ Palavras novas",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+        OutlinedButton(onClick = { showText = !showText }) {
+            Text(if (showText) "Ouvir e ver as imagens" else "Mostrar o texto para ler junto")
+        }
+        if (showText) {
+            StoryBookPageFrame(pageNumber = chapter.index) {
+                HighlightedStoryText(
+                    text = chapter.content,
+                    highlightedSentence = if (isCurrentNarration) uiState.narration.highlightedSentence else -1,
+                    enabled = uiState.highlightReading,
+                    style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    chapter.newWords.forEach { word -> InfoPill(text = word) }
+                if (chapter.newWords.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = FairyGold.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "✨ Palavras novas",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        chapter.newWords.forEach { word ->
+                            SuggestionChip(onClick = { selectedWord = word; onExplainWord(word) }, label = { Text("🔊 $word") })
+                        }
+                    }
                 }
             }
         }
@@ -342,6 +424,7 @@ private fun PageContent(
         when {
             chapter.isEnding -> EndingCard(
                 uiState = uiState,
+                bedtime = bedtime,
                 onRestart = onRestart,
                 onChooseAnother = { onChooseAnother((chapter.index - 1).coerceAtLeast(1)) },
                 onNewStory = onNewStory,
@@ -358,11 +441,13 @@ private fun PageContent(
                 childName = uiState.childName,
                 choices = chapter.choices,
                 enabled = !uiState.isGeneratingNextChapter,
+                activeChoice = uiState.activeChoice,
+                onReadChoices = onReadChoices,
                 onChoose = onChoose
             )
         }
 
-        if (uiState.errorMessage != null && uiState.isLatestPage && !chapter.isEnding) {
+        if (uiState.errorMessage != null) {
             Spacer(modifier = Modifier.height(12.dp))
             Card(
                 shape = RoundedCornerShape(18.dp),
@@ -438,61 +523,76 @@ private fun PageDots(total: Int, current: Int, available: Int) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChoicesSection(
     childName: String,
     choices: List<Choice>,
     enabled: Boolean,
+    activeChoice: Int,
+    onReadChoices: () -> Unit,
     onChoose: (Choice) -> Unit
 ) {
-    Text(
-        text = "O que $childName vai fazer agora? 🔮",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.ExtraBold,
-        color = MaterialTheme.colorScheme.primary,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-    )
-    val colors = listOf(FairyPurple, Color(0xFF0E9F8A), Color(0xFFE0567A))
-    choices.forEachIndexed { index, choice ->
-        BouncyCardButton(
-            onClick = { onChoose(choice) },
-            containerColor = colors[index % colors.size],
-            enabled = enabled,
+    val requester = remember { BringIntoViewRequester() }
+    val readingChoice = activeChoice >= 0
+    LaunchedEffect(readingChoice) {
+        if (readingChoice) requester.bringIntoView()
+    }
+    Column(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(requester)) {
+        Text(
+            text = "O que $childName vai fazer agora? 🔮",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
-        ) {
-            Row(
+                .padding(bottom = 10.dp)
+        )
+        OutlinedButton(onClick = onReadChoices, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Ouvir as opções")
+        }
+        val colors = listOf(FairyPurple, Color(0xFF087565), Color(0xFFAC3157))
+        choices.forEachIndexed { index, choice ->
+            BouncyCardButton(
+                onClick = { onChoose(choice) },
+                containerColor = colors[index % colors.size],
+                enabled = enabled,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 6.dp)
+                    .border(if (index == activeChoice) 3.dp else 0.dp,
+                        if (index == activeChoice) FairyGold else Color.Transparent, RoundedCornerShape(22.dp))
             ) {
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.22f)),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = choice.virtue?.emoji ?: if (index == 0) "🌟" else "✨", fontSize = 22.sp)
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = choice.text,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontSize = 18.sp,
-                        color = Color.White
-                    )
-                    choice.virtue?.let {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = choice.actionSymbol(index), fontSize = 26.sp)
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = it.title,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f)
+                            text = choice.text,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (index == activeChoice) "🔊 Ouvindo esta opção" else "Opção ${index + 1}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White
                         )
                     }
                 }
@@ -535,6 +635,7 @@ private fun PathChosenCard(chapter: Chapter, onNext: () -> Unit, onChooseAnother
 @Composable
 private fun EndingCard(
     uiState: ReaderUiState,
+    bedtime: Boolean,
     onRestart: () -> Unit,
     onChooseAnother: () -> Unit,
     onNewStory: () -> Unit,
@@ -552,16 +653,17 @@ private fun EndingCard(
                 .padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "👑✨🎉", fontSize = 40.sp)
+            Text(text = if (bedtime) "🌙📖" else "👑✨🎉", fontSize = 40.sp)
             Text(
-                text = "Fim desta aventura!",
+                text = if (bedtime) "Boa noite, ${uiState.childName}!" else "Fim desta aventura!",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "Foram as escolhas de ${uiState.childName} que criaram este final. Que tal descobrir o que aconteceria com outra escolha?",
+                text = if (bedtime) "A aventura fica guardada. Agora é hora de descansar."
+                    else "Foram as escolhas de ${uiState.childName} que criaram este final. Qual foi sua parte favorita? Conte para quem está com você.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
@@ -585,6 +687,9 @@ private fun EndingCard(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
+            if (bedtime) {
+                Button(onClick = onShelf, modifier = Modifier.fillMaxWidth()) { Text("Guardar a história") }
+            } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = onRestart, modifier = Modifier.weight(1f)) { Text("Ler do começo") }
                 OutlinedButton(onClick = onChooseAnother, modifier = Modifier.weight(1f)) { Text("Outro final") }
@@ -597,6 +702,7 @@ private fun EndingCard(
                     colors = ButtonDefaults.buttonColors(containerColor = FairyEmerald)
                 ) { Text("Nova aventura") }
                 Button(onClick = onShelf, modifier = Modifier.weight(1f)) { Text("Minha estante") }
+            }
             }
         }
     }
@@ -637,9 +743,10 @@ private fun NarrationBar(
                 Box {
                     Box(
                         modifier = Modifier
-                            .size(46.dp)
+                            .size(56.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer)
+                            .semantics { contentDescription = "Escolher narrador e velocidade. Narrador atual: ${state.activePersona.title}" }
                             .clickable { menuOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -688,7 +795,9 @@ private fun NarrationBar(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = when (state.status) {
-                            NarrationStatus.PREPARING -> "Preparando a voz de ${state.activePersona.title}..."
+                            NarrationStatus.PREPARING ->
+                                if (state.partIndex > 1) "Preparando a próxima parte..."
+                                else "Preparando a voz de ${state.activePersona.title}..."
                             NarrationStatus.PLAYING -> "${state.activePersona.title} está contando"
                             NarrationStatus.ENDED -> "Fim da página"
                             NarrationStatus.ERROR -> "Narração indisponível"
@@ -701,7 +810,11 @@ private fun NarrationBar(
                     )
                     val subtitle = state.error ?: state.notice ?: listOfNotNull(
                         state.engine?.label,
-                        if (state.durationMs > 0) "${formatTime(state.currentPositionMs)} / ${formatTime(state.durationMs)}" else null
+                        when {
+                            state.isChunked -> "Parte ${state.partIndex} de ${state.partCount}"
+                            state.durationMs > 0 -> "${formatTime(state.currentPositionMs)} / ${formatTime(state.durationMs)}"
+                            else -> null
+                        }
                     ).joinToString(" · ")
                     if (subtitle.isNotBlank()) {
                         Text(

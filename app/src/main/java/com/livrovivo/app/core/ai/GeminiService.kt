@@ -1,5 +1,10 @@
 package com.livrovivo.app.core.ai
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import com.livrovivo.app.BuildConfig
 import com.livrovivo.app.core.ai.JsonUtils.array
 import com.livrovivo.app.core.ai.JsonUtils.asObjectOrNull
 import com.livrovivo.app.core.ai.JsonUtils.bool
@@ -8,7 +13,6 @@ import com.livrovivo.app.core.ai.JsonUtils.string
 import com.livrovivo.app.core.settings.AiModelDefaults
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.model.appJson
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
@@ -19,30 +23,45 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.security.MessageDigest
 import java.util.Base64
 
 class GeneratedImage(val bytes: ByteArray, val mimeType: String)
 
 class GeneratedSpeech(val pcm: ByteArray, val sampleRate: Int)
 
+/** Resultado do teste de chave: se ela foi aceita e quantos modelos a conta enxerga. */
+data class KeyValidation(val valid: Boolean, val visibleModels: List<String>, val error: AiException?)
+
 /**
  * Cliente da API Gemini (generateContent) para texto estruturado, ilustrações e narração.
  *
  * - Usa a chave dos pais (modo direto) ou o backend Supabase (modo produção).
- * - Se um modelo foi desativado ou está sem cota, tenta automaticamente o próximo da lista.
+ * - Se um modelo foi desativado, não está liberado para a conta ou está sem cota, tenta o próximo
+ *   da lista; quando o configurado não tem acesso e outro funciona, o que funcionou vira o padrão.
  */
 class GeminiService(
+    private val context: Context,
     private val http: OkHttpClient,
     private val settings: SettingsManager,
     private val backend: BackendConfig
 ) {
     private companion object {
-        const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-        const val TEXT_TIMEOUT_S = 75L
+        const val API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
+        const val BASE_URL = "$API_ROOT/models"
+        const val TEXT_TIMEOUT_S = 30L
         const val IMAGE_TIMEOUT_S = 150L
         const val SPEECH_TIMEOUT_S = 150L
         val BLOCK_REASONS = setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "IMAGE_SAFETY", "RECITATION")
     }
+
+    /** Último modelo que respondeu com sucesso para texto (exibido no teste de conexão). */
+    @Volatile
+    var lastTextModel: String? = null
+        private set
+
+    /** Identificação do app para chaves restritas a aplicativos Android no Google Cloud. */
+    private val androidCertSha1: String? by lazy { signingCertificateSha1() }
 
     suspend fun isAvailable(): Boolean = settings.current().hasGeminiKey || backend.isConfigured
 
@@ -56,7 +75,11 @@ class GeminiService(
     ): JsonObject {
         val configured = modelOverride ?: settings.current().textModel
         val models = (listOf(configured) + AiModelDefaults.TEXT_FALLBACKS).distinct()
-        return callWithFallback(models, TEXT_TIMEOUT_S) { model, lite ->
+        val (model, response) = callWithFallback(
+            models = models,
+            timeoutSeconds = TEXT_TIMEOUT_S,
+            persistDefault = if (modelOverride == null) settings::setTextModel else null
+        ) { model, lite ->
             buildJsonObject {
                 putJsonObject("systemInstruction") {
                     putJsonArray("parts") { addJsonObject { put("text", systemPrompt) } }
@@ -77,11 +100,11 @@ class GeminiService(
                 }
                 if (!lite) put("safetySettings", childSafetySettings())
             }
-        }.let { response ->
-            val text = extractText(response)
-            JsonUtils.extractJsonObject(text)
-                ?: throw AiException(AiException.Kind.PARSE, "Resposta sem JSON válido: ${text.take(120)}")
         }
+        lastTextModel = model
+        val text = extractText(response)
+        return JsonUtils.extractJsonObject(text)
+            ?: throw AiException(AiException.Kind.PARSE, "Resposta sem JSON válido: ${text.take(120)}")
     }
 
     /** Gera uma ilustração. [referenceJpegs] mantém personagens consistentes entre as páginas. */
@@ -94,35 +117,45 @@ class GeminiService(
         val models = (listOf(configured) + AiModelDefaults.IMAGE_FALLBACKS).distinct()
         val encoder = Base64.getEncoder()
         val references = referenceJpegs.map { encoder.encodeToString(it) }
-        val response = callWithFallback(models, IMAGE_TIMEOUT_S) { _, lite ->
-            buildJsonObject {
-                putJsonArray("contents") {
-                    addJsonObject {
-                        put("role", "user")
-                        putJsonArray("parts") {
-                            addJsonObject { put("text", prompt) }
-                            references.forEach { data ->
-                                addJsonObject {
-                                    putJsonObject("inlineData") {
-                                        put("mimeType", "image/jpeg")
-                                        put("data", data)
+        val response = try {
+            callWithFallback(models, IMAGE_TIMEOUT_S, persistDefault = settings::setImageModel) { _, lite ->
+                buildJsonObject {
+                    putJsonArray("contents") {
+                        addJsonObject {
+                            put("role", "user")
+                            putJsonArray("parts") {
+                                addJsonObject { put("text", prompt) }
+                                references.forEach { data ->
+                                    addJsonObject {
+                                        putJsonObject("inlineData") {
+                                            put("mimeType", "image/jpeg")
+                                            put("data", data)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                putJsonObject("generationConfig") {
-                    putJsonArray("responseModalities") {
-                        add("TEXT")
-                        add("IMAGE")
+                    putJsonObject("generationConfig") {
+                        putJsonArray("responseModalities") {
+                            add("TEXT")
+                            add("IMAGE")
+                        }
+                        if (!lite) {
+                            putJsonObject("imageConfig") { put("aspectRatio", aspectRatio) }
+                        }
                     }
-                    if (!lite) {
-                        putJsonObject("imageConfig") { put("aspectRatio", aspectRatio) }
-                    }
+                    if (!lite) put("safetySettings", childSafetySettings())
                 }
-                if (!lite) put("safetySettings", childSafetySettings())
+            }.second
+        } catch (e: AiException) {
+            // Os modelos de imagem do Gemini não fazem parte do plano gratuito: sem faturamento o Google
+            // responde "sem permissão" (403) ou cota zero (429). Explica isso em vez de culpar a chave.
+            val freeTierLimit = e.kind == AiException.Kind.QUOTA && "limit: 0" in e.detail.lowercase()
+            if (e.kind == AiException.Kind.PERMISSION_DENIED || freeTierLimit) {
+                throw AiException(AiException.Kind.BILLING, e.detail, e.httpCode, e)
             }
+            throw e
         }
         checkBlocked(response)
         val parts = firstCandidateParts(response)
@@ -139,7 +172,7 @@ class GeminiService(
     suspend fun generateSpeech(prompt: String, voiceName: String): GeneratedSpeech {
         val configured = settings.current().ttsModel
         val models = (listOf(configured) + AiModelDefaults.TTS_FALLBACKS).distinct()
-        val response = callWithFallback(models, SPEECH_TIMEOUT_S) { _, _ ->
+        val response = callWithFallback(models, SPEECH_TIMEOUT_S, persistDefault = settings::setTtsModel) { _, _ ->
             buildJsonObject {
                 putJsonArray("contents") {
                     addJsonObject {
@@ -156,7 +189,7 @@ class GeminiService(
                     }
                 }
             }
-        }
+        }.second
         checkBlocked(response)
         val audioPart = firstCandidateParts(response).firstOrNull { part ->
             inlineData(part)?.let { mimeOf(it).startsWith("audio/") } == true
@@ -166,6 +199,45 @@ class GeminiService(
         if (pcm.isEmpty()) throw AiException(AiException.Kind.PARSE, "Áudio vazio")
         val rate = Regex("rate=(\\d+)").find(mimeOf(inline))?.groupValues?.get(1)?.toIntOrNull() ?: 24_000
         return GeneratedSpeech(pcm, rate)
+    }
+
+    /**
+     * Confere se a chave é aceita pelo Google listando os modelos (não gasta cota de geração).
+     * Distingue "chave inválida/bloqueada" de "chave válida sem acesso a um modelo".
+     */
+    suspend fun validateKey(): KeyValidation {
+        val apiKey = settings.current().geminiApiKey
+        if (apiKey.isBlank()) {
+            return if (backend.isConfigured) {
+                KeyValidation(valid = true, visibleModels = emptyList(), error = null)
+            } else {
+                KeyValidation(valid = false, visibleModels = emptyList(), error = AiException(AiException.Kind.NOT_CONFIGURED))
+            }
+        }
+        return try {
+            val request = Request.Builder()
+                .url("$BASE_URL?pageSize=1000")
+                .addHeader("x-goog-api-key", apiKey)
+                .addAndroidIdentity()
+                .get()
+                .build()
+            val result = AiHttp.execute(http, request, 30)
+            if (!result.isSuccessful) {
+                val error = parseError(result)
+                if (BuildConfig.DEBUG) {
+                    Log.w("LivroVivoIA", "Validação da chave falhou: HTTP ${result.code} ${error.kind} — ${error.detail.take(300)}")
+                }
+                KeyValidation(valid = false, visibleModels = emptyList(), error = error)
+            } else {
+                val models = appJson.parseToJsonElement(result.text()).asObjectOrNull()
+                    ?.array("models")
+                    ?.mapNotNull { it.asObjectOrNull()?.string("name")?.removePrefix("models/") }
+                    .orEmpty()
+                KeyValidation(valid = true, visibleModels = models, error = null)
+            }
+        } catch (e: AiException) {
+            KeyValidation(valid = false, visibleModels = emptyList(), error = e)
+        }
     }
 
     /** Filtros de segurança explícitos para conteúdo infantil (os modelos novos vêm com filtros desligados por padrão). */
@@ -184,7 +256,7 @@ class GeminiService(
     }
 
     private fun thinkingConfigFor(model: String): JsonObject? = when {
-        // Gemini 2.5: orçamento 0 desliga o raciocínio e deixa a resposta bem mais rápida.
+        // Gemini 2.5 Flash: orçamento 0 desliga o raciocínio e deixa a resposta bem mais rápida.
         model.startsWith("gemini-2.5-flash") -> buildJsonObject { put("thinkingBudget", 0) }
         // Gemini 3.x: nível de raciocínio baixo para histórias (latência menor).
         Regex("^gemini-3").containsMatchIn(model) -> buildJsonObject { put("thinkingLevel", "low") }
@@ -194,46 +266,35 @@ class GeminiService(
     private suspend fun callWithFallback(
         models: List<String>,
         timeoutSeconds: Long,
+        persistDefault: (suspend (String) -> Unit)? = null,
         buildBody: (model: String, lite: Boolean) -> JsonObject
-    ): JsonObject {
-        val s = settings.current()
-        val apiKey = s.geminiApiKey
+    ): Pair<String, JsonObject> {
+        val apiKey = settings.current().geminiApiKey
         if (apiKey.isBlank() && !backend.isConfigured) {
             throw AiException(AiException.Kind.NOT_CONFIGURED)
         }
-
-        var bestError: AiException? = null
-        for (model in models) {
-            var lite = false
-            var serverRetries = 0
-            while (true) {
-                val error = try {
-                    val result = post(apiKey, model, buildBody(model, lite), timeoutSeconds)
-                    if (result.isSuccessful) {
-                        return appJson.parseToJsonElement(result.text()).asObjectOrNull()
-                            ?: throw AiException(AiException.Kind.PARSE, "Resposta inválida")
+        val started = System.nanoTime()
+        val outcome = kotlinx.coroutines.withTimeoutOrNull(timeoutSeconds * 1000) {
+            ModelFallback.run(models) { model, lite ->
+                val result = post(apiKey, model, buildBody(model, lite), timeoutSeconds)
+                if (!result.isSuccessful) {
+                    val error = parseError(result)
+                    if (BuildConfig.DEBUG) {
+                        // Nunca registra a chave: apenas modelo, código e mensagem do Google.
+                        Log.w("LivroVivoIA", "Falha em $model (lite=$lite): HTTP ${result.code} ${error.kind} — ${error.detail.take(300)}")
                     }
-                    parseError(result)
-                } catch (e: AiException) {
-                    e
+                    throw error
                 }
-
-                if (bestError == null || error.reportPriority >= bestError.reportPriority) bestError = error
-
-                when {
-                    error.kind == AiException.Kind.BAD_REQUEST && !lite -> {
-                        lite = true // tenta de novo sem campos opcionais (schema, thinking, imageConfig)
-                    }
-                    error.kind == AiException.Kind.SERVER && serverRetries < 1 -> {
-                        serverRetries++
-                        delay(1_200)
-                    }
-                    error.shouldTryNextModel -> break
-                    else -> throw error
-                }
-            }
+                try {
+                    appJson.parseToJsonElement(result.text()).asObjectOrNull()
+                } catch (_: Exception) {
+                    null
+            } ?: throw AiException(AiException.Kind.PARSE, "Resposta inválida do modelo $model")
         }
-        throw bestError ?: AiException(AiException.Kind.MODEL_UNAVAILABLE)
+        } ?: throw AiException(AiException.Kind.TIMEOUT, "Tempo total de geração excedido")
+        if (BuildConfig.DEBUG) Log.d("LivroVivoPerf", "generation model=${outcome.model} elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
+        if (outcome.switchDefault) persistDefault?.invoke(outcome.model)
+        return outcome.model to outcome.value
     }
 
     private suspend fun post(apiKey: String, model: String, body: JsonObject, timeoutSeconds: Long): HttpResult {
@@ -241,6 +302,7 @@ class GeminiService(
             Request.Builder()
                 .url("$BASE_URL/$model:generateContent")
                 .addHeader("x-goog-api-key", apiKey)
+                .addAndroidIdentity()
                 .post(AiHttp.jsonBody(body.toString()))
                 .build()
         } else {
@@ -259,6 +321,29 @@ class GeminiService(
         return AiHttp.execute(http, request, timeoutSeconds)
     }
 
+    /** Cabeçalhos que o Google usa para validar chaves restritas a apps Android (inofensivos nas demais). */
+    private fun Request.Builder.addAndroidIdentity(): Request.Builder {
+        context.packageName?.let { addHeader("X-Android-Package", it) }
+        androidCertSha1?.let { addHeader("X-Android-Cert", it) }
+        return this
+    }
+
+    @Suppress("DEPRECATION")
+    private fun signingCertificateSha1(): String? = try {
+        val pm = context.packageManager
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                .signingInfo?.apkContentsSigners
+        } else {
+            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES).signatures
+        }
+        signatures?.firstOrNull()?.toByteArray()?.let { cert ->
+            MessageDigest.getInstance("SHA-1").digest(cert).joinToString("") { "%02X".format(it) }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     private fun parseError(result: HttpResult): AiException {
         val raw = result.text()
         val json = try {
@@ -270,8 +355,13 @@ class GeminiService(
         val message = error?.string("message") ?: json?.string("message") ?: raw.take(300)
         val status = error?.string("status")
         if (status == "NOT_CONFIGURED") return AiException(AiException.Kind.NOT_CONFIGURED, message, result.code)
-        val reason = error?.array("details")?.toString().orEmpty()
-        return AiException.classifyHttp(result.code, "$message $reason".trim(), status)
+        val reasons = error?.array("details")
+            ?.mapNotNull { it.asObjectOrNull()?.string("reason") }
+            ?.joinToString(" ")
+            .orEmpty()
+        val classified = AiException.classifyHttp(result.code, "$message $reasons".trim(), status)
+        // Mantém no detalhe apenas a mensagem legível do Google.
+        return AiException(classified.kind, message, result.code)
     }
 
     private fun firstCandidateParts(response: JsonObject): List<JsonObject> =
