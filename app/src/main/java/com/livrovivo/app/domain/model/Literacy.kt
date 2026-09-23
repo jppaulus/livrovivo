@@ -98,15 +98,22 @@ data class LiteracyKnowledge(
     val words: Set<String> = emptySet()
 )
 
-/** Uma página de um livro "Eu leio": o texto e a palavra principal (a figura dela ilustra a página). */
-data class DecodablePage(val text: String, val mainWord: VocabularyWord)
+/** Uma página de um livro "Eu leio": o texto e a palavra principal (a figura dela ilustra a página sem IA). */
+data class DecodablePage(
+    val text: String,
+    val mainWord: VocabularyWord,
+    /** Cena da página em inglês, para a ilustração da IA (null nos livros offline). */
+    val illustrationPrompt: String? = null
+)
 
 /** Livro "Eu leio" pronto: título e 4 páginas que a criança consegue ler sozinha. */
 data class DecodableBook(
     val title: String,
     val pages: List<DecodablePage>,
     /** O companheiro mágico aparece no texto (só quando o nome dele é decodificável). */
-    val usesCompanion: Boolean = false
+    val usesCompanion: Boolean = false,
+    /** Ficha visual dos personagens (em inglês) para as ilustrações da IA ficarem iguais em todas as páginas. */
+    val characterSheet: String? = null
 )
 
 /** Resultado guardado de uma fase para uma criança (tabela `literacy_progress`). */

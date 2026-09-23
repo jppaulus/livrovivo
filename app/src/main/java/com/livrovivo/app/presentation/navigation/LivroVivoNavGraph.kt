@@ -163,9 +163,9 @@ fun LivroVivoNavGraph(
             ActivityScreen(
                 viewModel = viewModel,
                 onClose = { navController.popBackStack() },
-                onFinished = { stars, newBookId ->
+                onFinished = { stars, booksBefore ->
                     // A atividade sai da pilha: "voltar" no resultado leva para a lista de fases.
-                    navController.navigate(Screen.LiteracyResult.createRoute(phaseId, stars, newBookId)) {
+                    navController.navigate(Screen.LiteracyResult.createRoute(phaseId, stars, booksBefore)) {
                         popUpTo(Screen.LiteracyActivity.route) { inclusive = true }
                     }
                 }
@@ -177,10 +177,9 @@ fun LivroVivoNavGraph(
             arguments = listOf(
                 navArgument("phaseId") { type = NavType.StringType },
                 navArgument("stars") { type = NavType.IntType },
-                navArgument("newBook") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
+                navArgument("booksBefore") {
+                    type = NavType.IntType
+                    defaultValue = -1
                 }
             )
         ) { backStackEntry ->
@@ -190,7 +189,7 @@ fun LivroVivoNavGraph(
                 viewModel = viewModel,
                 phaseId = phaseId,
                 stars = backStackEntry.arguments?.getInt("stars") ?: 0,
-                newBookId = backStackEntry.arguments?.getString("newBook"),
+                booksBefore = backStackEntry.arguments?.getInt("booksBefore") ?: -1,
                 onOpenBook = { storyId ->
                     navController.navigate(Screen.EuLeioReader.createRoute(storyId)) {
                         popUpTo(Screen.LiteracyResult.route) { inclusive = true }

@@ -178,6 +178,7 @@ fun DecodableBook.toEuLeioStory(
     createdAt = createdAt,
     themeId = moduleId,
     companionId = child.companionId,
+    characterSheet = characterSheet,
     plannedChapters = pages.size,
     updatedAt = createdAt,
     isOffline = isOffline,
@@ -189,6 +190,7 @@ fun DecodableBook.toEuLeioStory(
             content = page.text,
             choices = emptyList(),
             isEnding = index == pages.lastIndex,
+            sceneImagePrompt = page.illustrationPrompt,
             newWords = listOf(page.mainWord.word)
         )
     }

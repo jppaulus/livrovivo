@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class ActivityScreenState(
@@ -21,8 +22,11 @@ data class ActivityScreenState(
     val error: String? = null,
     /** Estrelas da fase, preenchido só depois que o resultado foi salvo (aí a tela pode sair). */
     val savedStars: Int? = null,
-    /** Livro "Eu leio" ganho com esta fase, se houver. */
-    val newBookId: String? = null
+    /**
+     * Quantos livros "Eu leio" a criança tinha antes desta fase, quando a fase liberou um livro novo
+     * (-1 quando não liberou). O resultado mostra o aviso assim que o livro aparecer.
+     */
+    val booksBefore: Int = -1
 )
 
 /** Uma fase sendo jogada: as 5 perguntas, a narração de cada instrução e os sons de acerto e erro. */
@@ -103,16 +107,20 @@ class ActivityViewModel(
     }
 
     /**
-     * Guarda a melhor nota e escreve os livros "Eu leio" que a fase liberou, antes de a tela sair
-     * (a tela espera o [ActivityScreenState.savedStars]).
+     * Guarda a melhor nota antes de a tela sair (a tela espera o [ActivityScreenState.savedStars]).
+     * Se a fase liberou um livro "Eu leio", ele é escrito em segundo plano: com IA pode levar alguns
+     * segundos, e a criança já vê as estrelas enquanto isso.
      */
     private suspend fun saveResult(session: ActivityState) {
-        var newBookId: String? = null
+        var booksBefore = -1
         child?.let { child ->
             runCatching { literacyRepository.recordAttempt(child.id, phaseId, session.stars, session.totalMistakes) }
-            newBookId = runCatching { euLeioRepository.ensureEarnedBooks(child) }.getOrNull()?.lastOrNull()?.id
+            if (runCatching { euLeioRepository.pendingBooks(child) }.getOrDefault(0) > 0) {
+                booksBefore = runCatching { euLeioRepository.observeBooks(child.id).first().size }.getOrDefault(0)
+                euLeioRepository.requestEarnedBooks(child)
+            }
         }
-        _state.value = _state.value.copy(savedStars = session.stars, newBookId = newBookId)
+        _state.value = _state.value.copy(savedStars = session.stars, booksBefore = booksBefore)
     }
 
     private fun onTryAgain() {

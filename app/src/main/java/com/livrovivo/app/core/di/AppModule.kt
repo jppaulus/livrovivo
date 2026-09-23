@@ -12,6 +12,7 @@ import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.literacy.FeedbackSounds
+import com.livrovivo.app.core.literacy.GeminiBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.core.illustration.IllustrationService
@@ -77,7 +78,7 @@ val appModule = module {
     single { DeviceNarrationEngine(androidContext()) }
     single { AudioPlayerController(androidContext(), get(), get(), get(), get()) }
     single { FeedbackSounds() }
-    single { LiteracyBookWriter() }
+    single { LiteracyBookWriter(GeminiBookAi(get())) }
 
     // Repositories
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }

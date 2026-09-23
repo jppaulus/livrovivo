@@ -87,6 +87,20 @@ class EasyReaderViewModel(
             val start = if (story.isCompleted) 0 else story.sortedChapters.indexOfFirst { it.index == story.lastReadChapter }
             _state.value = EasyReaderState(story = story, readAlone = readAlone)
             showPage(start.coerceAtLeast(0))
+            if (!story.isOffline) illustrate(story)
+        }
+    }
+
+    /**
+     * Livros escritos pela IA ganham ilustração página por página, em ordem (cada página usa a anterior
+     * como referência). Se não der (sem faturamento, sem rede), para em silêncio: a criança continua
+     * vendo a figura da palavra, nunca uma mensagem de erro.
+     */
+    private suspend fun illustrate(story: Story) {
+        for (chapter in story.sortedChapters) {
+            if (chapter.imagePath != null) continue
+            if (storyRepository.illustrateChapter(story.id, chapter.index).isFailure) return
+            storyRepository.getStoryById(story.id)?.let { updated -> _state.update { it.copy(story = updated) } }
         }
     }
 

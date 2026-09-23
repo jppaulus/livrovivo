@@ -581,7 +581,8 @@ private fun BookCover(story: Story, onClick: () -> Unit, onDelete: () -> Unit) {
                 .fillMaxWidth()
                 .aspectRatio(4f / 3f)
         ) {
-            if (story.isEuLeio) {
+            // Livro "Eu leio" sem ilustração (offline) mostra o título na capa; com ilustração da IA, a imagem.
+            if (story.isEuLeio && story.coverPath == null) {
                 EuLeioCoverArt(title = story.title)
             } else {
                 BookScene(scene = scene, modifier = Modifier.fillMaxSize())

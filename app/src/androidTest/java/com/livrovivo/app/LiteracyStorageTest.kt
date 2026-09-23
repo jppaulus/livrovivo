@@ -2,11 +2,15 @@ package com.livrovivo.app
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.livrovivo.app.core.ai.BackendConfig
+import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.literacy.DecodableValidator
+import com.livrovivo.app.core.literacy.GeminiBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.TrailParser
@@ -18,8 +22,17 @@ import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.core.settings.SettingsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -122,7 +135,7 @@ class LiteracyStorageTest {
         val db = Room.inMemoryDatabaseBuilder(context, LivroVivoDatabase::class.java).build()
         try {
             val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
-            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter())
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(ai = null))
             val child = ChildProfile("a", "Lia", AgeGroup.TODDLER.code, companionId = "luna")
             db.childProfileDao().saveAndActivate(child.toEntity())
             val trail = literacy.getTrail()
@@ -168,6 +181,77 @@ class LiteracyStorageTest {
             assertEquals(1, books.observeBooks(child.id).first().size)
         } finally {
             db.close()
+        }
+    }
+
+    /** Resposta no formato do Gemini com um livro "Eu leio" dentro. */
+    private fun geminiAnswer(request: okhttp3.Request, title: String, vararg pages: String): okhttp3.Response {
+        val book = org.json.JSONObject().put("title", title).put("pages", org.json.JSONArray().apply {
+            pages.forEachIndexed { index, text ->
+                put(org.json.JSONObject().put("text", text).put("illustrationPrompt", "Page ${index + 1}: a girl in a cozy room."))
+            }
+        })
+        val body = org.json.JSONObject().put("candidates", org.json.JSONArray().put(
+            org.json.JSONObject().put("content", org.json.JSONObject().put("parts", org.json.JSONArray().put(
+                org.json.JSONObject().put("text", book.toString()))))))
+        return okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+            .body(body.toString().toResponseBody("application/json".toMediaType())).build()
+    }
+
+    @Test fun aiBooksAreCheckedRetriedAndSavedWithTheirIllustrationPrompts() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, LivroVivoDatabase::class.java).build()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val settingsFile = File(context.cacheDir, "eu-leio-ai-${UUID.randomUUID()}.preferences_pb")
+        val settings = SettingsManager(context, PreferenceDataStoreFactory.create(scope = scope, produceFile = { settingsFile }))
+        val bodies = mutableListOf<String>()
+        // Lia: 1ª resposta com GATO (ela ainda não lê), 2ª certa. Caio: duas respostas com GATO.
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val body = okio.Buffer().also { chain.request().body!!.writeTo(it) }.readUtf8()
+            bodies += body
+            // GATO só aparece no pedido da 2ª tentativa (na lista do que foi recusado).
+            val readable = body.contains("Nome no livro: LIA") && body.contains("GATO")
+            if (readable) {
+                geminiAnswer(chain.request(), "O DOCE DE LIA", "LIA TEM UM DOCE.", "O DOCE É DE LIA.", "O DOCE ESTÁ NA BOCA.", "LIA TEM UM DADO E UM DOCE.")
+            } else {
+                geminiAnswer(chain.request(), "O GATO", "O GATO TEM UM DADO.", "O GATO É DE LIA.", "O GATO ESTÁ AQUI.", "LIA TEM UM GATO.")
+            }
+        }.build()
+        try {
+            settings.saveGeminiApiKey("test-only-never-sent-to-network")
+            val gemini = GeminiService(context, http, settings, BackendConfig("", ""))
+            val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(GeminiBookAi(gemini)))
+            val trail = literacy.getTrail()
+            val firstBookPhases = trail.module("vogais")!!.phases + trail.module("consoantes")!!.phases +
+                trail.module("silabas")!!.phases.take(3)
+
+            val lia = ChildProfile("a", "Lia", AgeGroup.TODDLER.code, companionId = "luna")
+            db.childProfileDao().saveAndActivate(lia.toEntity())
+            firstBookPhases.forEach { literacy.recordAttempt(lia.id, it.id, stars = 3, mistakes = 0) }
+            val aiBook = books.ensureEarnedBooks(lia).single()
+            assertEquals("a 1ª resposta foi recusada e a 2ª aceita", 2, bodies.size)
+            assertTrue(!aiBook.isOffline)
+            val saved = db.storyDao().getStoryWithChapters(aiBook.id)!!.toDomain()
+            assertEquals("LIA TEM UM DOCE.", saved.sortedChapters.first().content)
+            assertTrue(saved.sortedChapters.all { it.sceneImagePrompt?.startsWith("Page ") == true })
+            assertTrue(saved.characterSheet!!.startsWith("LIA: "))
+
+            val caio = ChildProfile("b", "Caio", AgeGroup.TODDLER.code)
+            db.childProfileDao().saveAndActivate(caio.toEntity())
+            firstBookPhases.forEach { literacy.recordAttempt(caio.id, it.id, stars = 3, mistakes = 0) }
+            val fallback = books.ensureEarnedBooks(caio).single()
+            assertEquals("tenta só duas vezes", 4, bodies.size)
+            assertTrue("duas recusas: livro offline", fallback.isOffline)
+            val knowledge = LiteracyRules.knowledge(trail, firstBookPhases.map { it.id }.toSet())
+            fallback.chapters.forEach { page ->
+                assertEquals(emptyList<String>(), DecodableValidator.invalidWords(page.content, knowledge, trail.supportWords.toSet(), "Caio"))
+            }
+        } finally {
+            db.close()
+            scope.cancel()
+            settingsFile.delete()
+            http.dispatcher.executorService.shutdown()
+            http.connectionPool.evictAll()
         }
     }
 

@@ -91,7 +91,7 @@ class LiteracyViewModel(
                 return@flow
             }
             // Quem já tinha fases concluídas antes desta versão também recebe os livros que ganhou.
-            runCatching { euLeioRepository.ensureEarnedBooks(child) }
+            euLeioRepository.requestEarnedBooks(child)
             combine(literacyRepository.observeProgress(child.id), euLeioRepository.observeBooks(child.id)) { progress, books ->
                 buildState(child, trail, progress).copy(books = books)
             }.collect { emit(it) }
@@ -124,6 +124,9 @@ class LiteracyViewModel(
             knowledge = LiteracyRules.knowledge(trail, completed)
         )
     }
+
+    /** Um livro "Eu leio" está sendo escrito (para o "Escrevendo..." do resultado). */
+    val isWritingBook: StateFlow<Boolean> = euLeioRepository.isWriting
 
     fun speak(text: String) {
         val key = "literacy-screen#${text.hashCode()}"

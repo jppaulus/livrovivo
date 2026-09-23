@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -49,7 +54,7 @@ fun PhaseResultScreen(
     viewModel: LiteracyViewModel,
     phaseId: String,
     stars: Int,
-    newBookId: String?,
+    booksBefore: Int,
     onOpenBook: (storyId: String) -> Unit,
     onNextPhase: (phaseId: String) -> Unit,
     onPlayAgain: () -> Unit,
@@ -64,7 +69,10 @@ fun PhaseResultScreen(
         else -> "Você treinou bastante! Vamos tentar de novo?"
     }
     val bookNotice = "Você ganhou um livro novo para ler sozinho!"
-    LaunchedEffect(phaseId, stars) { viewModel.speak(if (newBookId != null) "$message $bookNotice" else message) }
+    val writing by viewModel.isWritingBook.collectAsState()
+    // O livro aparece na lista quando fica pronto (com IA, alguns segundos depois das estrelas).
+    val newBook = uiState.books.takeIf { booksBefore >= 0 && it.size > booksBefore }?.last()
+    LaunchedEffect(phaseId, stars, newBook?.id) { viewModel.speak(if (newBook != null) "$message $bookNotice" else message) }
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
 
     Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
@@ -92,8 +100,11 @@ fun PhaseResultScreen(
             )
             Spacer(Modifier.height(28.dp))
 
-            if (newBookId != null) {
-                NewBookCard(text = bookNotice, onOpen = { onOpenBook(newBookId) })
+            if (newBook != null) {
+                NewBookCard(text = bookNotice, onOpen = { onOpenBook(newBook.id) })
+                Spacer(Modifier.height(14.dp))
+            } else if (booksBefore >= 0 && writing) {
+                WritingBookCard()
                 Spacer(Modifier.height(14.dp))
             }
             if (stars >= 1 && next != null && !next.isLocked) {
@@ -129,6 +140,29 @@ private fun NewBookCard(text: String, onOpen: () -> Unit) {
                 Text("Ler agora ▶", color = FairyGold, fontFamily = LetterFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
+    }
+}
+
+/** Enquanto a IA escreve o livro novo. */
+@Composable
+private fun WritingBookCard() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+        Spacer(Modifier.width(14.dp))
+        Text(
+            "Escrevendo um livro só para você...",
+            fontFamily = LetterFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
     }
 }
 

@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 148 testes unitários e 7 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 159 testes unitários e 8 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` (do usuário) e `LivroVivo_Teste` (só para testes, porta 5582) |
 
 ```bash
-./gradlew testDebugUnitTest   # 148 testes
+./gradlew testDebugUnitTest   # 159 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
@@ -70,7 +70,7 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, desbloqueio em ordem, `LiteracyKnowledge`, quem vê a trilha (9+ escondida), peças que formam a resposta |
 | `core/literacy/DecodableValidator.kt` | Juiz dos livros "Eu leio": palavras que a criança ainda não lê e problemas de formato (4 páginas, 1–2 frases de 3–7 palavras, maiúsculas, só `. , ! ?`) |
 | `core/literacy/OfflineDecodableEngine.kt` | Livro "Eu leio" sem IA: roteiros Coleção, Cadê? e Adivinha, com a criança como personagem |
-| `core/literacy/LiteracyBookWriter.kt` | Escreve os livros "Eu leio" (hoje só offline; a etapa 6 põe a IA na frente) |
+| `core/literacy/LiteracyBookWriter.kt` | Escreve os livros "Eu leio": IA com lista fechada de palavras, 1 nova tentativa e o motor offline como garantia |
 | `data/repository/EuLeioRepositoryImpl.kt` | Cria os livros ganhos, guarda "Li sozinho!" e marca o livro como lido |
 | `presentation/literacy/EasyReaderScreen.kt` | Leitor "Eu leio": tocar lê a palavra, segurar separa em sílabas, "Ouvir a página", "Li sozinho!" |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
@@ -134,7 +134,8 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 | 3. Progresso | ✅ 22/09: estrelas salvas, módulos e fases liberam em ordem, `LiteracyKnowledge`. Conferido no emulador: progresso continua depois de fechar o app à força; Consoantes só abre depois das 5 vogais |
 | 4. Validador + livro offline | ✅ 22/09: `DecodableValidator`, `OfflineDecodableEngine` e `LiteracyRules.booksEarned`. Os testes geram mais de 10 mil livros pela trilha inteira (vários nomes, os 4 companheiros, 25 sementes) e todos passam no validador |
 | 5. Leitor "Eu leio" | ✅ 23/09: livro criado ao ganhar, aviso no resultado, leitor completo, livros na lista de fases e selo "Eu li!" na estante. Lido do início ao fim no emulador de testes (O DOCE DE LIA) |
-| 6 a 8 | Pendentes |
+| 6. Livro com IA | ✅ 23/09: `decodablePrompt`, `LiteracyBookWriter` com nova tentativa e queda para o offline, livro escrito em segundo plano e ilustrações da IA no leitor. Testado com respostas simuladas do Gemini; **não testado com chave real** |
+| 7 e 8 | Pendentes |
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -188,6 +189,22 @@ Detalhes da etapa 5:
   segurar mostra "BO · LA" e lê as sílabas e a palavra; "Ouvir a página" usa o destaque de frase do leitor normal.
   A voz recebe o texto em minúsculas (lê melhor); as sílabas soltas ainda saem pela voz do aparelho (etapa 7 corrige).
   O botão diz "Li sozinha!" para meninas. No fim: confete, "Quer ler de novo?" e o selo "Eu li!" na estante.
+
+Detalhes da etapa 6:
+- **Prompt:** `StoryPrompts.DECODABLE_SYSTEM_PROMPT` + `decodablePrompt(...)` com a **lista fechada** (palavras de apoio,
+  palavras com figura que a criança lê com o artigo, o nome e o companheiro se ele for legível). As regras de segurança
+  viraram `StoryPrompts.SAFETY_RULES`, usadas pelos dois prompts (o das aventuras continua com o mesmo texto).
+- **Conferência:** a resposta passa para maiúsculas e tem os espaços juntados (não é motivo de recusa); depois o
+  `DecodableValidator` confere título e páginas. Recusou: **uma** nova tentativa dizendo as palavras proibidas e os
+  problemas de formato. Recusou de novo, erro de rede/cota ou sem IA: livro offline na hora. Logs na tag `LivroVivoIA`.
+- **Sem espera:** o livro é escrito em segundo plano (`EuLeioRepository.requestEarnedBooks`). O resultado da fase mostra
+  as estrelas na hora, "Escrevendo um livro só para você..." e depois o aviso (rota com `booksBefore`).
+- **Ilustrações:** livros da IA guardam `sceneImagePrompt` por página e `characterSheet`; o leitor pede as ilustrações em
+  ordem pelo `IllustrationService`. Se falhar (imagem exige faturamento), para em silêncio e mostra a figura da palavra.
+- **Falta (etapa 8):** livros com IA e ilustração devem ser só de assinantes; hoje valem para quem tiver a IA ligada.
+- **Para testar com chave real:** configure a chave (Área dos Pais ou `gemini.apiKey` no `local.properties`), conclua a
+  3ª fase de sílabas e veja o livro; `adb logcat -s LivroVivoIA` mostra recusas e erros. Lembrete: os termos da API do
+  Gemini vetam apps para menores de 18; em produção os livros precisam de outro provedor (mesma questão das aventuras).
 
 - Roteiro de teste no emulador: `scratchpad/play.py <phase_id>` joga uma fase lendo as respostas do JSON (não
   está no repositório).

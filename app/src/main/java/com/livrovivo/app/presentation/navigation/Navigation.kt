@@ -21,10 +21,10 @@ sealed class Screen(val route: String) {
     data object LiteracyActivity : Screen("literacy_activity/{phaseId}") {
         fun createRoute(phaseId: String): String = "literacy_activity/$phaseId"
     }
-    data object LiteracyResult : Screen("literacy_result/{phaseId}/{stars}?newBook={newBook}") {
-        /** [newBook]: livro "Eu leio" que a criança acabou de ganhar (mostra o aviso). */
-        fun createRoute(phaseId: String, stars: Int, newBook: String? = null): String =
-            "literacy_result/$phaseId/$stars" + (newBook?.let { "?newBook=$it" } ?: "")
+    data object LiteracyResult : Screen("literacy_result/{phaseId}/{stars}?booksBefore={booksBefore}") {
+        /** [booksBefore]: livros "Eu leio" antes da fase, quando ela liberou um livro novo (-1 quando não). */
+        fun createRoute(phaseId: String, stars: Int, booksBefore: Int = -1): String =
+            "literacy_result/$phaseId/$stars?booksBefore=$booksBefore"
     }
     data object EuLeioReader : Screen("literacy_book/{storyId}") {
         fun createRoute(storyId: String): String = "literacy_book/$storyId"

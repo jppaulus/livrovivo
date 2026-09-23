@@ -9,6 +9,7 @@ import com.livrovivo.app.domain.model.ParentInsights
 import com.livrovivo.app.domain.model.PhaseProgress
 import com.livrovivo.app.domain.model.Story
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface StoryRepository {
     fun getStoriesFlow(): Flow<List<Story>>
@@ -71,6 +72,18 @@ interface EuLeioRepository {
 
     /** Escreve e guarda os livros que a criança já ganhou e ainda não tem. Devolve só os novos. */
     suspend fun ensureEarnedBooks(child: ChildProfile): List<Story>
+
+    /** Quantos livros a criança já ganhou e ainda não foram escritos. */
+    suspend fun pendingBooks(child: ChildProfile): Int
+
+    /**
+     * Escreve os livros pendentes em segundo plano (com IA pode levar alguns segundos), sem prender a tela.
+     * O livro aparece em [observeBooks] quando fica pronto.
+     */
+    fun requestEarnedBooks(child: ChildProfile)
+
+    /** true enquanto algum livro está sendo escrito. */
+    val isWriting: StateFlow<Boolean>
 
     /** "Li sozinho!" numa página: registro de uso para as conquistas e o painel, não uma avaliação. */
     suspend fun recordPageReadAlone(storyId: String, chapterIndex: Int, childId: String)

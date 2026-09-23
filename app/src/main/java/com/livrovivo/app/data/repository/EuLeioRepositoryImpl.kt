@@ -11,11 +11,19 @@ import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 class EuLeioRepositoryImpl(
     private val literacyRepository: LiteracyRepository,
@@ -27,6 +35,30 @@ class EuLeioRepositoryImpl(
 
     /** O resultado de uma fase e a abertura da trilha podem pedir livros ao mesmo tempo: um de cada vez. */
     private val creating = Mutex()
+
+    /** Escopo próprio: o livro continua sendo escrito mesmo depois que a tela da atividade fecha. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val activeRequests = AtomicInteger(0)
+    private val _isWriting = MutableStateFlow(false)
+    override val isWriting: StateFlow<Boolean> = _isWriting.asStateFlow()
+
+    override suspend fun pendingBooks(child: ChildProfile): Int {
+        val trail = literacyRepository.getTrail()
+        val completed = LiteracyRules.completedPhaseIds(literacyRepository.getProgress(child.id))
+        val earned = LiteracyRules.bookTriggerPhases(trail, completed).size
+        return (earned - storyDao.countBooks(child.id, Story.KIND_EU_LEIO)).coerceAtLeast(0)
+    }
+
+    override fun requestEarnedBooks(child: ChildProfile) {
+        _isWriting.value = activeRequests.incrementAndGet() > 0
+        scope.launch {
+            try {
+                runCatching { ensureEarnedBooks(child) }
+            } finally {
+                _isWriting.value = activeRequests.decrementAndGet() > 0
+            }
+        }
+    }
 
     override fun observeBooks(childId: String): Flow<List<Story>> =
         storyDao.observeBooks(childId, Story.KIND_EU_LEIO).map { list -> list.map { it.toDomain() } }
