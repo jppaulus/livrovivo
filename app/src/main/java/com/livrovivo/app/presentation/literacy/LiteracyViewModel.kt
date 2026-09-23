@@ -11,6 +11,7 @@ import com.livrovivo.app.domain.model.LiteracyPhase
 import com.livrovivo.app.domain.model.LiteracyTrail
 import com.livrovivo.app.domain.model.PhaseProgress
 import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
@@ -27,7 +28,9 @@ data class PhaseUi(
     val phase: LiteracyPhase,
     val number: Int,
     val stars: Int,
-    val isLocked: Boolean
+    val isLocked: Boolean,
+    /** Fase paga e a família não assina (fase já concluída antes continua aberta). */
+    val needsSubscription: Boolean = false
 ) {
     val isSubscriberOnly: Boolean get() = !phase.isFree
 }
@@ -64,11 +67,15 @@ data class LiteracyUiState(
     fun module(id: String): ModuleUi? = modules.find { it.module.id == id }
     fun phase(id: String): PhaseUi? = modules.flatMap { it.phases }.find { it.phase.id == id }
 
-    /** Fase seguinte na trilha (pode ser do próximo módulo), ou null no fim. */
+    /**
+     * Próxima fase liberada depois desta (pode ser do próximo módulo), ou null. Sem assinatura, pula as
+     * fases pagas: depois de "Sílabas com C" vem "Palavras 1".
+     */
     fun nextPhase(id: String): PhaseUi? {
         val all = modules.flatMap { it.phases }
         val index = all.indexOfFirst { it.phase.id == id }
-        return all.getOrNull(index + 1)?.takeIf { index >= 0 }
+        if (index < 0) return null
+        return all.drop(index + 1).firstOrNull { !it.isLocked }
     }
 }
 
@@ -77,6 +84,7 @@ data class LiteracyUiState(
 class LiteracyViewModel(
     private val literacyRepository: LiteracyRepository,
     private val euLeioRepository: EuLeioRepository,
+    private val billingRepository: BillingRepository,
     getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController
 ) : ViewModel() {
@@ -92,16 +100,20 @@ class LiteracyViewModel(
             }
             // Quem já tinha fases concluídas antes desta versão também recebe os livros que ganhou.
             euLeioRepository.requestEarnedBooks(child)
-            combine(literacyRepository.observeProgress(child.id), euLeioRepository.observeBooks(child.id)) { progress, books ->
-                buildState(child, trail, progress).copy(books = books)
+            combine(
+                literacyRepository.observeProgress(child.id),
+                euLeioRepository.observeBooks(child.id),
+                billingRepository.isPremiumFlow
+            ) { progress, books, subscriber ->
+                buildState(child, trail, progress, subscriber).copy(books = books)
             }.collect { emit(it) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LiteracyUiState())
 
-    private fun buildState(child: ChildProfile, trail: LiteracyTrail, progress: List<PhaseProgress>): LiteracyUiState {
+    private fun buildState(child: ChildProfile, trail: LiteracyTrail, progress: List<PhaseProgress>, subscriber: Boolean): LiteracyUiState {
         val starsByPhase = progress.associate { it.phaseId to it.stars }
         val completed = LiteracyRules.completedPhaseIds(progress)
-        val unlocked = LiteracyRules.unlockedPhaseIds(trail, completed)
+        val unlocked = LiteracyRules.unlockedPhaseIds(trail, completed, subscriber)
         val modules = trail.modules.map { module ->
             ModuleUi(
                 module = module,
@@ -110,7 +122,8 @@ class LiteracyViewModel(
                         phase = phase,
                         number = index + 1,
                         stars = starsByPhase[phase.id] ?: 0,
-                        isLocked = phase.id !in unlocked
+                        isLocked = phase.id !in unlocked,
+                        needsSubscription = !LiteracyRules.canPlay(phase, subscriber) && phase.id !in completed
                     )
                 },
                 isLocked = module.phases.none { it.id in unlocked }

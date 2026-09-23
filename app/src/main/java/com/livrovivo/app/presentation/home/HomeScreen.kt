@@ -147,8 +147,10 @@ class HomeViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     /** null esconde o cartão (faixa 9+, ou trilha indisponível). */
-    val literacyCard: StateFlow<LiteracyCardState?> = getActiveChildUseCase().flatMapLatest { child ->
-        if (child == null || !LiteracyRules.isTrailVisible(child.ageGroup)) return@flatMapLatest flowOf(null)
+    val literacyCard: StateFlow<LiteracyCardState?> = combine(getActiveChildUseCase(), settingsManager.settingsFlow) { child, settings ->
+        child to settings.showTrailForOlderKids
+    }.flatMapLatest { (child, olderKids) ->
+        if (child == null || !LiteracyRules.isTrailVisible(child.ageGroup, olderKids)) return@flatMapLatest flowOf(null)
         val total = runCatching { literacyRepository.getTrail().phases.size }.getOrNull()
             ?: return@flatMapLatest flowOf(null)
         literacyRepository.observeProgress(child.id).map { progress ->

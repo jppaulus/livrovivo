@@ -89,6 +89,9 @@ interface EuLeioRepository {
     suspend fun recordPageReadAlone(storyId: String, chapterIndex: Int, childId: String)
     suspend fun pagesReadAlone(storyId: String): Set<Int>
 
+    /** Páginas que a criança marcou como "Li sozinho!" em todos os livros (para o painel dos pais). */
+    suspend fun pagesReadAloneCount(childId: String): Int
+
     /** A criança chegou ao fim do livro: ele ganha o selo "Eu li!". */
     suspend fun markBookFinished(storyId: String)
 }

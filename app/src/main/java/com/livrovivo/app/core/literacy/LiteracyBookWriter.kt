@@ -50,10 +50,12 @@ class LiteracyBookWriter(private val ai: BookAi? = null) {
         knowledge: LiteracyKnowledge,
         child: ChildProfile,
         seed: Int,
-        focusSyllables: Set<String>
+        focusSyllables: Set<String>,
+        /** Livros com IA (e ilustração) são da assinatura; sem ela, o livro é sempre o offline. */
+        allowAi: Boolean = true
     ): WrittenBook? {
         val ai = ai
-        if (ai != null && runCatching { ai.isAvailable() }.getOrDefault(false)) {
+        if (allowAi && ai != null && runCatching { ai.isAvailable() }.getOrDefault(false)) {
             writeWithAi(ai, trail, knowledge, child, focusSyllables)?.let { return WrittenBook(it, isOffline = false) }
         }
         val companion = MagicalCompanion.findById(child.companionId).name

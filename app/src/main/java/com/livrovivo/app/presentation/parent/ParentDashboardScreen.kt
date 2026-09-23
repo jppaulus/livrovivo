@@ -1,6 +1,8 @@
 package com.livrovivo.app.presentation.parent
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -40,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,7 +57,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,16 +67,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
+import com.livrovivo.app.core.literacy.LiteracyRules
+import com.livrovivo.app.core.literacy.ReadingInsights
+import com.livrovivo.app.core.literacy.ReadingInsightsBuilder
 import com.livrovivo.app.core.settings.AppSettings
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.theme.FairyEmerald
 import com.livrovivo.app.core.ui.CompanionAvatar
 import com.livrovivo.app.core.ui.SectionHeader
+import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.ParentInsights
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
+import com.livrovivo.app.domain.repository.EuLeioRepository
+import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.repository.StoryRepository
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.DeleteAllStoriesUseCase
@@ -85,6 +96,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,7 +112,9 @@ data class ParentDashboardUiState(
     val stories: List<Story> = emptyList(),
     val trash: List<Story> = emptyList(),
     val isDeleting: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** Seção "Leitura" (null enquanto carrega ou se a trilha não abrir). */
+    val reading: ReadingInsights? = null
 )
 
 class ParentDashboardViewModel(
@@ -113,7 +127,9 @@ class ParentDashboardViewModel(
     private val deleteAllStoriesUseCase: DeleteAllStoriesUseCase,
     private val audioPlayerController: AudioPlayerController,
     private val backendConfigured: Boolean,
-    private val storyRepository: StoryRepository
+    private val storyRepository: StoryRepository,
+    private val literacyRepository: LiteracyRepository,
+    private val euLeioRepository: EuLeioRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ParentDashboardUiState(backendConfigured = backendConfigured))
@@ -157,15 +173,35 @@ class ParentDashboardViewModel(
 
     fun refresh() {
         viewModelScope.launch {
+            val child = getActiveChildUseCase.getDirect()
+            val reading = child?.let { readingInsights(it) }
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    child = getActiveChildUseCase.getDirect(),
+                    child = child,
                     insights = getParentInsightsUseCase(),
                     quota = checkStoryQuotaUseCase(),
-                    settings = settingsManager.current()
+                    settings = settingsManager.current(),
+                    reading = reading
                 )
             }
+        }
+    }
+
+    private suspend fun readingInsights(child: ChildProfile): ReadingInsights? = runCatching {
+        ReadingInsightsBuilder.build(
+            trail = literacyRepository.getTrail(),
+            progress = literacyRepository.getProgress(child.id),
+            books = euLeioRepository.observeBooks(child.id).first(),
+            pagesReadAlone = euLeioRepository.pagesReadAloneCount(child.id)
+        )
+    }.getOrNull()
+
+    /** A trilha "Aprender a ler" aparece também para crianças de 9+. */
+    fun setTrailForOlderKids(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setTrailForOlderKids(enabled)
+            refresh()
         }
     }
 }
@@ -333,6 +369,18 @@ fun ParentDashboardScreen(
                 }
             }
 
+            uiState.reading?.let { reading ->
+                val isOlderKid = AgeGroup.fromCode(uiState.child?.ageGroup) == AgeGroup.EXPLORER
+                ReadingSection(
+                    childName = childName,
+                    reading = reading,
+                    isOlderKid = isOlderKid,
+                    trailVisible = LiteracyRules.isTrailVisible(uiState.child?.ageGroup, uiState.settings.showTrailForOlderKids),
+                    showForOlderKids = uiState.settings.showTrailForOlderKids,
+                    onToggleOlderKids = viewModel::setTrailForOlderKids
+                )
+            }
+
             SectionHeader(
                 title = "Virtudes nas escolhas",
                 subtitle = "Temas presentes nas decisões, sem avaliação da personalidade da criança."
@@ -409,7 +457,11 @@ fun ParentDashboardScreen(
                                 Text(
                                     text = listOf(
                                         if (story.isCompleted) "Concluída" else "Página ${story.lastChapter?.index ?: 1} de ${story.plannedChapters}",
-                                        if (story.isOffline) "sem IA" else "com IA",
+                                        when {
+                                            story.isEuLeio -> "Eu leio"
+                                            story.isOffline -> "sem IA"
+                                            else -> "com IA"
+                                        },
                                         dateFormat.format(Date(story.createdAt))
                                     ).joinToString(" · "),
                                     style = MaterialTheme.typography.labelSmall,
@@ -458,7 +510,7 @@ fun ParentDashboardScreen(
                 emoji = "⭐",
                 title = "Livro Vivo Premium",
                 subtitle = when (val quota = uiState.quota) {
-                    QuotaStatus.Unlimited -> "Assinatura ativa: histórias ilimitadas."
+                    QuotaStatus.Unlimited -> "Assinatura ativa: histórias ilimitadas e a Trilha da Leitura completa."
                     is QuotaStatus.Limited -> "Plano gratuito: ${quota.remaining} de ${quota.max} histórias restantes."
                 },
                 onClick = onOpenPaywall
@@ -502,6 +554,118 @@ private fun NavigationCard(emoji: String, title: String, subtitle: String, onCli
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+/**
+ * Seção "Leitura": o que a criança fez na trilha. Os números são atividade de uso, não medida de
+ * aprendizagem (cuidado do MELHORIAS_UX.md), e nenhum texto promete resultado.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReadingSection(
+    childName: String,
+    reading: ReadingInsights,
+    isOlderKid: Boolean,
+    trailVisible: Boolean,
+    showForOlderKids: Boolean,
+    onToggleOlderKids: (Boolean) -> Unit
+) {
+    SectionHeader(
+        title = "Leitura \uD83D\uDCD6",
+        subtitle = "Trilha \"Aprender a ler\". Os números mostram o que $childName fez no app; não medem a aprendizagem."
+    )
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (isOlderKid) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Mostrar \"Aprender a ler\" para 9+ anos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "A trilha fica escondida para crianças de 9 anos ou mais.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(checked = showForOlderKids, onCheckedChange = onToggleOlderKids)
+                }
+            }
+            if (trailVisible || reading.completedPhases > 0) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    ReadingMetric("Fases feitas", "${reading.completedPhases}/${reading.totalPhases}")
+                    ReadingMetric("Livros lidos", "${reading.booksRead}/${reading.booksTotal}")
+                    ReadingMetric("Páginas \"Li sozinho\"", "${reading.pagesReadAlone}")
+                }
+
+                Text("Letras trabalhadas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    reading.letters.forEach { (letter, done) -> UnitChip(letter, done) }
+                }
+
+                Text(
+                    "Sílabas trabalhadas (${reading.learnedSyllables} de ${reading.totalSyllables})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    reading.syllableRows.forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            row.forEach { (syllable, done) -> UnitChip(syllable, done) }
+                        }
+                    }
+                }
+
+                if (reading.practiceTogether.isNotEmpty()) {
+                    Text(
+                        "Vale praticar juntos: ${reading.practiceTogether.joinToString(", ")}.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("Ideia para longe da tela \uD83C\uDF33", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(reading.offlineIdea, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+    }
+}
+
+/** Letra ou sílaba da grade: verde quando a fase dela foi concluída. */
+@Composable
+private fun UnitChip(text: String, done: Boolean) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (done) FairyEmerald else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = if (done) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+        )
     }
 }
 

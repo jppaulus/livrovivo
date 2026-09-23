@@ -158,6 +158,8 @@ fun PaywallScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    BenefitItem("Seu filho aprende a ler com histórias em que ele é o personagem")
+                    BenefitItem("Trilha da Leitura completa: 51 fases e livros \"Eu leio\" ilimitados, com ilustrações")
                     BenefitItem("Histórias ilimitadas personalizadas por IA")
                     BenefitItem("Narração neural expressiva em português (PT-BR)")
                     BenefitItem("Acesso 100% offline para viagens e hora de dormir")

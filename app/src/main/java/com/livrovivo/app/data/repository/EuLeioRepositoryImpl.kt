@@ -9,6 +9,7 @@ import com.livrovivo.app.data.model.toEntity
 import com.livrovivo.app.data.model.toEuLeioStory
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,7 @@ class EuLeioRepositoryImpl(
     private val literacyDao: LiteracyDao,
     private val storyDao: StoryDao,
     private val bookWriter: LiteracyBookWriter,
+    private val billingRepository: BillingRepository,
     private val clock: () -> Long = System::currentTimeMillis
 ) : EuLeioRepository {
 
@@ -45,7 +47,7 @@ class EuLeioRepositoryImpl(
     override suspend fun pendingBooks(child: ChildProfile): Int {
         val trail = literacyRepository.getTrail()
         val completed = LiteracyRules.completedPhaseIds(literacyRepository.getProgress(child.id))
-        val earned = LiteracyRules.bookTriggerPhases(trail, completed).size
+        val earned = LiteracyRules.bookTriggerPhases(trail, completed, billingRepository.isUserPremium()).size
         return (earned - storyDao.countBooks(child.id, Story.KIND_EU_LEIO)).coerceAtLeast(0)
     }
 
@@ -66,7 +68,8 @@ class EuLeioRepositoryImpl(
     override suspend fun ensureEarnedBooks(child: ChildProfile): List<Story> = creating.withLock {
         val trail = literacyRepository.getTrail()
         val completed = LiteracyRules.completedPhaseIds(literacyRepository.getProgress(child.id))
-        val triggers = LiteracyRules.bookTriggerPhases(trail, completed)
+        val subscriber = billingRepository.isUserPremium()
+        val triggers = LiteracyRules.bookTriggerPhases(trail, completed, subscriber)
         // Conta também os da lixeira: jogar um livro fora não faz outro aparecer no lugar.
         val existing = storyDao.countBooks(child.id, Story.KIND_EU_LEIO)
         triggers.drop(existing).mapIndexedNotNull { offset, phase ->
@@ -76,7 +79,8 @@ class EuLeioRepositoryImpl(
                 knowledge = LiteracyRules.knowledgeUpTo(trail, completed, phase),
                 child = child,
                 seed = child.id.hashCode() + number,
-                focusSyllables = LiteracyRules.phaseSyllables(trail, phase)
+                focusSyllables = LiteracyRules.phaseSyllables(trail, phase),
+                allowAi = subscriber
             ) ?: return@mapIndexedNotNull null
             val story = written.book.toEuLeioStory(
                 id = UUID.randomUUID().toString(),
@@ -94,6 +98,8 @@ class EuLeioRepositoryImpl(
         literacyDao.recordPageRead(storyId, chapterIndex, childId, clock())
 
     override suspend fun pagesReadAlone(storyId: String): Set<Int> = literacyDao.pagesReadAlone(storyId).toSet()
+
+    override suspend fun pagesReadAloneCount(childId: String): Int = literacyDao.countPagesReadAlone(childId)
 
     override suspend fun markBookFinished(storyId: String) = storyDao.updateCompleted(storyId, true, clock())
 }

@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 165 testes unitários e 8 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 175 testes unitários e 9 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` (do usuário) e `LivroVivo_Teste` (só para testes, porta 5582) |
 
 ```bash
-./gradlew testDebugUnitTest   # 165 testes
+./gradlew testDebugUnitTest   # 175 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
@@ -75,6 +75,7 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `presentation/literacy/EasyReaderScreen.kt` | Leitor "Eu leio": tocar lê a palavra, segurar separa em sílabas, "Ouvir a página", "Li sozinho!" |
 | `core/literacy/Pronunciation.kt` + `SoundPlayer.kt` | Voz das letras e sílabas: áudio gravado `res/raw/som_xx` ou a voz do app com dica de pronúncia ("bá, de bala") |
 | `ferramentas/gerar_audios.py` | Grava os 83 áudios (ElevenLabs ou Gemini, voz do Capitão) com a chave do `local.properties` |
+| `core/literacy/ReadingInsights.kt` | Seção "Leitura" do painel dos pais: fases, livros, "Li sozinho", letras/sílabas trabalhadas, fases com mais erros e ideia fora da tela |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
 | `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
@@ -138,7 +139,9 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 | 5. Leitor "Eu leio" | ✅ 23/09: livro criado ao ganhar, aviso no resultado, leitor completo, livros na lista de fases e selo "Eu li!" na estante. Lido do início ao fim no emulador de testes (O DOCE DE LIA) |
 | 6. Livro com IA | ✅ 23/09: `decodablePrompt`, `LiteracyBookWriter` com nova tentativa e queda para o offline, livro escrito em segundo plano e ilustrações da IA no leitor. Testado com respostas simuladas do Gemini; **não testado com chave real** |
 | 7. Voz das sílabas | ✅ 23/09 (código): `SoundPlayer` + `Pronunciation` + `gerar_audios.py`. **Os 83 áudios ainda não foram gravados** (falta chave) e a pronúncia não foi ouvida (o emulador de testes não tem som) |
-| 8 | Pendente |
+| 8. Pais e assinatura | ✅ 23/09: seção "Leitura" no painel, fases pagas bloqueadas, livros com IA só para assinantes, argumento de venda no paywall e a trilha para 9+ nas configurações dos pais |
+
+**A Trilha da Leitura (etapas 0 a 8) está completa na branch `feature/trilha-da-leitura`.** O que falta está no fim desta seção.
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -300,3 +303,29 @@ Detalhes da etapa 7:
   `python gerar_audios.py`. Ouça os arquivos em `app/src/main/res/raw/` antes do commit; regrave com `--so BA --refazer`.
 - Palavras de apoio tocadas sozinhas no leitor ("O", "E") ainda saem pela voz do app sem dica; se soarem mal, dá para
   incluí-las nos áudios gravados.
+
+Detalhes da etapa 8 (decisões que a especificação não cobria):
+- **Progressão sem assinatura:** um módulo libera quando todas as fases **que a criança pode jogar** do anterior têm
+  estrela (`LiteracyRules.unlockedPhaseIds(..., subscriber)`). Sem isso, quem não assina nunca chegaria às fases grátis
+  de Palavras e Ditado, já que não pode concluir as fases pagas de Sílabas.
+- **Livros sem assinatura:** 1 por módulo (Sílabas, Palavras, Ditado) ao concluir as fases grátis dele, se a criança já
+  lê ao menos 3 palavras (`MIN_BOOK_WORDS`). Com só B e C ela lê "BOCA", então na prática são 2 livros (Palavras e
+  Ditado). Sempre offline: sem assinatura a IA nem é chamada e o leitor não pede ilustração.
+- **Nunca tirar o que foi ganho:** fase concluída continua aberta e livros continuam na estante se a assinatura acabar.
+- **Fase paga tocada pela criança:** aviso "Chame um adulto" (falado) sem preço nem link; "Sou adulto" abre o portão
+  parental e só então a assinatura (regra "nenhuma cobrança durante a atividade").
+- **Painel dos pais, seção "Leitura":** números de uso (não de aprendizagem), letras e 65 sílabas trabalhadas, "Vale
+  praticar juntos" (3 fases com mais erros) e ideia fora da tela ligada à última fase. Para 9+, chave "Mostrar
+  'Aprender a ler' para 9+ anos" (`showTrailForOlderKids`, vale para todos os perfis).
+- **Paywall:** "Seu filho aprende a ler com histórias em que ele é o personagem" e "Trilha da Leitura completa".
+- A assinatura continua **simulada** (`BillingRepositoryImpl` grava no DataStore); o Billing real está na outra branch.
+
+## 5.2. O que falta depois da Trilha da Leitura
+1. Testar os livros com IA com uma chave real (etapa 6) e ouvir a voz das sílabas num aparelho com som (etapa 7).
+2. Gravar os 83 áudios com `ferramentas/gerar_audios.py` (precisa de chave ElevenLabs ou Gemini) e ouvi-los.
+3. Criar as 55 figuras (`ferramentas/lista_imagens.txt`, estilo guache do `DIRECAO_EDITORIAL.md`); até lá o app mostra
+   cartões com a palavra.
+4. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual de dormir, sons) com esta linha.
+   Ao juntar: os preços do paywall do `main` estão fixos no código; lá eles vêm do Google Play.
+5. Provedor de IA para produção (termos do Gemini vetam apps para menores de 18) — vale para aventuras e livros.
+6. Decisões da seção 10 do `ALFABETIZACAO.md` ainda em aberto: nome do modo (hoje "Aprender a ler") e nome na loja.

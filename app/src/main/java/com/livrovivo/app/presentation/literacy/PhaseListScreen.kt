@@ -38,6 +38,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.livrovivo.app.core.theme.FairyGold
+import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.ui.InfoPill
 import com.livrovivo.app.domain.model.Story
 
@@ -62,13 +68,42 @@ fun PhaseListScreen(
     moduleId: String,
     onNavigateBack: () -> Unit,
     onOpenPhase: (phaseId: String) -> Unit,
-    onOpenBook: (storyId: String) -> Unit
+    onOpenBook: (storyId: String) -> Unit,
+    onOpenPaywall: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val moduleUi = uiState.module(moduleId)
     val moduleIndex = uiState.modules.indexOfFirst { it.module.id == moduleId }
     val color = moduleColor(moduleIndex.coerceAtLeast(0))
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
+    var askAdult by remember { mutableStateOf(false) }
+    var parentalGate by remember { mutableStateOf(false) }
+
+    // Fase paga: a criança é convidada a chamar um adulto. A assinatura só aparece depois do portão parental.
+    if (askAdult) {
+        AlertDialog(
+            onDismissRequest = { askAdult = false },
+            title = { Text("Fase de assinantes \u2B50") },
+            text = { Text(ASK_ADULT_TEXT, style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                TextButton(onClick = { askAdult = false; parentalGate = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Sou adulto")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { askAdult = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Voltar") }
+            }
+        )
+    }
+    if (parentalGate) {
+        ParentalGateDialog(
+            onDismiss = { parentalGate = false },
+            onSuccess = {
+                parentalGate = false
+                onOpenPaywall()
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -115,8 +150,14 @@ fun PhaseListScreen(
                         phase = phase,
                         color = color,
                         onClick = {
-                            if (phase.isLocked) viewModel.speak("Termine a fase de antes para abrir esta.")
-                            else onOpenPhase(phase.phase.id)
+                            when {
+                                phase.needsSubscription -> {
+                                    viewModel.speak(ASK_ADULT_TEXT)
+                                    askAdult = true
+                                }
+                                phase.isLocked -> viewModel.speak("Termine a fase de antes para abrir esta.")
+                                else -> onOpenPhase(phase.phase.id)
+                            }
                         }
                     )
                 }
@@ -167,6 +208,8 @@ private fun BooksRow(books: List<Story>, onOpenBook: (String) -> Unit) {
         }
     }
 }
+
+private const val ASK_ADULT_TEXT = "Esta fase faz parte da assinatura. Chame um adulto para ver com você!"
 
 @Composable
 private fun PhaseCard(phase: PhaseUi, color: Color, onClick: () -> Unit) {

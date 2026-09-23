@@ -78,6 +78,16 @@ class LiteracyBookWriterTest {
     }
 
     @Test
+    fun `without a subscription the AI is not even asked`() = runTest {
+        val ai = FakeAi(true, validBook)
+
+        val written = LiteracyBookWriter(ai).write(trail, firstBook, child, seed = 1, focusSyllables = emptySet(), allowAi = false)!!
+
+        assertTrue(written.isOffline)
+        assertTrue(ai.prompts.isEmpty())
+    }
+
+    @Test
     fun `a readable AI book is accepted on the first try`() = runTest {
         // "SIM!" sozinho seria uma frase de 1 palavra; esta versão tem frases de 3 a 7.
         val ai = FakeAi(true, book("O DOCE DE LIA", "LIA TEM UM DOCE.", "O DOCE É DE LIA.", "O DOCE ESTÁ NA BOCA.", "LIA TEM UM DADO E UM DOCE."))

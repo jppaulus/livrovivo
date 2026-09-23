@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.livrovivo.app.core.ai.BackendConfig
 import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.database.LivroVivoDatabase
+import com.livrovivo.app.core.literacy.BookAi
 import com.livrovivo.app.core.literacy.DecodableValidator
 import com.livrovivo.app.core.literacy.GeminiBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
@@ -22,12 +23,14 @@ import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.core.settings.SettingsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -135,7 +138,7 @@ class LiteracyStorageTest {
         val db = Room.inMemoryDatabaseBuilder(context, LivroVivoDatabase::class.java).build()
         try {
             val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
-            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(ai = null))
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(ai = null), billing(subscriber = true))
             val child = ChildProfile("a", "Lia", AgeGroup.TODDLER.code, companionId = "luna")
             db.childProfileDao().saveAndActivate(child.toEntity())
             val trail = literacy.getTrail()
@@ -220,7 +223,7 @@ class LiteracyStorageTest {
             settings.saveGeminiApiKey("test-only-never-sent-to-network")
             val gemini = GeminiService(context, http, settings, BackendConfig("", ""))
             val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
-            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(GeminiBookAi(gemini)))
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(GeminiBookAi(gemini)), billing(subscriber = true))
             val trail = literacy.getTrail()
             val firstBookPhases = trail.module("vogais")!!.phases + trail.module("consoantes")!!.phases +
                 trail.module("silabas")!!.phases.take(3)
@@ -252,6 +255,48 @@ class LiteracyStorageTest {
             settingsFile.delete()
             http.dispatcher.executorService.shutdown()
             http.connectionPool.evictAll()
+        }
+    }
+
+    /** Assinatura de mentira para os testes. */
+    private fun billing(subscriber: Boolean) = object : BillingRepository {
+        override val isPremiumFlow = flowOf(subscriber)
+        override suspend fun isUserPremium() = subscriber
+        override suspend fun canGenerateNewStory() = true
+        override suspend fun purchaseSubscription(sku: String) = Result.success(true)
+    }
+
+    @Test fun freeFamiliesGetOneOfflineBookPerModuleWithoutCallingTheAi() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, LivroVivoDatabase::class.java).build()
+        try {
+            val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
+            val aiThatMustNotBeCalled = object : BookAi {
+                override suspend fun isAvailable() = true
+                override suspend fun generateJson(systemPrompt: String, userPrompt: String, schema: kotlinx.serialization.json.JsonObject) =
+                    error("sem assinatura o livro não usa IA")
+            }
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(aiThatMustNotBeCalled), billing(subscriber = false))
+            val child = ChildProfile("a", "Lia", AgeGroup.TODDLER.code)
+            db.childProfileDao().saveAndActivate(child.toEntity())
+            val trail = literacy.getTrail()
+            fun free(moduleId: String) = trail.module(moduleId)!!.phases.filter { it.isFree }
+            suspend fun complete(phases: List<com.livrovivo.app.domain.model.LiteracyPhase>) =
+                phases.forEach { literacy.recordAttempt(child.id, it.id, stars = 3, mistakes = 0) }
+
+            complete(trail.module("vogais")!!.phases + trail.module("consoantes")!!.phases + free("silabas"))
+            assertTrue("com só B e C ainda não há livro", books.ensureEarnedBooks(child).isEmpty())
+
+            complete(free("palavras"))
+            val wordsBook = books.ensureEarnedBooks(child).single()
+            assertTrue(wordsBook.isOffline)
+            assertEquals("palavras", wordsBook.themeId)
+
+            complete(free("ditado"))
+            assertEquals("ditado", books.ensureEarnedBooks(child).single().themeId)
+            assertTrue("1 por módulo", books.ensureEarnedBooks(child).isEmpty())
+            assertEquals(0, books.pendingBooks(child))
+        } finally {
+            db.close()
         }
     }
 

@@ -93,7 +93,7 @@ val appModule = module {
         }
     }
 
-    single<EuLeioRepository> { EuLeioRepositoryImpl(get(), get(), get(), get()) }
+    single<EuLeioRepository> { EuLeioRepositoryImpl(get(), get(), get(), get(), get()) }
 
     // UseCases
     factory { GenerateStoryUseCase(get(), get(), get()) }
@@ -113,16 +113,16 @@ val appModule = module {
     viewModel { AppStartViewModel(get(), get()) }
     viewModel { (isEditMode: Boolean) -> OnboardingViewModel(get(), get(), isEditMode) }
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get(), get()) }
-    viewModel { LiteracyViewModel(get(), get(), get(), get()) }
-    viewModel { (phaseId: String) -> ActivityViewModel(phaseId, get(), get(), get(), get(), get(), get()) }
-    viewModel { (storyId: String) -> EasyReaderViewModel(storyId, get(), get(), get(), get(), get(), get()) }
+    viewModel { LiteracyViewModel(get(), get(), get(), get(), get()) }
+    viewModel { (phaseId: String) -> ActivityViewModel(phaseId, get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { (storyId: String) -> EasyReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get()) }
     viewModel { CreationViewModel(get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     viewModel { PaywallViewModel(get()) }
     viewModel {
-        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get())
+        ParentDashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get(), get(), get())
     }
     viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured) }
 }

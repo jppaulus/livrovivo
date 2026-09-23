@@ -9,6 +9,7 @@ import com.livrovivo.app.core.literacy.Pronunciation
 import com.livrovivo.app.core.literacy.SoundPlayer
 import com.livrovivo.app.domain.model.VocabularyWord
 import com.livrovivo.app.domain.model.ChildProfile
+import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
@@ -40,7 +41,8 @@ class ActivityViewModel(
     private val getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController,
     private val feedbackSounds: FeedbackSounds,
-    private val soundPlayer: SoundPlayer
+    private val soundPlayer: SoundPlayer,
+    private val billingRepository: BillingRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivityScreenState())
@@ -65,7 +67,7 @@ class ActivityViewModel(
                 return@launch
             }
             val completed = LiteracyRules.completedPhaseIds(literacyRepository.getProgress(child.id))
-            if (phaseId !in LiteracyRules.unlockedPhaseIds(trail, completed)) {
+            if (phaseId !in LiteracyRules.unlockedPhaseIds(trail, completed, billingRepository.isUserPremium())) {
                 _state.value = ActivityScreenState(error = "Esta fase ainda está trancada. Termine as fases de antes!")
                 return@launch
             }

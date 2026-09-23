@@ -30,31 +30,41 @@ object LiteracyRules {
     fun completedPhaseIds(progress: List<PhaseProgress>): Set<String> =
         progress.filter { it.isCompleted }.map { it.phaseId }.toSet()
 
+    /** A criança pode jogar esta fase? Sem assinatura, só as fases grátis. */
+    fun canPlay(phase: LiteracyPhase, subscriber: Boolean): Boolean = subscriber || phase.isFree
+
     /**
-     * Fases liberadas. Um módulo libera quando todas as fases do módulo anterior têm pelo menos 1 estrela;
-     * dentro do módulo, as fases liberam em ordem. Fase já concluída continua liberada para jogar de novo.
+     * Fases liberadas. Um módulo libera quando todas as fases **que a criança pode jogar** do módulo anterior
+     * têm pelo menos 1 estrela; dentro do módulo, as fases liberam em ordem. Sem assinatura, as fases pagas
+     * ficam de fora (e não seguram a trilha). Fase já concluída continua liberada para jogar de novo.
      */
-    fun unlockedPhaseIds(trail: LiteracyTrail, completed: Set<String>): Set<String> {
+    fun unlockedPhaseIds(trail: LiteracyTrail, completed: Set<String>, subscriber: Boolean = true): Set<String> {
         val unlocked = mutableSetOf<String>()
         for (module in trail.modules) {
-            for (phase in module.phases) {
+            val playable = module.phases.filter { canPlay(it, subscriber) }
+            for (phase in playable) {
                 unlocked += phase.id
                 if (phase.id !in completed) break
             }
-            if (module.phases.any { it.id !in completed }) break
+            if (playable.any { it.id !in completed }) break
         }
         // Fase já concluída sempre pode ser jogada de novo.
         return unlocked + completed.filter { trail.phase(it) != null }
     }
 
     /** Quantos livros "Eu leio" a criança já ganhou com as fases concluídas. */
-    fun booksEarned(trail: LiteracyTrail, completed: Set<String>): Int = bookTriggerPhases(trail, completed).size
+    fun booksEarned(trail: LiteracyTrail, completed: Set<String>, subscriber: Boolean = true): Int =
+        bookTriggerPhases(trail, completed, subscriber).size
 
     /**
-     * A fase que liberou cada livro, em ordem: a 3ª fase de sílabas, depois uma a cada 2 fases de
-     * sílabas, palavras ou ditado. O livro usa o que a criança sabia naquela fase.
+     * A fase que liberou cada livro, em ordem. O livro usa o que a criança sabia naquela fase.
+     * - Com assinatura: a 3ª fase de sílabas, depois uma a cada 2 fases de sílabas, palavras ou ditado.
+     * - Sem assinatura: 1 livro por módulo (Sílabas, Palavras e Ditado), ao concluir as fases grátis dele,
+     *   quando a criança já lê palavras suficientes para um livro. Com só B e C (Sílabas) ela lê uma palavra,
+     *   então na prática saem os livros de Palavras e de Ditado.
      */
-    fun bookTriggerPhases(trail: LiteracyTrail, completed: Set<String>): List<LiteracyPhase> {
+    fun bookTriggerPhases(trail: LiteracyTrail, completed: Set<String>, subscriber: Boolean = true): List<LiteracyPhase> {
+        if (!subscriber) return freeBookTriggers(trail, completed)
         val syllablePhases = trail.module(MODULE_SYLLABLES)?.phases?.count { it.id in completed } ?: 0
         if (syllablePhases < FIRST_BOOK_SYLLABLE_PHASES) return emptyList()
         val counted = listOf(MODULE_SYLLABLES, MODULE_WORDS, MODULE_DICTATION)
@@ -65,6 +75,23 @@ object LiteracyRules {
             position >= FIRST_BOOK_SYLLABLE_PHASES && (position - FIRST_BOOK_SYLLABLE_PHASES) % PHASES_PER_NEW_BOOK == 0
         }
     }
+
+    private fun freeBookTriggers(trail: LiteracyTrail, completed: Set<String>): List<LiteracyPhase> =
+        listOf(MODULE_SYLLABLES, MODULE_WORDS, MODULE_DICTATION).mapNotNull { trail.module(it) }.mapNotNull { module ->
+            val free = module.phases.filter { it.isFree }
+            val last = free.lastOrNull() ?: return@mapNotNull null
+            last.takeIf {
+                free.all { it.id in completed } &&
+                    readableWords(trail, knowledgeUpTo(trail, completed, last)) >= MIN_BOOK_WORDS
+            }
+        }
+
+    /** Com menos palavras que isso não dá para escrever um livro (o roteiro mais simples usa 3). */
+    const val MIN_BOOK_WORDS = 3
+
+    /** Palavras do vocabulário que a criança já consegue ler. */
+    fun readableWords(trail: LiteracyTrail, knowledge: LiteracyKnowledge): Int =
+        trail.vocabulary.count { DecodableValidator.isDecodable(it.word, knowledge.syllables) || it.word in knowledge.words }
 
     /** O que a criança sabia logo depois de concluir [phase] (fases concluídas até ela, na ordem da trilha). */
     fun knowledgeUpTo(trail: LiteracyTrail, completed: Set<String>, phase: LiteracyPhase): LiteracyKnowledge {

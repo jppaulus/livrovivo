@@ -150,7 +150,8 @@ fun LivroVivoNavGraph(
                 moduleId = backStackEntry.arguments?.getString("moduleId").orEmpty(),
                 onNavigateBack = { navController.popBackStack() },
                 onOpenPhase = { phaseId -> navController.navigate(Screen.LiteracyActivity.createRoute(phaseId)) },
-                onOpenBook = { storyId -> navController.navigate(Screen.EuLeioReader.createRoute(storyId)) }
+                onOpenBook = { storyId -> navController.navigate(Screen.EuLeioReader.createRoute(storyId)) },
+                onOpenPaywall = { navController.navigate(Screen.Paywall.route) }
             )
         }
 

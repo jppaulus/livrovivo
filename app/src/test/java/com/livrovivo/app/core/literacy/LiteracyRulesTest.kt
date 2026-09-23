@@ -135,6 +135,53 @@ class LiteracyRulesTest {
     }
 
     @Test
+    fun `without a subscription paid phases stay closed but do not block the free ones`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+        val freeSyllables = module("silabas").take(2)
+
+        val unlocked = LiteracyRules.unlockedPhaseIds(trail, letters + freeSyllables, subscriber = false)
+
+        assertFalse("Sílabas com D é paga", "silabas_d" in unlocked)
+        assertTrue("Palavras abre depois das fases grátis de Sílabas", "palavras_01" in unlocked)
+        assertFalse("palavras_02" in unlocked)
+        assertFalse("com assinatura, Palavras espera todas as sílabas", "palavras_01" in LiteracyRules.unlockedPhaseIds(trail, letters + freeSyllables))
+    }
+
+    @Test
+    fun `a phase done while subscribed stays open after the subscription ends`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+
+        val unlocked = LiteracyRules.unlockedPhaseIds(trail, letters + module("silabas").take(4), subscriber = false)
+
+        assertTrue("silabas_d" in unlocked)
+        assertTrue("silabas_f" in unlocked)
+        assertFalse("silabas_g" in unlocked)
+    }
+
+    @Test
+    fun `without a subscription there is one book per module once its free phases are done`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+        val free = { id: String -> trail.module(id)!!.phases.filter { it.isFree }.map { it.id } }
+
+        val afterSyllables = letters + free("silabas")
+        assertEquals("com só B e C ela lê uma palavra: ainda não dá livro", 0, LiteracyRules.booksEarned(trail, afterSyllables, subscriber = false))
+
+        val afterWords = afterSyllables + free("palavras")
+        assertEquals(listOf("palavras_02"), LiteracyRules.bookTriggerPhases(trail, afterWords, subscriber = false).map { it.id })
+
+        val afterDictation = afterWords + free("ditado")
+        assertEquals(listOf("palavras_02", "ditado_02"), LiteracyRules.bookTriggerPhases(trail, afterDictation, subscriber = false).map { it.id })
+        assertEquals("a regra de assinante continua valendo para quem assina", 0, LiteracyRules.booksEarned(trail, afterDictation))
+    }
+
+    @Test
+    fun `readable words count what the child can read`() {
+        val knowledge = LiteracyRules.knowledge(trail, (module("vogais") + module("consoantes") + module("silabas").take(3)).toSet())
+
+        assertEquals(4, LiteracyRules.readableWords(trail, knowledge))
+    }
+
+    @Test
     fun `a new child knows nothing yet`() {
         val knowledge = LiteracyRules.knowledge(trail, emptySet())
 

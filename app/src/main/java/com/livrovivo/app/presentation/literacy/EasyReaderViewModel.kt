@@ -11,6 +11,7 @@ import com.livrovivo.app.core.literacy.SoundPlayer
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.VocabularyWord
+import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.repository.StoryRepository
@@ -63,7 +64,8 @@ class EasyReaderViewModel(
     private val euLeioRepository: EuLeioRepository,
     private val audioPlayerController: AudioPlayerController,
     private val feedbackSounds: FeedbackSounds,
-    private val soundPlayer: SoundPlayer
+    private val soundPlayer: SoundPlayer,
+    private val billingRepository: BillingRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EasyReaderState())
@@ -92,7 +94,8 @@ class EasyReaderViewModel(
             val start = if (story.isCompleted) 0 else story.sortedChapters.indexOfFirst { it.index == story.lastReadChapter }
             _state.value = EasyReaderState(story = story, readAlone = readAlone)
             showPage(start.coerceAtLeast(0))
-            if (!story.isOffline) illustrate(story)
+            // Ilustração da IA faz parte da assinatura (quem deixou de assinar vê a figura da palavra).
+            if (!story.isOffline && billingRepository.isUserPremium()) illustrate(story)
         }
     }
 

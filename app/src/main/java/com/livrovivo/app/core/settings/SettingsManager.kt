@@ -89,6 +89,8 @@ data class AppSettings(
     val ambientMusicEnabled: Boolean = false,
     val highlightReading: Boolean = true,
     val isPremium: Boolean = false,
+    /** A trilha "Aprender a ler" aparece também para crianças de 9+ (escondida por padrão). */
+    val showTrailForOlderKids: Boolean = false,
     /** Total de histórias já criadas (não diminui ao apagar, para o limite gratuito ser justo). */
     val storiesCreated: Int = 0
 ) {
@@ -116,6 +118,7 @@ class SettingsManager(context: Context, private val store: DataStore<Preferences
         val AMBIENT_MUSIC = booleanPreferencesKey("ambient_music")
         val HIGHLIGHT_READING = booleanPreferencesKey("highlight_reading")
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
+        val TRAIL_FOR_OLDER_KIDS = booleanPreferencesKey("trail_for_older_kids")
         val STORIES_CREATED = intPreferencesKey("stories_created")
         val DEFAULTS_VERSION = intPreferencesKey("defaults_version")
     }
@@ -180,6 +183,8 @@ class SettingsManager(context: Context, private val store: DataStore<Preferences
 
     suspend fun setPremium(isPremium: Boolean) = edit { it[IS_PREMIUM] = isPremium }
 
+    suspend fun setTrailForOlderKids(enabled: Boolean) = edit { it[TRAIL_FOR_OLDER_KIDS] = enabled }
+
     /** Registra uma história criada; [existingStories] cobre quem já tinha histórias antes do contador existir. */
     suspend fun registerStoryCreated(existingStories: Int) = edit {
         val current = it[STORIES_CREATED] ?: 0
@@ -218,6 +223,7 @@ class SettingsManager(context: Context, private val store: DataStore<Preferences
             ambientMusicEnabled = this[AMBIENT_MUSIC] ?: false,
             highlightReading = this[HIGHLIGHT_READING] ?: true,
             isPremium = this[IS_PREMIUM] ?: false,
+            showTrailForOlderKids = this[TRAIL_FOR_OLDER_KIDS] ?: false,
             storiesCreated = this[STORIES_CREATED] ?: 0
         )
     }
