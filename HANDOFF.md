@@ -1,6 +1,6 @@
 # Livro Vivo — contexto para retomar em um novo chat
 
-> Documento de passagem de bastão. Atualizado em 22/09/2026.
+> Documento de passagem de bastão. Atualizado em 23/09/2026.
 > Para começar rápido: leia as seções **1**, **5** e **6**.
 
 ---
@@ -26,7 +26,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Android SDK | `%LOCALAPPDATA%\Android\Sdk` (platforms 34/35/36) |
 | Gradle / AGP / Kotlin | wrapper 8.13 / AGP 8.7.3 / Kotlin 2.0.21 |
 | minSdk / targetSdk | 26 / 35 |
-| Emulador | AVD `Medium_Phone_API_36.1` |
+| Emulador | AVD `Medium_Phone_API_36.1` (do usuário) e `LivroVivo_Teste` (só para testes, porta 5582) |
 
 ```bash
 ./gradlew testDebugUnitTest   # 148 testes
