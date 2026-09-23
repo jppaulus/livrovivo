@@ -110,13 +110,8 @@ object TrailParser {
     }
 
     /** true se [answer] pode ser montada juntando algumas das [pieces], cada uma usada no máximo uma vez. */
-    internal fun canBuild(answer: String, pieces: List<String>): Boolean {
-        if (answer.isEmpty()) return true
-        return pieces.withIndex().any { (index, piece) ->
-            piece.isNotEmpty() && answer.startsWith(piece) &&
-                canBuild(answer.removePrefix(piece), pieces.filterIndexed { other, _ -> other != index })
-        }
-    }
+    internal fun canBuild(answer: String, pieces: List<String>): Boolean =
+        answer.isNotEmpty() && LiteracyRules.solvePieces(answer, pieces) != null
 }
 
 // --- Formato do JSON (nomes em português, como o script gera) ---

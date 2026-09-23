@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.settings.SettingsManager
@@ -84,14 +86,19 @@ import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.MagicalCompanion
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.ThemeOption
+import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.DeleteStoryUseCase
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
 import com.livrovivo.app.domain.usecase.GetStoriesUseCase
 import com.livrovivo.app.domain.usecase.QuotaStatus
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -106,6 +113,10 @@ data class HomeUiState(
     val inProgress: Story? get() = stories.firstOrNull { !it.isCompleted && it.chapters.isNotEmpty() }
 }
 
+/** Cartão "Aprender a ler" da Home: quantas fases a criança já concluiu. */
+data class LiteracyCardState(val completedPhases: Int, val totalPhases: Int)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     getStoriesUseCase: GetStoriesUseCase,
     private val getActiveChildUseCase: GetActiveChildUseCase,
@@ -113,7 +124,8 @@ class HomeViewModel(
     private val deleteStoryUseCase: DeleteStoryUseCase,
     settingsManager: SettingsManager,
     backendConfigured: Boolean,
-    private val audioPlayerController: AudioPlayerController
+    private val audioPlayerController: AudioPlayerController,
+    private val literacyRepository: LiteracyRepository
 ) : ViewModel() {
 
     private val quota = kotlinx.coroutines.flow.MutableStateFlow<QuotaStatus>(QuotaStatus.Limited(3, 3))
@@ -133,6 +145,16 @@ class HomeViewModel(
             aiConfigured = settings.hasGeminiKey || backendConfigured
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /** null esconde o cartão (faixa 9+, ou trilha indisponível). */
+    val literacyCard: StateFlow<LiteracyCardState?> = getActiveChildUseCase().flatMapLatest { child ->
+        if (child == null || !LiteracyRules.isTrailVisible(child.ageGroup)) return@flatMapLatest flowOf(null)
+        val total = runCatching { literacyRepository.getTrail().phases.size }.getOrNull()
+            ?: return@flatMapLatest flowOf(null)
+        literacyRepository.observeProgress(child.id).map { progress ->
+            LiteracyCardState(completedPhases = progress.count { it.isCompleted }, totalPhases = total)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         refreshQuota()
@@ -184,9 +206,11 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToCreation: () -> Unit,
     onNavigateToReader: (String) -> Unit,
-    onNavigateToParentArea: () -> Unit
+    onNavigateToParentArea: () -> Unit,
+    onNavigateToLiteracy: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val literacyCard by viewModel.literacyCard.collectAsState()
     DisposableEffect(viewModel) { onDispose { viewModel.stopHelp() } }
     var afterParentalGate by remember { mutableStateOf<(() -> Unit)?>(null) }
     var storyToDelete by remember { mutableStateOf<Story?>(null) }
@@ -315,6 +339,12 @@ fun HomeScreen(
                     }
                 }
 
+                literacyCard?.let { card ->
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        LearnToReadCard(state = card, onClick = onNavigateToLiteracy)
+                    }
+                }
+
                 uiState.inProgress?.let { story ->
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         ContinueReadingCard(story = story, onClick = { onNavigateToReader(story.id) })
@@ -399,6 +429,61 @@ private fun ParentHintCard(onClick: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun LearnToReadCard(state: LiteracyCardState, onClick: () -> Unit) {
+    BouncyCardButton(
+        onClick = onClick,
+        containerColor = FairyEmeraldDeep,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "ABC", fontSize = 24.sp, fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Aprender a ler",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                Text(
+                    text = "${state.completedPhases} de ${state.totalPhases} fases",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { state.completedPhases.toFloat() / state.totalPhases.coerceAtLeast(1) },
+                    color = FairyGold,
+                    trackColor = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = FairyGold, modifier = Modifier.size(40.dp))
+        }
+    }
+}
+
+/** Verde mais escuro que o FairyEmerald, para o texto branco ter contraste suficiente. */
+private val FairyEmeraldDeep = Color(0xFF0B7A57)
 
 @Composable
 private fun ContinueReadingCard(story: Story, onClick: () -> Unit) {

@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 89 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 100 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 89 testes
+./gradlew testDebugUnitTest   # 100 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
@@ -64,6 +64,9 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/database/` | Room v5; migrações 2→3, 3→4 e 4→5 **preservam histórias antigas** (testes em `androidTest/`) |
 | `core/literacy/TrailParser.kt` | Lê e valida `assets/alfabetizacao/trilha.json` (Trilha da Leitura) |
+| `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, quem vê a trilha (9+ escondida), peças que formam a resposta |
+| `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
+| `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
 | `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
 | `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `applyPendingDefaults()` |
 | `presentation/reader/` | Leitor: páginas, escolhas, voltar e trocar de caminho, comemoração, barra de narração |
@@ -119,7 +122,8 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 |---|---|
 | 0. Commit, testes, branch | ✅ 22/09 |
 | 1. Conteúdo e dados | ✅ 22/09: `trilha.json` em assets, `TrailParser` (mesmas regras do script Python), modelos em `domain/model/Literacy.kt`, `LiteracyRepository`, tabela `literacy_progress` e coluna `stories.kind` (Room 4→5) |
-| 2 a 8 | Pendentes |
+| 2. Trilha jogável | ✅ 22/09: mapa, fases, os 5 tipos de atividade, resultado com estrelas e cartão "Aprender a ler" na Home. Jogado no emulador: vogais_a, silabas_b, palavras_01, ditado_01 |
+| 3 a 8 | Pendentes |
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -127,6 +131,20 @@ Detalhes da etapa 1:
 - `recordAttempt` guarda a **melhor** nota (0–3), soma tentativas e erros e grava `completedAt` só na primeira vez
   com ≥ 1 estrela. O cálculo das estrelas a partir dos acertos e o desbloqueio são da etapa 3.
 - `Story.kind`: `aventura` (padrão) ou `eu_leio`.
+
+Detalhes da etapa 2 (o que ainda falta está nas etapas seguintes):
+- Nome usado: **"Aprender a ler"**; trilha escondida para 9+ (`LiteracyRules.isTrailVisible`). Decisões da seção 10
+  do `ALFABETIZACAO.md` ainda em aberto; trocar é só mudar o texto e o parâmetro.
+- Um "acerto" é a pergunta certa **na primeira tentativa**; depois de errar a criança tenta de novo até acertar.
+  Com 2 erros na mesma pergunta, a resposta (ou a próxima peça) pisca como dica.
+- As atividades usam fonte **sem serifa** (`LetterFont`): o tema do app usa serifa nas histórias.
+- A narração lê a instrução em minúsculas ("forme ba") para a voz não soletrar a sílaba; a voz certa é da etapa 7.
+- **Ainda não salva o progresso nem bloqueia fases** (etapa 3): o `isLocked` já existe na UI, sempre `false`.
+  Fases de assinantes mostram o selo, mas jogam (bloqueio na etapa 8).
+- ⚠️ Sem as 55 figuras, a pergunta "figura e palavra" mostra a palavra escrita (como a especificação pede), então
+  vira um jogo de achar a palavra igual até as figuras existirem.
+- Roteiro de teste no emulador: `scratchpad/play.py <phase_id>` joga uma fase lendo as respostas do JSON (não
+  está no repositório).
 
 ## 6. Pendências (em ordem de prioridade)
 

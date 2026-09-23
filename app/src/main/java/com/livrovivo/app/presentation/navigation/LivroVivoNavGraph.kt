@@ -30,6 +30,12 @@ import com.livrovivo.app.presentation.creation.CreationScreen
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeScreen
 import com.livrovivo.app.presentation.home.HomeViewModel
+import com.livrovivo.app.presentation.literacy.ActivityScreen
+import com.livrovivo.app.presentation.literacy.ActivityViewModel
+import com.livrovivo.app.presentation.literacy.LiteracyViewModel
+import com.livrovivo.app.presentation.literacy.PhaseListScreen
+import com.livrovivo.app.presentation.literacy.PhaseResultScreen
+import com.livrovivo.app.presentation.literacy.TrailScreen
 import com.livrovivo.app.presentation.onboarding.OnboardingScreen
 import com.livrovivo.app.presentation.onboarding.OnboardingViewModel
 import com.livrovivo.app.presentation.parent.ParentDashboardScreen
@@ -117,7 +123,75 @@ fun LivroVivoNavGraph(
                 viewModel = viewModel,
                 onNavigateToCreation = { navController.navigate(Screen.Creation.route) },
                 onNavigateToReader = { storyId -> navController.navigate(Screen.Reader.createRoute(storyId)) },
-                onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) }
+                onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) },
+                onNavigateToLiteracy = { navController.navigate(Screen.LiteracyTrail.route) }
+            )
+        }
+
+        composable(Screen.LiteracyTrail.route) {
+            val viewModel: LiteracyViewModel = koinViewModel()
+            TrailScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onOpenModule = { moduleId -> navController.navigate(Screen.LiteracyPhases.createRoute(moduleId)) }
+            )
+        }
+
+        composable(
+            route = Screen.LiteracyPhases.route,
+            arguments = listOf(navArgument("moduleId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val viewModel: LiteracyViewModel = koinViewModel()
+            PhaseListScreen(
+                viewModel = viewModel,
+                moduleId = backStackEntry.arguments?.getString("moduleId").orEmpty(),
+                onNavigateBack = { navController.popBackStack() },
+                onOpenPhase = { phaseId -> navController.navigate(Screen.LiteracyActivity.createRoute(phaseId)) }
+            )
+        }
+
+        composable(
+            route = Screen.LiteracyActivity.route,
+            arguments = listOf(navArgument("phaseId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val phaseId = backStackEntry.arguments?.getString("phaseId").orEmpty()
+            val viewModel: ActivityViewModel = koinViewModel(parameters = { parametersOf(phaseId) })
+            ActivityScreen(
+                viewModel = viewModel,
+                onClose = { navController.popBackStack() },
+                onFinished = { stars ->
+                    // A atividade sai da pilha: "voltar" no resultado leva para a lista de fases.
+                    navController.navigate(Screen.LiteracyResult.createRoute(phaseId, stars)) {
+                        popUpTo(Screen.LiteracyActivity.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Screen.LiteracyResult.route,
+            arguments = listOf(
+                navArgument("phaseId") { type = NavType.StringType },
+                navArgument("stars") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val phaseId = backStackEntry.arguments?.getString("phaseId").orEmpty()
+            val viewModel: LiteracyViewModel = koinViewModel()
+            PhaseResultScreen(
+                viewModel = viewModel,
+                phaseId = phaseId,
+                stars = backStackEntry.arguments?.getInt("stars") ?: 0,
+                onNextPhase = { nextId ->
+                    navController.navigate(Screen.LiteracyActivity.createRoute(nextId)) {
+                        popUpTo(Screen.LiteracyResult.route) { inclusive = true }
+                    }
+                },
+                onPlayAgain = {
+                    navController.navigate(Screen.LiteracyActivity.createRoute(phaseId)) {
+                        popUpTo(Screen.LiteracyResult.route) { inclusive = true }
+                    }
+                },
+                onBackToTrail = { navController.popBackStack() }
             )
         }
 
