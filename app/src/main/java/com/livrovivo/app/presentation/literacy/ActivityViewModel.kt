@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.literacy.FeedbackSounds
+import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.domain.repository.LiteracyRepository
+import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,13 +16,16 @@ import kotlinx.coroutines.launch
 
 data class ActivityScreenState(
     val session: ActivityState? = null,
-    val error: String? = null
+    val error: String? = null,
+    /** Estrelas da fase, preenchido só depois que o resultado foi salvo (aí a tela pode sair). */
+    val savedStars: Int? = null
 )
 
 /** Uma fase sendo jogada: as 5 perguntas, a narração de cada instrução e os sons de acerto e erro. */
 class ActivityViewModel(
     private val phaseId: String,
     private val literacyRepository: LiteracyRepository,
+    private val getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController,
     private val feedbackSounds: FeedbackSounds
 ) : ViewModel() {
@@ -30,13 +35,23 @@ class ActivityViewModel(
 
     private var feedbackJob: Job? = null
 
+    private var childId: String? = null
+
     init {
         viewModelScope.launch {
-            val phase = runCatching { literacyRepository.getTrail().phase(phaseId) }.getOrNull()
-            if (phase == null || phase.questions.isEmpty()) {
+            val child = getActiveChildUseCase.getDirect()
+            val trail = runCatching { literacyRepository.getTrail() }.getOrNull()
+            val phase = trail?.phase(phaseId)
+            if (child == null || trail == null || phase == null || phase.questions.isEmpty()) {
                 _state.value = ActivityScreenState(error = "Esta fase não foi encontrada.")
                 return@launch
             }
+            val completed = LiteracyRules.completedPhaseIds(literacyRepository.getProgress(child.id))
+            if (phaseId !in LiteracyRules.unlockedPhaseIds(trail, completed)) {
+                _state.value = ActivityScreenState(error = "Esta fase ainda está trancada. Termine as fases de antes!")
+                return@launch
+            }
+            childId = child.id
             _state.value = ActivityScreenState(session = ActivitySession.start(phase))
             speakPrompt()
         }
@@ -78,8 +93,17 @@ class ActivityViewModel(
             delay(CELEBRATION_MS)
             val next = ActivitySession.next(_state.value.session ?: return@launch)
             _state.value = _state.value.copy(session = next)
-            if (!next.finished) speakPrompt()
+            if (next.finished) saveResult(next) else speakPrompt()
         }
+    }
+
+    /** Guarda a melhor nota antes de a tela sair (a tela espera o [ActivityScreenState.savedStars]). */
+    private suspend fun saveResult(session: ActivityState) {
+        val child = childId
+        if (child != null) {
+            runCatching { literacyRepository.recordAttempt(child, phaseId, session.stars, session.totalMistakes) }
+        }
+        _state.value = _state.value.copy(savedStars = session.stars)
     }
 
     private fun onTryAgain() {

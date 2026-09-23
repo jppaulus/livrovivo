@@ -87,7 +87,7 @@ fun PhaseResultScreen(
             )
             Spacer(Modifier.height(36.dp))
 
-            if (stars >= 1 && next != null) {
+            if (stars >= 1 && next != null && !next.isLocked) {
                 BouncyCardButton(
                     onClick = { onNextPhase(next.phase.id) },
                     containerColor = FairyPurple,

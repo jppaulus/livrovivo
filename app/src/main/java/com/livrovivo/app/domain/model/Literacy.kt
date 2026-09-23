@@ -74,6 +74,19 @@ enum class QuestionType(val code: String) {
     }
 }
 
+/**
+ * O que a criança já sabe, calculado a partir das fases concluídas (não fica numa tabela).
+ * É a base dos livros "Eu leio": só entram palavras que ela consegue ler.
+ */
+data class LiteracyKnowledge(
+    /** Vogais + consoantes concluídas. */
+    val letters: Set<String> = emptySet(),
+    /** União do "ensina" das fases de sílabas concluídas. */
+    val syllables: Set<String> = emptySet(),
+    /** União do "ensina" das fases de palavras concluídas. */
+    val words: Set<String> = emptySet()
+)
+
 /** Resultado guardado de uma fase para uma criança (tabela `literacy_progress`). */
 data class PhaseProgress(
     val childId: String,

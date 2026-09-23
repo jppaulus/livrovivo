@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 100 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 108 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 100 testes
+./gradlew testDebugUnitTest   # 108 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
@@ -37,6 +37,9 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 emulator -avd Medium_Phone_API_36.1 -read-only -no-window -no-audio -no-snapshot -port 5582
 adb -s emulator-5582 shell settings put global sys_storage_threshold_percentage 1   # AVD quase cheio
 ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest
+# Outra sessão pode estar usando uma cópia na 5580: use outra porta (o teste instrumentado desinstala o app).
+# Se o servidor do adb reiniciar no meio do teste, a cópia pode travar (aparece em "adb devices", mas não
+# responde): "adb -s emulator-5582 emu kill" e suba de novo.
 ```
 
 ⚠️ **O usuário costuma usar o app no emulador em paralelo.** Se a tela mudar sozinha (narrador trocado,
@@ -64,7 +67,7 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
 | `core/database/` | Room v5; migrações 2→3, 3→4 e 4→5 **preservam histórias antigas** (testes em `androidTest/`) |
 | `core/literacy/TrailParser.kt` | Lê e valida `assets/alfabetizacao/trilha.json` (Trilha da Leitura) |
-| `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, quem vê a trilha (9+ escondida), peças que formam a resposta |
+| `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, desbloqueio em ordem, `LiteracyKnowledge`, quem vê a trilha (9+ escondida), peças que formam a resposta |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
 | `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
@@ -123,7 +126,8 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 | 0. Commit, testes, branch | ✅ 22/09 |
 | 1. Conteúdo e dados | ✅ 22/09: `trilha.json` em assets, `TrailParser` (mesmas regras do script Python), modelos em `domain/model/Literacy.kt`, `LiteracyRepository`, tabela `literacy_progress` e coluna `stories.kind` (Room 4→5) |
 | 2. Trilha jogável | ✅ 22/09: mapa, fases, os 5 tipos de atividade, resultado com estrelas e cartão "Aprender a ler" na Home. Jogado no emulador: vogais_a, silabas_b, palavras_01, ditado_01 |
-| 3 a 8 | Pendentes |
+| 3. Progresso | ✅ 22/09: estrelas salvas, módulos e fases liberam em ordem, `LiteracyKnowledge`. Conferido no emulador: progresso continua depois de fechar o app à força; Consoantes só abre depois das 5 vogais |
+| 4 a 8 | Pendentes |
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -139,10 +143,19 @@ Detalhes da etapa 2 (o que ainda falta está nas etapas seguintes):
   Com 2 erros na mesma pergunta, a resposta (ou a próxima peça) pisca como dica.
 - As atividades usam fonte **sem serifa** (`LetterFont`): o tema do app usa serifa nas histórias.
 - A narração lê a instrução em minúsculas ("forme ba") para a voz não soletrar a sílaba; a voz certa é da etapa 7.
-- **Ainda não salva o progresso nem bloqueia fases** (etapa 3): o `isLocked` já existe na UI, sempre `false`.
-  Fases de assinantes mostram o selo, mas jogam (bloqueio na etapa 8).
+- Fases de assinantes mostram o selo, mas jogam (bloqueio na etapa 8).
 - ⚠️ Sem as 55 figuras, a pergunta "figura e palavra" mostra a palavra escrita (como a especificação pede), então
   vira um jogo de achar a palavra igual até as figuras existirem.
+
+Detalhes da etapa 3:
+- O resultado é salvo **antes** de a tela sair: a `ActivityScreen` só navega quando `savedStars` chega (a atividade
+  sai da pilha e o ViewModel dela é destruído; salvar depois perderia o resultado).
+- `ActivityViewModel` recusa abrir fase trancada, mesmo que alguém chegue nela pela rota.
+- `LiteracyRules` usa os ids dos módulos (`vogais`, `consoantes`, `silabas`, `palavras`) para saber o que o "ensina"
+  significa. Se o `gerar_conteudo.py` mudar esses ids, mude as constantes também (os testes avisam).
+- Fase já concluída sempre continua liberada para jogar de novo; jogar pior não tira estrelas.
+- `LiteracyUiState.knowledge` já expõe o que a criança sabe, para a etapa 4 (livros "Eu leio").
+
 - Roteiro de teste no emulador: `scratchpad/play.py <phase_id>` joga uma fase lendo as respostas do JSON (não
   está no repositório).
 

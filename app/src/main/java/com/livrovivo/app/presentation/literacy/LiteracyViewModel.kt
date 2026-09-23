@@ -3,7 +3,9 @@ package com.livrovivo.app.presentation.literacy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
+import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.domain.model.ChildProfile
+import com.livrovivo.app.domain.model.LiteracyKnowledge
 import com.livrovivo.app.domain.model.LiteracyModule
 import com.livrovivo.app.domain.model.LiteracyPhase
 import com.livrovivo.app.domain.model.LiteracyTrail
@@ -46,7 +48,8 @@ data class LiteracyUiState(
     val error: String? = null,
     val child: ChildProfile? = null,
     val trail: LiteracyTrail? = null,
-    val modules: List<ModuleUi> = emptyList()
+    val modules: List<ModuleUi> = emptyList(),
+    val knowledge: LiteracyKnowledge = LiteracyKnowledge()
 ) {
     val totalPhases: Int get() = modules.sumOf { it.phases.size }
     val completedPhases: Int get() = modules.sumOf { it.completedPhases }
@@ -87,16 +90,29 @@ class LiteracyViewModel(
 
     private fun buildState(child: ChildProfile, trail: LiteracyTrail, progress: List<PhaseProgress>): LiteracyUiState {
         val starsByPhase = progress.associate { it.phaseId to it.stars }
+        val completed = LiteracyRules.completedPhaseIds(progress)
+        val unlocked = LiteracyRules.unlockedPhaseIds(trail, completed)
         val modules = trail.modules.map { module ->
             ModuleUi(
                 module = module,
                 phases = module.phases.mapIndexed { index, phase ->
-                    PhaseUi(phase = phase, number = index + 1, stars = starsByPhase[phase.id] ?: 0, isLocked = false)
+                    PhaseUi(
+                        phase = phase,
+                        number = index + 1,
+                        stars = starsByPhase[phase.id] ?: 0,
+                        isLocked = phase.id !in unlocked
+                    )
                 },
-                isLocked = false
+                isLocked = module.phases.none { it.id in unlocked }
             )
         }
-        return LiteracyUiState(isLoading = false, child = child, trail = trail, modules = modules)
+        return LiteracyUiState(
+            isLoading = false,
+            child = child,
+            trail = trail,
+            modules = modules,
+            knowledge = LiteracyRules.knowledge(trail, completed)
+        )
     }
 
     fun speak(text: String) {

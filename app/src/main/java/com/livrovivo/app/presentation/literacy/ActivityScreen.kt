@@ -72,8 +72,8 @@ fun ActivityScreen(
     val screen by viewModel.state.collectAsState()
     val session = screen.session
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
-    LaunchedEffect(session?.finished) {
-        if (session?.finished == true) onFinished(session.stars)
+    LaunchedEffect(screen.savedStars) {
+        screen.savedStars?.let(onFinished)
     }
 
     Box(
