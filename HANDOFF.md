@@ -1,6 +1,7 @@
 # Livro Vivo — contexto para retomar em um novo chat
 
 > Documento de passagem de bastão. Atualizado em 23/09/2026.
+> **Novo chat? Leia primeiro o `NOVO_CHAT.md`** (resumo do estado atual e texto pronto para colar).
 > Para começar rápido: leia as seções **1**, **5** e **6**.
 
 ---
