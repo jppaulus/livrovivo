@@ -26,8 +26,19 @@ data class VocabularyWord(
     /** Nome do drawable (ex.: `img_bola`). A figura pode ainda não existir no app. */
     val image: String,
     /** "O" ou "A". */
-    val article: String
-)
+    val article: String,
+    /**
+     * Pode entrar em frases de posse ou de lugar nos livros "Eu leio" ("LIA TEM UM ...", "O ... ESTÁ NA ...").
+     * false para partes do corpo, coisas perigosas e lugares que não se carregam.
+     */
+    val isObject: Boolean = true,
+    /** Pode vir depois de "ESTÁ NO/NA" ("O GATO ESTÁ NA CAMA"). */
+    val isPlace: Boolean = false
+) {
+    val indefiniteArticle: String get() = if (article == "A") "UMA" else "UM"
+    /** "EM" + artigo: "NO" ou "NA". */
+    val inArticle: String get() = if (article == "A") "NA" else "NO"
+}
 
 data class LiteracyModule(
     val id: String,
@@ -85,6 +96,17 @@ data class LiteracyKnowledge(
     val syllables: Set<String> = emptySet(),
     /** União do "ensina" das fases de palavras concluídas. */
     val words: Set<String> = emptySet()
+)
+
+/** Uma página de um livro "Eu leio": o texto e a palavra principal (a figura dela ilustra a página). */
+data class DecodablePage(val text: String, val mainWord: VocabularyWord)
+
+/** Livro "Eu leio" pronto: título e 4 páginas que a criança consegue ler sozinha. */
+data class DecodableBook(
+    val title: String,
+    val pages: List<DecodablePage>,
+    /** O companheiro mágico aparece no texto (só quando o nome dele é decodificável). */
+    val usesCompanion: Boolean = false
 )
 
 /** Resultado guardado de uma fase para uma criança (tabela `literacy_progress`). */

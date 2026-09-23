@@ -101,6 +101,21 @@ PALAVRAS_FEMININAS = {
     "TOCA",
 }
 
+# Palavras que fazem sentido depois de "ESTÁ NO" / "ESTÁ NA" nos livros "Eu leio":
+# lugares e coisas onde algo pode ficar dentro ou em cima ("O GATO ESTÁ NA CAMA").
+LUGARES = {
+    "CASA", "CAMA", "MESA", "MALA", "SACO", "COPO", "LATA", "VASO", "BULE",
+    "TUBO", "LUVA", "REDE", "TOCA", "NAVE", "MOTO",
+}
+
+# Palavras que NÃO entram em frases de posse ou de lugar nos livros "Eu leio"
+# ("LIA TEM UM ...", "O ... É DE LIA", "O ... ESTÁ NA ..."): partes do corpo,
+# coisas perigosas para criança e lugares que não se carregam.
+# Elas continuam aparecendo em frases como "É UMA BOCA!".
+NAO_OBJETOS = {
+    "BOCA", "DEDO", "FOGO", "FACA", "CASA", "TOCA",
+}
+
 # =====================================================================
 # FUNÇÕES DE APOIO
 # =====================================================================
@@ -458,6 +473,12 @@ def validar(conteudo):
     if sobrando:
         erros.append(f"PALAVRAS_FEMININAS tem palavras fora da lista: {sorted(sobrando)}")
 
+    # LUGARES e NAO_OBJETOS também precisam existir na lista PALAVRAS
+    for nome, conjunto in (("LUGARES", LUGARES), ("NAO_OBJETOS", NAO_OBJETOS)):
+        fora = conjunto - todas
+        if fora:
+            erros.append(f"{nome} tem palavras fora da lista: {sorted(fora)}")
+
     # Palavras repetidas na lista?
     repetidas = [p for p, qtd in Counter(PALAVRAS).items() if qtd > 1]
     if repetidas:
@@ -534,6 +555,8 @@ def main():
                 "silabas": separar_silabas(p),
                 "imagem": nome_imagem(juntar_palavra(p)),
                 "artigo": "A" if juntar_palavra(p) in PALAVRAS_FEMININAS else "O",
+                "objeto": juntar_palavra(p) not in NAO_OBJETOS,
+                "lugar": juntar_palavra(p) in LUGARES,
             }
             for p in PALAVRAS
         ],

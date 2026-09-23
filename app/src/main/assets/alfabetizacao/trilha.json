@@ -30,7 +30,9 @@
         "LA"
       ],
       "imagem": "img_bola",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "CASA",
@@ -39,7 +41,9 @@
         "SA"
       ],
       "imagem": "img_casa",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": false,
+      "lugar": true
     },
     {
       "palavra": "GATO",
@@ -48,7 +52,9 @@
         "TO"
       ],
       "imagem": "img_gato",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "PATO",
@@ -57,7 +63,9 @@
         "TO"
       ],
       "imagem": "img_pato",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "MALA",
@@ -66,7 +74,9 @@
         "LA"
       ],
       "imagem": "img_mala",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "SAPO",
@@ -75,7 +85,9 @@
         "PO"
       ],
       "imagem": "img_sapo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "DADO",
@@ -84,7 +96,9 @@
         "DO"
       ],
       "imagem": "img_dado",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "FACA",
@@ -93,7 +107,9 @@
         "CA"
       ],
       "imagem": "img_faca",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": false,
+      "lugar": false
     },
     {
       "palavra": "VACA",
@@ -102,7 +118,9 @@
         "CA"
       ],
       "imagem": "img_vaca",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "BOCA",
@@ -111,7 +129,9 @@
         "CA"
       ],
       "imagem": "img_boca",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": false,
+      "lugar": false
     },
     {
       "palavra": "CAMA",
@@ -120,7 +140,9 @@
         "MA"
       ],
       "imagem": "img_cama",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "COPO",
@@ -129,7 +151,9 @@
         "PO"
       ],
       "imagem": "img_copo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "DEDO",
@@ -138,7 +162,9 @@
         "DO"
       ],
       "imagem": "img_dedo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": false,
+      "lugar": false
     },
     {
       "palavra": "FOGO",
@@ -147,7 +173,9 @@
         "GO"
       ],
       "imagem": "img_fogo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": false,
+      "lugar": false
     },
     {
       "palavra": "GALO",
@@ -156,7 +184,9 @@
         "LO"
       ],
       "imagem": "img_galo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "LATA",
@@ -165,7 +195,9 @@
         "TA"
       ],
       "imagem": "img_lata",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "LOBO",
@@ -174,7 +206,9 @@
         "BO"
       ],
       "imagem": "img_lobo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "MOLA",
@@ -183,7 +217,9 @@
         "LA"
       ],
       "imagem": "img_mola",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "NAVE",
@@ -192,7 +228,9 @@
         "VE"
       ],
       "imagem": "img_nave",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "PENA",
@@ -201,7 +239,9 @@
         "NA"
       ],
       "imagem": "img_pena",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "PIPA",
@@ -210,7 +250,9 @@
         "PA"
       ],
       "imagem": "img_pipa",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "RODA",
@@ -219,7 +261,9 @@
         "DA"
       ],
       "imagem": "img_roda",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "RATO",
@@ -228,7 +272,9 @@
         "TO"
       ],
       "imagem": "img_rato",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "SACO",
@@ -237,7 +283,9 @@
         "CO"
       ],
       "imagem": "img_saco",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "SELO",
@@ -246,7 +294,9 @@
         "LO"
       ],
       "imagem": "img_selo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "TATU",
@@ -255,7 +305,9 @@
         "TU"
       ],
       "imagem": "img_tatu",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "TUBO",
@@ -264,7 +316,9 @@
         "BO"
       ],
       "imagem": "img_tubo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "VELA",
@@ -273,7 +327,9 @@
         "LA"
       ],
       "imagem": "img_vela",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "BALA",
@@ -282,7 +338,9 @@
         "LA"
       ],
       "imagem": "img_bala",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "BOLO",
@@ -291,7 +349,9 @@
         "LO"
       ],
       "imagem": "img_bolo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "BULE",
@@ -300,7 +360,9 @@
         "LE"
       ],
       "imagem": "img_bule",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "COLA",
@@ -309,7 +371,9 @@
         "LA"
       ],
       "imagem": "img_cola",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "FADA",
@@ -318,7 +382,9 @@
         "DA"
       ],
       "imagem": "img_fada",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "FITA",
@@ -327,7 +393,9 @@
         "TA"
       ],
       "imagem": "img_fita",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "LUPA",
@@ -336,7 +404,9 @@
         "PA"
       ],
       "imagem": "img_lupa",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "MAPA",
@@ -345,7 +415,9 @@
         "PA"
       ],
       "imagem": "img_mapa",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "MESA",
@@ -354,7 +426,9 @@
         "SA"
       ],
       "imagem": "img_mesa",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "MOTO",
@@ -363,7 +437,9 @@
         "TO"
       ],
       "imagem": "img_moto",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "NABO",
@@ -372,7 +448,9 @@
         "BO"
       ],
       "imagem": "img_nabo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "PERA",
@@ -381,7 +459,9 @@
         "RA"
       ],
       "imagem": "img_pera",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "SUCO",
@@ -390,7 +470,9 @@
         "CO"
       ],
       "imagem": "img_suco",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "TELA",
@@ -399,7 +481,9 @@
         "LA"
       ],
       "imagem": "img_tela",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "VASO",
@@ -408,7 +492,9 @@
         "SO"
       ],
       "imagem": "img_vaso",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "FOCA",
@@ -417,7 +503,9 @@
         "CA"
       ],
       "imagem": "img_foca",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "DOCE",
@@ -426,7 +514,9 @@
         "CE"
       ],
       "imagem": "img_doce",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "LUVA",
@@ -435,7 +525,9 @@
         "VA"
       ],
       "imagem": "img_luva",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "REDE",
@@ -444,7 +536,9 @@
         "DE"
       ],
       "imagem": "img_rede",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": true
     },
     {
       "palavra": "SOPA",
@@ -453,7 +547,9 @@
         "PA"
       ],
       "imagem": "img_sopa",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "GELO",
@@ -462,7 +558,9 @@
         "LO"
       ],
       "imagem": "img_gelo",
-      "artigo": "O"
+      "artigo": "O",
+      "objeto": true,
+      "lugar": false
     },
     {
       "palavra": "TOCA",
@@ -471,7 +569,9 @@
         "CA"
       ],
       "imagem": "img_toca",
-      "artigo": "A"
+      "artigo": "A",
+      "objeto": false,
+      "lugar": true
     }
   ],
   "modulos": [

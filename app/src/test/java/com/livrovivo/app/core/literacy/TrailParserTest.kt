@@ -49,6 +49,11 @@ class TrailParserTest {
         assertEquals(listOf("BO", "LA"), bola.syllables)
         assertEquals("img_bola", bola.image)
         assertEquals("A", bola.article)
+        assertEquals("UMA", bola.indefiniteArticle)
+        assertEquals("NA", bola.inArticle)
+        assertTrue(bola.isObject)
+        assertTrue(trail.vocabulary.single { it.word == "CAMA" }.isPlace)
+        assertFalse("não entra em \"LIA TEM UMA FACA\"", trail.vocabulary.single { it.word == "FACA" }.isObject)
 
         val pictureQuestions = trail.phases.flatMap { it.questions }.filter { it.type == QuestionType.PICTURE_WORD }
         assertTrue(pictureQuestions.all { it.image != null })

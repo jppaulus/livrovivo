@@ -41,7 +41,7 @@ object TrailParser {
     private fun TrailDto.toDomain(problems: MutableList<String>) = LiteracyTrail(
         version = versao,
         supportWords = palavrasDeApoio,
-        vocabulary = vocabulario.map { VocabularyWord(it.palavra, it.silabas, it.imagem, it.artigo) },
+        vocabulary = vocabulario.map { VocabularyWord(it.palavra, it.silabas, it.imagem, it.artigo, it.objeto, it.lugar) },
         modules = modulos.sortedBy { it.ordem }.map { module ->
             LiteracyModule(
                 id = module.id,
@@ -129,7 +129,9 @@ private data class VocabularyDto(
     val palavra: String,
     val silabas: List<String>,
     val imagem: String,
-    val artigo: String
+    val artigo: String,
+    val objeto: Boolean = true,
+    val lugar: Boolean = false
 )
 
 @Serializable

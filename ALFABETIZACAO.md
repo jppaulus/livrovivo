@@ -73,6 +73,8 @@ Fase da trilha → aprende sílabas novas → desbloqueia um livro "Eu leio" →
 | --- | --- |
 | `palavras_de_apoio` | Palavrinhas que a criança aprende "de vista". Podem aparecer nos livros "Eu leio" desde o início |
 | `vocabulario` | As 50 palavras de 2 sílabas, com sílabas, figura e artigo (O/A) |
+| `vocabulario[].objeto` | *(acrescentado na etapa 4)* Pode entrar em "LIA TEM UM ..." ou "O ... ESTÁ NA ...". `false` para partes do corpo, coisas perigosas e lugares que não se carregam (lista `NAO_OBJETOS` do script) |
+| `vocabulario[].lugar` | *(acrescentado na etapa 4)* Pode vir depois de "ESTÁ NO/NA" (lista `LUGARES` do script) |
 | `fase.ensina` | O que a criança aprende ao concluir a fase (uma letra, 5 sílabas ou 5 palavras). É a base dos livros "Eu leio" |
 | `fase.gratis` | Se a fase é liberada sem assinatura |
 | `pergunta.tipo` | `ouvir_tocar`, `juntar`, `montar_palavra`, `figura_palavra` ou `ditado` |

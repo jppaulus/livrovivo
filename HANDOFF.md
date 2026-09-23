@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 108 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 139 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,7 +29,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 108 testes
+./gradlew testDebugUnitTest   # 139 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
@@ -68,6 +68,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/database/` | Room v5; migrações 2→3, 3→4 e 4→5 **preservam histórias antigas** (testes em `androidTest/`) |
 | `core/literacy/TrailParser.kt` | Lê e valida `assets/alfabetizacao/trilha.json` (Trilha da Leitura) |
 | `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, desbloqueio em ordem, `LiteracyKnowledge`, quem vê a trilha (9+ escondida), peças que formam a resposta |
+| `core/literacy/DecodableValidator.kt` | Juiz dos livros "Eu leio": palavras que a criança ainda não lê e problemas de formato (4 páginas, 1–2 frases de 3–7 palavras, maiúsculas, só `. , ! ?`) |
+| `core/literacy/OfflineDecodableEngine.kt` | Livro "Eu leio" sem IA: roteiros Coleção, Cadê? e Adivinha, com a criança como personagem |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
 | `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
@@ -127,7 +129,8 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 | 1. Conteúdo e dados | ✅ 22/09: `trilha.json` em assets, `TrailParser` (mesmas regras do script Python), modelos em `domain/model/Literacy.kt`, `LiteracyRepository`, tabela `literacy_progress` e coluna `stories.kind` (Room 4→5) |
 | 2. Trilha jogável | ✅ 22/09: mapa, fases, os 5 tipos de atividade, resultado com estrelas e cartão "Aprender a ler" na Home. Jogado no emulador: vogais_a, silabas_b, palavras_01, ditado_01 |
 | 3. Progresso | ✅ 22/09: estrelas salvas, módulos e fases liberam em ordem, `LiteracyKnowledge`. Conferido no emulador: progresso continua depois de fechar o app à força; Consoantes só abre depois das 5 vogais |
-| 4 a 8 | Pendentes |
+| 4. Validador + livro offline | ✅ 22/09: `DecodableValidator`, `OfflineDecodableEngine` e `LiteracyRules.booksEarned`. Os testes geram mais de 10 mil livros pela trilha inteira (vários nomes, os 4 companheiros, 25 sementes) e todos passam no validador |
+| 5 a 8 | Pendentes |
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -155,6 +158,17 @@ Detalhes da etapa 3:
   significa. Se o `gerar_conteudo.py` mudar esses ids, mude as constantes também (os testes avisam).
 - Fase já concluída sempre continua liberada para jogar de novo; jogar pior não tira estrelas.
 - `LiteracyUiState.knowledge` já expõe o que a criança sabe, para a etapa 4 (livros "Eu leio").
+
+Detalhes da etapa 4:
+- **Campos novos no `trilha.json`** (gerados pelo script, listas `LUGARES` e `NAO_OBJETOS` em `gerar_conteudo.py`):
+  `objeto` e `lugar` em cada palavra do vocabulário. Sem eles o motor escrevia "LIA TEM UM DEDO", "LIA TEM UMA
+  FACA" ou "O DADO ESTÁ NA BOCA". O resto do JSON saiu idêntico ao anterior. Para mudar, edite as listas e rode o script.
+- O validador também aceita palavras aprendidas numa fase de palavras, junta acentos escritos separados (NFC) e
+  separa o nome em partes só com letras ("Ana-Luísa" → ANA, LUÍSA; "Lia2" → LIA). O livro usa a primeira parte.
+- Companheiro: entra no livro só quando a criança já lê o nome (LU-NA, PI-PO-CA); Bento e Aurora nunca entram.
+- Livros ganhos: o 1º com 3 fases de Sílabas; depois, 1 a cada 2 fases de sílabas, palavras ou ditado (16 na trilha toda).
+  A regra existe (`booksEarned`), mas ainda não cria o livro nem mostra o aviso: isso é a etapa 5, junto com o leitor.
+- O motor usa `seed` para variar (use o número do livro) e `focusSyllables` para pôr as sílabas mais novas no livro.
 
 - Roteiro de teste no emulador: `scratchpad/play.py <phase_id>` joga uma fase lendo as respostas do JSON (não
   está no repositório).

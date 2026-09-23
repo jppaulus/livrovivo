@@ -72,6 +72,28 @@ class LiteracyRulesTest {
     }
 
     @Test
+    fun `the first book comes with 3 syllable phases`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+        val syllables = module("silabas")
+
+        assertEquals(0, LiteracyRules.booksEarned(trail, letters))
+        assertEquals(0, LiteracyRules.booksEarned(trail, letters + syllables.take(2)))
+        assertEquals(1, LiteracyRules.booksEarned(trail, letters + syllables.take(3)))
+    }
+
+    @Test
+    fun `after the first, a new book every 2 phases of syllables, words or dictation`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+        val later = module("silabas") + module("palavras") + module("ditado")
+
+        assertEquals(1, LiteracyRules.booksEarned(trail, letters + later.take(4)))
+        assertEquals(2, LiteracyRules.booksEarned(trail, letters + later.take(5)))
+        assertEquals(6, LiteracyRules.booksEarned(trail, letters + module("silabas")))
+        assertEquals(7, LiteracyRules.booksEarned(trail, letters + later.take(15)))
+        assertEquals("a trilha inteira dá 16 livros", 16, LiteracyRules.booksEarned(trail, letters + later))
+    }
+
+    @Test
     fun `a new child knows nothing yet`() {
         val knowledge = LiteracyRules.knowledge(trail, emptySet())
 

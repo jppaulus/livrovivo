@@ -13,6 +13,13 @@ object LiteracyRules {
     const val MODULE_CONSONANTS = "consoantes"
     const val MODULE_SYLLABLES = "silabas"
     const val MODULE_WORDS = "palavras"
+    const val MODULE_DICTATION = "ditado"
+
+    /** O primeiro livro "Eu leio" sai com 3 fases de Sílabas (com B, C e D já dá: BOCA, DADO, DOCE). */
+    const val FIRST_BOOK_SYLLABLE_PHASES = 3
+
+    /** Depois do primeiro, um livro novo a cada 2 fases de sílabas, palavras ou ditado. */
+    const val PHASES_PER_NEW_BOOK = 2
 
     /** Fases com pelo menos 1 estrela. */
     fun completedPhaseIds(progress: List<PhaseProgress>): Set<String> =
@@ -33,6 +40,15 @@ object LiteracyRules {
         }
         // Fase já concluída sempre pode ser jogada de novo.
         return unlocked + completed.filter { trail.phase(it) != null }
+    }
+
+    /** Quantos livros "Eu leio" a criança já ganhou com as fases concluídas. */
+    fun booksEarned(trail: LiteracyTrail, completed: Set<String>): Int {
+        fun done(moduleId: String): Int = trail.module(moduleId)?.phases?.count { it.id in completed } ?: 0
+        val syllablePhases = done(MODULE_SYLLABLES)
+        if (syllablePhases < FIRST_BOOK_SYLLABLE_PHASES) return 0
+        val counted = syllablePhases + done(MODULE_WORDS) + done(MODULE_DICTATION)
+        return 1 + (counted - FIRST_BOOK_SYLLABLE_PHASES) / PHASES_PER_NEW_BOOK
     }
 
     fun knowledge(trail: LiteracyTrail, completed: Set<String>): LiteracyKnowledge {
