@@ -94,6 +94,47 @@ class LiteracyRulesTest {
     }
 
     @Test
+    fun `each book remembers the phase that unlocked it`() {
+        val letters = (module("vogais") + module("consoantes")).toSet()
+        val later = module("silabas") + module("palavras") + module("ditado")
+
+        val triggers = LiteracyRules.bookTriggerPhases(trail, letters + later.take(15)).map { it.id }
+
+        assertEquals(listOf("silabas_d", "silabas_g", "silabas_m", "silabas_p", "silabas_s", "silabas_v", "palavras_02"), triggers)
+    }
+
+    @Test
+    fun `a book uses what the child knew when it was unlocked`() {
+        val everything = trail.phases.map { it.id }.toSet()
+
+        val knowledge = LiteracyRules.knowledgeUpTo(trail, everything, trail.phase("silabas_d")!!)
+
+        assertEquals(trail.module("silabas")!!.phases.take(3).flatMap { it.teaches }.toSet(), knowledge.syllables)
+        assertTrue(knowledge.words.isEmpty())
+    }
+
+    @Test
+    fun `the book practices the syllables of the phase that unlocked it`() {
+        assertEquals(setOf("BA", "BE", "BI", "BO", "BU"), LiteracyRules.phaseSyllables(trail, trail.phase("silabas_b")!!))
+        // BOLA, CASA, GATO, PATO e MALA
+        assertEquals(
+            setOf("BO", "LA", "CA", "SA", "GA", "TO", "PA", "MA"),
+            LiteracyRules.phaseSyllables(trail, trail.phase("palavras_01")!!)
+        )
+        // O ditado não "ensina" nada novo: vale o que ele pede para escrever.
+        val dictation = trail.phase("ditado_01")!!
+        val expected = dictation.questions.flatMap { question -> trail.vocabulary.single { it.word == question.answer }.syllables }
+        assertEquals(expected.toSet(), LiteracyRules.phaseSyllables(trail, dictation))
+    }
+
+    @Test
+    fun `all syllables of the trail`() {
+        val syllables = LiteracyRules.allSyllables(trail)
+        assertEquals(65, syllables.size)
+        assertTrue(syllables.containsAll(listOf("BA", "LU", "NA", "VU")))
+    }
+
+    @Test
     fun `a new child knows nothing yet`() {
         val knowledge = LiteracyRules.knowledge(trail, emptySet())
 

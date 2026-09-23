@@ -12,15 +12,18 @@ import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.literacy.FeedbackSounds
+import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.core.illustration.IllustrationService
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.repository.BillingRepositoryImpl
 import com.livrovivo.app.data.repository.ChildProfileRepositoryImpl
+import com.livrovivo.app.data.repository.EuLeioRepositoryImpl
 import com.livrovivo.app.data.repository.LiteracyRepositoryImpl
 import com.livrovivo.app.data.repository.StoryRepositoryImpl
 import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.ChildProfileRepository
+import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.repository.StoryRepository
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
@@ -38,6 +41,7 @@ import com.livrovivo.app.domain.usecase.SaveChildProfileUseCase
 import com.livrovivo.app.presentation.creation.CreationViewModel
 import com.livrovivo.app.presentation.home.HomeViewModel
 import com.livrovivo.app.presentation.literacy.ActivityViewModel
+import com.livrovivo.app.presentation.literacy.EasyReaderViewModel
 import com.livrovivo.app.presentation.literacy.LiteracyViewModel
 import com.livrovivo.app.presentation.navigation.AppStartViewModel
 import com.livrovivo.app.presentation.onboarding.OnboardingViewModel
@@ -73,6 +77,7 @@ val appModule = module {
     single { DeviceNarrationEngine(androidContext()) }
     single { AudioPlayerController(androidContext(), get(), get(), get(), get()) }
     single { FeedbackSounds() }
+    single { LiteracyBookWriter() }
 
     // Repositories
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }
@@ -84,6 +89,8 @@ val appModule = module {
             context.assets.open(TrailParser.ASSET_PATH).bufferedReader().use { it.readText() }
         }
     }
+
+    single<EuLeioRepository> { EuLeioRepositoryImpl(get(), get(), get(), get()) }
 
     // UseCases
     factory { GenerateStoryUseCase(get(), get(), get()) }
@@ -103,8 +110,9 @@ val appModule = module {
     viewModel { AppStartViewModel(get(), get()) }
     viewModel { (isEditMode: Boolean) -> OnboardingViewModel(get(), get(), isEditMode) }
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get(), get()) }
-    viewModel { LiteracyViewModel(get(), get(), get()) }
-    viewModel { (phaseId: String) -> ActivityViewModel(phaseId, get(), get(), get(), get()) }
+    viewModel { LiteracyViewModel(get(), get(), get(), get()) }
+    viewModel { (phaseId: String) -> ActivityViewModel(phaseId, get(), get(), get(), get(), get()) }
+    viewModel { (storyId: String) -> EasyReaderViewModel(storyId, get(), get(), get(), get(), get()) }
     viewModel { CreationViewModel(get(), get(), get(), get()) }
     viewModel { (storyId: String) ->
         ReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get(), get(), get())

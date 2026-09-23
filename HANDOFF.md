@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 139 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 148 testes unitários e 7 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,17 +29,17 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 139 testes
+./gradlew testDebugUnitTest   # 148 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
 
-# Testes instrumentados (banco/migrações) numa cópia descartável do emulador, sem tocar no do usuário:
-emulator -avd Medium_Phone_API_36.1 -read-only -no-window -no-audio -no-snapshot -port 5582
-adb -s emulator-5582 shell settings put global sys_storage_threshold_percentage 1   # AVD quase cheio
-ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest
-# Outra sessão pode estar usando uma cópia na 5580: use outra porta (o teste instrumentado desinstala o app).
-# Se o servidor do adb reiniciar no meio do teste, a cópia pode travar (aparece em "adb devices", mas não
-# responde): "adb -s emulator-5582 emu kill" e suba de novo.
+# Testes no emulador de testes LivroVivo_Teste (criado em 23/09, com aprovação), nunca no do usuário:
+emulator -avd LivroVivo_Teste -no-window -no-audio -no-snapshot -no-boot-anim -port 5582
+adb -s emulator-5582 shell settings put global sys_storage_threshold_percentage 1
+ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest   # instala e depois desinstala o app
+# Ele roda junto com o emulador do usuário (Medium_Phone_API_36.1). Cópias "-read-only" do AVD do usuário
+# não abrem enquanto o dele estiver aberto. Se o servidor do adb reiniciar no meio de um teste, o emulador
+# pode travar (aparece em "adb devices", mas não responde): "adb -s emulator-5582 emu kill" e suba de novo.
 ```
 
 ⚠️ **O usuário costuma usar o app no emulador em paralelo.** Se a tela mudar sozinha (narrador trocado,
@@ -65,11 +65,14 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/audio/LullabySynth.kt` | Caixinha de música sintetizada ("Brilha, Brilha, Estrelinha") |
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
-| `core/database/` | Room v5; migrações 2→3, 3→4 e 4→5 **preservam histórias antigas** (testes em `androidTest/`) |
+| `core/database/` | Room v6; migrações 2→3, 3→4, 4→5 e 5→6 **preservam histórias antigas** (testes em `androidTest/`) |
 | `core/literacy/TrailParser.kt` | Lê e valida `assets/alfabetizacao/trilha.json` (Trilha da Leitura) |
 | `core/literacy/LiteracyRules.kt` | Regras puras da trilha: estrelas, desbloqueio em ordem, `LiteracyKnowledge`, quem vê a trilha (9+ escondida), peças que formam a resposta |
 | `core/literacy/DecodableValidator.kt` | Juiz dos livros "Eu leio": palavras que a criança ainda não lê e problemas de formato (4 páginas, 1–2 frases de 3–7 palavras, maiúsculas, só `. , ! ?`) |
 | `core/literacy/OfflineDecodableEngine.kt` | Livro "Eu leio" sem IA: roteiros Coleção, Cadê? e Adivinha, com a criança como personagem |
+| `core/literacy/LiteracyBookWriter.kt` | Escreve os livros "Eu leio" (hoje só offline; a etapa 6 põe a IA na frente) |
+| `data/repository/EuLeioRepositoryImpl.kt` | Cria os livros ganhos, guarda "Li sozinho!" e marca o livro como lido |
+| `presentation/literacy/EasyReaderScreen.kt` | Leitor "Eu leio": tocar lê a palavra, segurar separa em sílabas, "Ouvir a página", "Li sozinho!" |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
 | `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
@@ -130,7 +133,8 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 | 2. Trilha jogável | ✅ 22/09: mapa, fases, os 5 tipos de atividade, resultado com estrelas e cartão "Aprender a ler" na Home. Jogado no emulador: vogais_a, silabas_b, palavras_01, ditado_01 |
 | 3. Progresso | ✅ 22/09: estrelas salvas, módulos e fases liberam em ordem, `LiteracyKnowledge`. Conferido no emulador: progresso continua depois de fechar o app à força; Consoantes só abre depois das 5 vogais |
 | 4. Validador + livro offline | ✅ 22/09: `DecodableValidator`, `OfflineDecodableEngine` e `LiteracyRules.booksEarned`. Os testes geram mais de 10 mil livros pela trilha inteira (vários nomes, os 4 companheiros, 25 sementes) e todos passam no validador |
-| 5 a 8 | Pendentes |
+| 5. Leitor "Eu leio" | ✅ 23/09: livro criado ao ganhar, aviso no resultado, leitor completo, livros na lista de fases e selo "Eu li!" na estante. Lido do início ao fim no emulador de testes (O DOCE DE LIA) |
+| 6 a 8 | Pendentes |
 
 Detalhes da etapa 1:
 - O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
@@ -169,6 +173,21 @@ Detalhes da etapa 4:
 - Livros ganhos: o 1º com 3 fases de Sílabas; depois, 1 a cada 2 fases de sílabas, palavras ou ditado (16 na trilha toda).
   A regra existe (`booksEarned`), mas ainda não cria o livro nem mostra o aviso: isso é a etapa 5, junto com o leitor.
 - O motor usa `seed` para variar (use o número do livro) e `focusSyllables` para pôr as sílabas mais novas no livro.
+
+Detalhes da etapa 5:
+- **Criação:** depois de salvar uma fase, o `ActivityViewModel` chama `EuLeioRepository.ensureEarnedBooks`, que escreve
+  os livros ganhos e ainda não criados (a trilha também chama ao abrir, para quem já tinha progresso). Cada livro usa o
+  que a criança sabia na fase que o liberou (`knowledgeUpTo`) e treina as sílabas daquela fase (`phaseSyllables`).
+  A contagem inclui a lixeira: jogar um livro fora não gera outro. Apagar **definitivamente** faz o mesmo livro voltar.
+- Livro salvo como `Story` com `kind = "eu_leio"`, 4 páginas sem escolhas, `themeId` = módulo em que foi ganho
+  (a lista de fases mostra os livros do módulo) e a palavra principal de cada página em `newWords` (a figura dela).
+- **Cota e painel:** `getStoryCount()` só conta aventuras, e o `buildInsights` ignora os livros "Eu leio" (seção
+  própria na etapa 8). O tempo de leitura (`reading_sessions`) inclui os dois.
+- **Banco v6:** tabela `literacy_page_reads` (páginas marcadas "Li sozinho!", com quantas vezes).
+- **Leitor (`EasyReaderScreen`):** sem narração automática e sem música ambiente. Tocar lê a palavra (destaque dourado);
+  segurar mostra "BO · LA" e lê as sílabas e a palavra; "Ouvir a página" usa o destaque de frase do leitor normal.
+  A voz recebe o texto em minúsculas (lê melhor); as sílabas soltas ainda saem pela voz do aparelho (etapa 7 corrige).
+  O botão diz "Li sozinha!" para meninas. No fim: confete, "Quer ler de novo?" e o selo "Eu li!" na estante.
 
 - Roteiro de teste no emulador: `scratchpad/play.py <phase_id>` joga uma fase lendo as respostas do JSON (não
   está no repositório).

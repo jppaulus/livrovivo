@@ -121,6 +121,16 @@ data class LiteracyProgressEntity(
     }
 }
 
+/** Página de um livro "Eu leio" que a criança marcou como "Li sozinho!" (registro de uso, não avaliação). */
+@Entity(tableName = "literacy_page_reads", primaryKeys = ["storyId", "chapterIndex"])
+data class LiteracyPageReadEntity(
+    val storyId: String,
+    val chapterIndex: Int,
+    val childId: String,
+    val firstReadAt: Long,
+    val timesRead: Int
+)
+
 data class StoryWithChapters(
     @Embedded val story: StoryEntity,
     @Relation(parentColumn = "id", entityColumn = "storyId")

@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.livrovivo.app.data.model.ChapterEntity
 import com.livrovivo.app.data.model.ChildProfileEntity
+import com.livrovivo.app.data.model.LiteracyPageReadEntity
 import com.livrovivo.app.data.model.LiteracyProgressEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.StoryEntity
@@ -37,8 +38,17 @@ interface StoryDao {
     @Query("SELECT * FROM story_chapters WHERE storyId = :storyId ORDER BY chapterIndex ASC")
     suspend fun getChaptersForStory(storyId: String): List<ChapterEntity>
 
-    @Query("SELECT COUNT(*) FROM stories WHERE originId IS NULL")
+    /** Aventuras criadas (conta para o limite grátis). Livros "Eu leio" não entram. */
+    @Query("SELECT COUNT(*) FROM stories WHERE originId IS NULL AND kind = 'aventura'")
     suspend fun getStoryCount(): Int
+
+    /** Livros de um tipo já criados para a criança, inclusive os que estão na lixeira. */
+    @Query("SELECT COUNT(*) FROM stories WHERE childId = :childId AND kind = :kind")
+    suspend fun countBooks(childId: String, kind: String): Int
+
+    @Transaction
+    @Query("SELECT * FROM stories WHERE childId = :childId AND kind = :kind AND deletedAt IS NULL ORDER BY createdAt ASC")
+    fun observeBooks(childId: String, kind: String): Flow<List<StoryWithChapters>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStory(story: StoryEntity)
@@ -165,6 +175,27 @@ interface LiteracyDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(progress: LiteracyProgressEntity)
+
+    @Query("SELECT * FROM literacy_page_reads WHERE storyId = :storyId AND chapterIndex = :chapterIndex LIMIT 1")
+    suspend fun getPageRead(storyId: String, chapterIndex: Int): LiteracyPageReadEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPageRead(read: LiteracyPageReadEntity)
+
+    @Transaction
+    suspend fun recordPageRead(storyId: String, chapterIndex: Int, childId: String, now: Long) {
+        val current = getPageRead(storyId, chapterIndex)
+        upsertPageRead(
+            current?.copy(timesRead = current.timesRead + 1)
+                ?: LiteracyPageReadEntity(storyId, chapterIndex, childId, firstReadAt = now, timesRead = 1)
+        )
+    }
+
+    @Query("SELECT chapterIndex FROM literacy_page_reads WHERE storyId = :storyId")
+    suspend fun pagesReadAlone(storyId: String): List<Int>
+
+    @Query("SELECT COUNT(*) FROM literacy_page_reads WHERE childId = :childId")
+    suspend fun countPagesReadAlone(childId: String): Int
 
     /** Lê e grava na mesma transação, para duas tentativas seguidas não se sobrescreverem. */
     @Transaction

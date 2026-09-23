@@ -11,6 +11,7 @@ import com.livrovivo.app.core.database.dao.LiteracyDao
 import com.livrovivo.app.core.database.dao.StoryDao
 import com.livrovivo.app.data.model.ChapterEntity
 import com.livrovivo.app.data.model.ChildProfileEntity
+import com.livrovivo.app.data.model.LiteracyPageReadEntity
 import com.livrovivo.app.data.model.LiteracyProgressEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.StoryEntity
@@ -23,9 +24,10 @@ import kotlinx.serialization.encodeToString
         StoryEntity::class,
         ChapterEntity::class,
         ReadingSessionEntity::class,
-        LiteracyProgressEntity::class
+        LiteracyProgressEntity::class,
+        LiteracyPageReadEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class LivroVivoDatabase : RoomDatabase() {
@@ -135,6 +137,21 @@ abstract class LivroVivoDatabase : RoomDatabase() {
             }
         }
 
+        /** Páginas dos livros "Eu leio" marcadas como "Li sozinho!". Nada existente muda. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS literacy_page_reads (" +
+                        "storyId TEXT NOT NULL, " +
+                        "chapterIndex INTEGER NOT NULL, " +
+                        "childId TEXT NOT NULL, " +
+                        "firstReadAt INTEGER NOT NULL, " +
+                        "timesRead INTEGER NOT NULL, " +
+                        "PRIMARY KEY(storyId, chapterIndex))"
+                )
+            }
+        }
+
         fun getInstance(context: Context): LivroVivoDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -142,7 +159,7 @@ abstract class LivroVivoDatabase : RoomDatabase() {
                     LivroVivoDatabase::class.java,
                     "livro_vivo.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance

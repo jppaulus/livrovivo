@@ -32,6 +32,8 @@ import com.livrovivo.app.presentation.home.HomeScreen
 import com.livrovivo.app.presentation.home.HomeViewModel
 import com.livrovivo.app.presentation.literacy.ActivityScreen
 import com.livrovivo.app.presentation.literacy.ActivityViewModel
+import com.livrovivo.app.presentation.literacy.EasyReaderScreen
+import com.livrovivo.app.presentation.literacy.EasyReaderViewModel
 import com.livrovivo.app.presentation.literacy.LiteracyViewModel
 import com.livrovivo.app.presentation.literacy.PhaseListScreen
 import com.livrovivo.app.presentation.literacy.PhaseResultScreen
@@ -124,7 +126,8 @@ fun LivroVivoNavGraph(
                 onNavigateToCreation = { navController.navigate(Screen.Creation.route) },
                 onNavigateToReader = { storyId -> navController.navigate(Screen.Reader.createRoute(storyId)) },
                 onNavigateToParentArea = { navController.navigate(Screen.ParentDashboard.route) },
-                onNavigateToLiteracy = { navController.navigate(Screen.LiteracyTrail.route) }
+                onNavigateToLiteracy = { navController.navigate(Screen.LiteracyTrail.route) },
+                onNavigateToEuLeio = { storyId -> navController.navigate(Screen.EuLeioReader.createRoute(storyId)) }
             )
         }
 
@@ -146,7 +149,8 @@ fun LivroVivoNavGraph(
                 viewModel = viewModel,
                 moduleId = backStackEntry.arguments?.getString("moduleId").orEmpty(),
                 onNavigateBack = { navController.popBackStack() },
-                onOpenPhase = { phaseId -> navController.navigate(Screen.LiteracyActivity.createRoute(phaseId)) }
+                onOpenPhase = { phaseId -> navController.navigate(Screen.LiteracyActivity.createRoute(phaseId)) },
+                onOpenBook = { storyId -> navController.navigate(Screen.EuLeioReader.createRoute(storyId)) }
             )
         }
 
@@ -159,9 +163,9 @@ fun LivroVivoNavGraph(
             ActivityScreen(
                 viewModel = viewModel,
                 onClose = { navController.popBackStack() },
-                onFinished = { stars ->
+                onFinished = { stars, newBookId ->
                     // A atividade sai da pilha: "voltar" no resultado leva para a lista de fases.
-                    navController.navigate(Screen.LiteracyResult.createRoute(phaseId, stars)) {
+                    navController.navigate(Screen.LiteracyResult.createRoute(phaseId, stars, newBookId)) {
                         popUpTo(Screen.LiteracyActivity.route) { inclusive = true }
                     }
                 }
@@ -172,7 +176,12 @@ fun LivroVivoNavGraph(
             route = Screen.LiteracyResult.route,
             arguments = listOf(
                 navArgument("phaseId") { type = NavType.StringType },
-                navArgument("stars") { type = NavType.IntType }
+                navArgument("stars") { type = NavType.IntType },
+                navArgument("newBook") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
         ) { backStackEntry ->
             val phaseId = backStackEntry.arguments?.getString("phaseId").orEmpty()
@@ -181,6 +190,12 @@ fun LivroVivoNavGraph(
                 viewModel = viewModel,
                 phaseId = phaseId,
                 stars = backStackEntry.arguments?.getInt("stars") ?: 0,
+                newBookId = backStackEntry.arguments?.getString("newBook"),
+                onOpenBook = { storyId ->
+                    navController.navigate(Screen.EuLeioReader.createRoute(storyId)) {
+                        popUpTo(Screen.LiteracyResult.route) { inclusive = true }
+                    }
+                },
                 onNextPhase = { nextId ->
                     navController.navigate(Screen.LiteracyActivity.createRoute(nextId)) {
                         popUpTo(Screen.LiteracyResult.route) { inclusive = true }
@@ -244,6 +259,15 @@ fun LivroVivoNavGraph(
                     }
                 }
             )
+        }
+
+        composable(
+            route = Screen.EuLeioReader.route,
+            arguments = listOf(navArgument("storyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val storyId = backStackEntry.arguments?.getString("storyId").orEmpty()
+            val viewModel: EasyReaderViewModel = koinViewModel(parameters = { parametersOf(storyId) })
+            EasyReaderScreen(viewModel = viewModel, onClose = { navController.popBackStack() })
         }
 
         composable(Screen.Paywall.route) {

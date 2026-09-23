@@ -5,6 +5,8 @@ import com.livrovivo.app.domain.model.ChildAppearance
 import com.livrovivo.app.domain.model.ChildGender
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Choice
+import com.livrovivo.app.domain.model.DecodableBook
+import com.livrovivo.app.domain.model.ObjectiveType
 import com.livrovivo.app.domain.model.PhaseProgress
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
@@ -155,3 +157,39 @@ fun Chapter.toEntity(storyId: String): ChapterEntity {
 
 fun LiteracyProgressEntity.toDomain(): PhaseProgress =
     PhaseProgress(childId, phaseId, stars, attempts, mistakes, completedAt)
+
+/**
+ * Livro "Eu leio" pronto para a estante: 4 páginas sem escolhas, e a última é o fim.
+ * [moduleId] fica em `themeId` para saber em que módulo da trilha o livro foi ganho.
+ * A palavra principal de cada página vai em `newWords` (a figura dela ilustra a página sem IA).
+ */
+fun DecodableBook.toEuLeioStory(
+    id: String,
+    child: ChildProfile,
+    moduleId: String,
+    isOffline: Boolean,
+    createdAt: Long
+): Story = Story(
+    id = id,
+    childId = child.id,
+    title = title,
+    theme = Story.EU_LEIO_THEME,
+    objectiveType = ObjectiveType.COGNITIVO.code,
+    createdAt = createdAt,
+    themeId = moduleId,
+    companionId = child.companionId,
+    plannedChapters = pages.size,
+    updatedAt = createdAt,
+    isOffline = isOffline,
+    childSnapshot = child,
+    kind = Story.KIND_EU_LEIO,
+    chapters = pages.mapIndexed { index, page ->
+        Chapter(
+            index = index + 1,
+            content = page.text,
+            choices = emptyList(),
+            isEnding = index == pages.lastIndex,
+            newWords = listOf(page.mainWord.word)
+        )
+    }
+)

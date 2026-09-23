@@ -65,6 +65,21 @@ interface LiteracyRepository {
     suspend fun recordAttempt(childId: String, phaseId: String, stars: Int, mistakes: Int): PhaseProgress
 }
 
+/** Livros "Eu leio": os que a criança ganhou na trilha e o que ela leu sozinha. */
+interface EuLeioRepository {
+    fun observeBooks(childId: String): Flow<List<Story>>
+
+    /** Escreve e guarda os livros que a criança já ganhou e ainda não tem. Devolve só os novos. */
+    suspend fun ensureEarnedBooks(child: ChildProfile): List<Story>
+
+    /** "Li sozinho!" numa página: registro de uso para as conquistas e o painel, não uma avaliação. */
+    suspend fun recordPageReadAlone(storyId: String, chapterIndex: Int, childId: String)
+    suspend fun pagesReadAlone(storyId: String): Set<Int>
+
+    /** A criança chegou ao fim do livro: ele ganha o selo "Eu li!". */
+    suspend fun markBookFinished(storyId: String)
+}
+
 interface BillingRepository {
     val isPremiumFlow: Flow<Boolean>
     suspend fun isUserPremium(): Boolean

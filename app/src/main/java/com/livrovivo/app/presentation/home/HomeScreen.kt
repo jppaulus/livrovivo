@@ -110,7 +110,7 @@ data class HomeUiState(
     val quotaStatus: QuotaStatus = QuotaStatus.Limited(remaining = 3, max = 3),
     val aiConfigured: Boolean = true
 ) {
-    val inProgress: Story? get() = stories.firstOrNull { !it.isCompleted && it.chapters.isNotEmpty() }
+    val inProgress: Story? get() = stories.firstOrNull { !it.isCompleted && it.chapters.isNotEmpty() && !it.isEuLeio }
 }
 
 /** Cartão "Aprender a ler" da Home: quantas fases a criança já concluiu. */
@@ -207,7 +207,8 @@ fun HomeScreen(
     onNavigateToCreation: () -> Unit,
     onNavigateToReader: (String) -> Unit,
     onNavigateToParentArea: () -> Unit,
-    onNavigateToLiteracy: () -> Unit
+    onNavigateToLiteracy: () -> Unit,
+    onNavigateToEuLeio: (storyId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val literacyCard by viewModel.literacyCard.collectAsState()
@@ -382,7 +383,7 @@ fun HomeScreen(
                     items(uiState.stories, key = { it.id }) { story ->
                         BookCover(
                             story = story,
-                            onClick = { onNavigateToReader(story.id) },
+                            onClick = { if (story.isEuLeio) onNavigateToEuLeio(story.id) else onNavigateToReader(story.id) },
                             onDelete = { storyToDelete = story }
                         )
                     }
@@ -580,10 +581,19 @@ private fun BookCover(story: Story, onClick: () -> Unit, onDelete: () -> Unit) {
                 .fillMaxWidth()
                 .aspectRatio(4f / 3f)
         ) {
-            BookScene(scene = scene, modifier = Modifier.fillMaxSize())
-            LocalImage(path = story.coverPath, maxSide = 600, modifier = Modifier.fillMaxSize())
+            if (story.isEuLeio) {
+                EuLeioCoverArt(title = story.title)
+            } else {
+                BookScene(scene = scene, modifier = Modifier.fillMaxSize())
+                LocalImage(path = story.coverPath, maxSide = 600, modifier = Modifier.fillMaxSize())
+            }
             InfoPill(
-                text = if (story.isCompleted) "Concluída ⭐" else "Pág. ${story.lastChapter?.index ?: 1}/${story.plannedChapters}",
+                text = when {
+                    story.isEuLeio && story.isCompleted -> "Eu li! ⭐"
+                    story.isEuLeio -> "Eu leio 📖"
+                    story.isCompleted -> "Concluída ⭐"
+                    else -> "Pág. ${story.lastChapter?.index ?: 1}/${story.plannedChapters}"
+                },
                 color = if (story.isCompleted) FairyGold else MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -631,6 +641,27 @@ private fun BookCover(story: Story, onClick: () -> Unit, onDelete: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+/** Capa dos livros "Eu leio": o título em letra de forma, que a própria criança consegue ler. */
+@Composable
+private fun EuLeioCoverArt(title: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(listOf(FairyEmeraldDeep, Color(0xFF10B981)))),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontFamily = FontFamily.SansSerif,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
     }
 }
 

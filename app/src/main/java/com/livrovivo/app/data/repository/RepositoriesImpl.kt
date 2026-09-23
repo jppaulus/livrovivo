@@ -246,7 +246,9 @@ class StoryRepositoryImpl(
     }
 
     override suspend fun buildInsights(child: ChildProfile?): ParentInsights {
-        val stories = storyDao.getAllStoriesWithChapters().map { it.toDomain() }.filter { it.childId == child?.id }
+        // Livros "Eu leio" ficam de fora: são da trilha e terão uma seção própria no painel.
+        val stories = storyDao.getAllStoriesWithChapters().map { it.toDomain() }
+            .filter { it.childId == child?.id && !it.isEuLeio }
         val activity = StoryActivity.from(stories)
         val name = child?.name ?: "a criança"
         val choices = activity.choices

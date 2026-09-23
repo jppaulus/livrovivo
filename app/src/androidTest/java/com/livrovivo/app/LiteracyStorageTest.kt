@@ -1,15 +1,22 @@
 package com.livrovivo.app
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.livrovivo.app.core.database.LivroVivoDatabase
+import com.livrovivo.app.core.literacy.DecodableValidator
+import com.livrovivo.app.core.literacy.LiteracyBookWriter
+import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.data.model.toDomain
 import com.livrovivo.app.data.model.toEntity
+import com.livrovivo.app.data.repository.EuLeioRepositoryImpl
 import com.livrovivo.app.data.repository.LiteracyRepositoryImpl
+import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.Chapter
+import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Story
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -24,28 +31,34 @@ import java.util.UUID
 class LiteracyStorageTest {
     private val context: Context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    private fun trailJson(): String = context.assets.open(TrailParser.ASSET_PATH).bufferedReader().use { it.readText() }
+
+    /** Esquema exato da versão 4 (o da versão 3 + MIGRATION_3_4), com duas histórias, lixeira e uma sessão. */
+    private fun createV4(old: SQLiteDatabase) {
+        old.execSQL("CREATE TABLE child_profiles (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, ageGroup TEXT NOT NULL, interestsJson TEXT NOT NULL, companionId TEXT NOT NULL, createdAt INTEGER NOT NULL, gender TEXT NOT NULL, skinTone TEXT, hairColor TEXT, hairStyle TEXT, wearsGlasses INTEGER NOT NULL, isActive INTEGER NOT NULL DEFAULT 0)")
+        old.execSQL("CREATE TABLE stories (id TEXT NOT NULL PRIMARY KEY, childId TEXT NOT NULL, title TEXT NOT NULL, theme TEXT NOT NULL, objectiveType TEXT NOT NULL, coverImageUrl TEXT, createdAt INTEGER NOT NULL, themeId TEXT, companionId TEXT NOT NULL, characterSheet TEXT, plannedChapters INTEGER NOT NULL, isCompleted INTEGER NOT NULL, lastReadChapter INTEGER NOT NULL, updatedAt INTEGER NOT NULL, isOffline INTEGER NOT NULL, childSnapshotJson TEXT, deletedAt INTEGER, originId TEXT)")
+        old.execSQL("CREATE TABLE story_chapters (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, storyId TEXT NOT NULL, chapterIndex INTEGER NOT NULL, content TEXT NOT NULL, choicesJson TEXT NOT NULL, isEnding INTEGER NOT NULL, audioUrl TEXT, sceneImagePrompt TEXT, imagePath TEXT, narrationScript TEXT, selectedChoiceText TEXT, newWordsJson TEXT NOT NULL, mood TEXT, openedAt INTEGER, FOREIGN KEY(storyId) REFERENCES stories(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+        old.execSQL("CREATE UNIQUE INDEX index_story_chapters_storyId_chapterIndex ON story_chapters(storyId, chapterIndex)")
+        old.execSQL("CREATE TABLE reading_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, storyId TEXT NOT NULL, childId TEXT NOT NULL, startedAt INTEGER NOT NULL, durationMs INTEGER NOT NULL)")
+        old.execSQL("CREATE INDEX index_reading_sessions_storyId ON reading_sessions(storyId)")
+        old.execSQL("INSERT INTO child_profiles VALUES ('a','Lia','3-5','[]','luna',1,'menina',NULL,NULL,NULL,0,1)")
+        old.execSQL("INSERT INTO stories VALUES ('s','a','O Caracol','Floresta','aventura',NULL,1,'floresta_encantada','luna',NULL,4,1,4,5,1,'{\"id\":\"a\",\"name\":\"Lia\",\"ageGroup\":\"3-5\",\"interestsJson\":\"[]\"}',NULL,NULL)")
+        old.execSQL("INSERT INTO stories VALUES ('copia','a','O Caracol','Floresta','aventura',NULL,2,'floresta_encantada','luna',NULL,4,0,2,6,1,NULL,NULL,'s')")
+        old.execSQL("INSERT INTO stories VALUES ('lixo','a','Na lixeira','Espaço','aventura',NULL,3,NULL,'luna',NULL,4,0,1,7,1,NULL,99,NULL)")
+        old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson,openedAt) VALUES ('s',1,'Lia ouviu um som.','[{\"text\":\"Olhar\",\"targetChapterIndex\":2,\"virtue\":\"curiosidade\"}]',0,'[]',10)")
+        old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson,selectedChoiceText) VALUES ('s',2,'Fim da aventura.','[]',1,'[\"caracol\"]',NULL)")
+        old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson) VALUES ('copia',1,'Lia ouviu um som.','[]',0,'[]')")
+        old.execSQL("INSERT INTO reading_sessions (storyId,childId,startedAt,durationMs) VALUES ('s','a',1,90000)")
+    }
+
     @Test fun migrationPreservesV4StoriesSessionsAndTrash() = runBlocking {
         val name = "migration-v4-${UUID.randomUUID()}.db"
         context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
-            // Esquema exato da versão 4 (o da versão 3 + MIGRATION_3_4).
-            old.execSQL("CREATE TABLE child_profiles (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, ageGroup TEXT NOT NULL, interestsJson TEXT NOT NULL, companionId TEXT NOT NULL, createdAt INTEGER NOT NULL, gender TEXT NOT NULL, skinTone TEXT, hairColor TEXT, hairStyle TEXT, wearsGlasses INTEGER NOT NULL, isActive INTEGER NOT NULL DEFAULT 0)")
-            old.execSQL("CREATE TABLE stories (id TEXT NOT NULL PRIMARY KEY, childId TEXT NOT NULL, title TEXT NOT NULL, theme TEXT NOT NULL, objectiveType TEXT NOT NULL, coverImageUrl TEXT, createdAt INTEGER NOT NULL, themeId TEXT, companionId TEXT NOT NULL, characterSheet TEXT, plannedChapters INTEGER NOT NULL, isCompleted INTEGER NOT NULL, lastReadChapter INTEGER NOT NULL, updatedAt INTEGER NOT NULL, isOffline INTEGER NOT NULL, childSnapshotJson TEXT, deletedAt INTEGER, originId TEXT)")
-            old.execSQL("CREATE TABLE story_chapters (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, storyId TEXT NOT NULL, chapterIndex INTEGER NOT NULL, content TEXT NOT NULL, choicesJson TEXT NOT NULL, isEnding INTEGER NOT NULL, audioUrl TEXT, sceneImagePrompt TEXT, imagePath TEXT, narrationScript TEXT, selectedChoiceText TEXT, newWordsJson TEXT NOT NULL, mood TEXT, openedAt INTEGER, FOREIGN KEY(storyId) REFERENCES stories(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
-            old.execSQL("CREATE UNIQUE INDEX index_story_chapters_storyId_chapterIndex ON story_chapters(storyId, chapterIndex)")
-            old.execSQL("CREATE TABLE reading_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, storyId TEXT NOT NULL, childId TEXT NOT NULL, startedAt INTEGER NOT NULL, durationMs INTEGER NOT NULL)")
-            old.execSQL("CREATE INDEX index_reading_sessions_storyId ON reading_sessions(storyId)")
-            old.execSQL("INSERT INTO child_profiles VALUES ('a','Lia','3-5','[]','luna',1,'menina',NULL,NULL,NULL,0,1)")
-            old.execSQL("INSERT INTO stories VALUES ('s','a','O Caracol','Floresta','aventura',NULL,1,'floresta_encantada','luna',NULL,4,1,4,5,1,'{\"id\":\"a\",\"name\":\"Lia\",\"ageGroup\":\"3-5\",\"interestsJson\":\"[]\"}',NULL,NULL)")
-            old.execSQL("INSERT INTO stories VALUES ('copia','a','O Caracol','Floresta','aventura',NULL,2,'floresta_encantada','luna',NULL,4,0,2,6,1,NULL,NULL,'s')")
-            old.execSQL("INSERT INTO stories VALUES ('lixo','a','Na lixeira','Espaço','aventura',NULL,3,NULL,'luna',NULL,4,0,1,7,1,NULL,99,NULL)")
-            old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson,openedAt) VALUES ('s',1,'Lia ouviu um som.','[{\"text\":\"Olhar\",\"targetChapterIndex\":2,\"virtue\":\"curiosidade\"}]',0,'[]',10)")
-            old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson,selectedChoiceText) VALUES ('s',2,'Fim da aventura.','[]',1,'[\"caracol\"]',NULL)")
-            old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson) VALUES ('copia',1,'Lia ouviu um som.','[]',0,'[]')")
-            old.execSQL("INSERT INTO reading_sessions (storyId,childId,startedAt,durationMs) VALUES ('s','a',1,90000)")
+            createV4(old)
             old.version = 4
         }
         val db = Room.databaseBuilder(context, LivroVivoDatabase::class.java, name)
-            .addMigrations(LivroVivoDatabase.MIGRATION_4_5).build()
+            .addMigrations(LivroVivoDatabase.MIGRATION_4_5, LivroVivoDatabase.MIGRATION_5_6).build()
         try {
             val stories = db.storyDao().getAllStoriesWithChapters().map { it.toDomain() }
             assertEquals(setOf("s", "copia"), stories.map { it.id }.toSet())
@@ -60,14 +73,101 @@ class LiteracyStorageTest {
             assertEquals("lixo", db.storyDao().observeTrash().first().single().story.id)
             assertEquals(90000L, db.storyDao().childReadingMs("a"))
             assertEquals("a", db.childProfileDao().getActiveProfile()!!.id)
+            // As aventuras antigas continuam contando para o limite grátis.
+            assertEquals(2, db.storyDao().getStoryCount())
 
-            // A tabela nova funciona logo depois da migração.
+            // As tabelas novas funcionam logo depois da migração.
             assertTrue(db.literacyDao().getProgress("a").isEmpty())
             db.literacyDao().recordAttempt("a", "vogais_a", stars = 2, mistakes = 1, now = 50)
             assertEquals(2, db.literacyDao().getPhase("a", "vogais_a")!!.stars)
+            db.literacyDao().recordPageRead("s", 1, "a", now = 60)
+            assertEquals(listOf(1), db.literacyDao().pagesReadAlone("s"))
         } finally {
             db.close()
             context.deleteDatabase(name)
+        }
+    }
+
+    @Test fun migrationFromV5KeepsProgressAndEuLeioBooks() = runBlocking {
+        val name = "migration-v5-${UUID.randomUUID()}.db"
+        context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { old ->
+            createV4(old)
+            // O que a MIGRATION_4_5 faz, para chegar ao esquema exato da versão 5.
+            old.execSQL("CREATE TABLE IF NOT EXISTS literacy_progress (childId TEXT NOT NULL, phaseId TEXT NOT NULL, stars INTEGER NOT NULL, attempts INTEGER NOT NULL, mistakes INTEGER NOT NULL, completedAt INTEGER, PRIMARY KEY(childId, phaseId))")
+            old.execSQL("ALTER TABLE stories ADD COLUMN kind TEXT NOT NULL DEFAULT 'aventura'")
+            old.execSQL("INSERT INTO literacy_progress VALUES ('a','vogais_a',3,2,1,40)")
+            old.execSQL("INSERT INTO stories VALUES ('livro','a','O DOCE DE LIA','Eu leio','cognitivo',NULL,8,'silabas','luna',NULL,4,0,1,8,1,NULL,NULL,NULL,'eu_leio')")
+            old.execSQL("INSERT INTO story_chapters (storyId,chapterIndex,content,choicesJson,isEnding,newWordsJson) VALUES ('livro',1,'LIA TEM UM DOCE.','[]',0,'[\"DOCE\"]')")
+            old.version = 5
+        }
+        val db = Room.databaseBuilder(context, LivroVivoDatabase::class.java, name)
+            .addMigrations(LivroVivoDatabase.MIGRATION_5_6).build()
+        try {
+            assertEquals(3, db.literacyDao().getPhase("a", "vogais_a")!!.stars)
+            val book = db.storyDao().getStoryWithChapters("livro")!!.toDomain()
+            assertTrue(book.isEuLeio)
+            assertEquals("DOCE", book.chapters.single().newWords.single())
+            assertEquals(1, db.storyDao().countBooks("a", Story.KIND_EU_LEIO))
+            assertEquals("o livro Eu leio não conta no limite grátis", 2, db.storyDao().getStoryCount())
+            assertEquals(3, db.storyDao().getAllStoriesWithChapters().size)
+            db.literacyDao().recordPageRead("livro", 1, "a", now = 70)
+            assertEquals(1, db.literacyDao().countPagesReadAlone("a"))
+        } finally {
+            db.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test fun earnedBooksAreWrittenOnceAndStayOutOfTheFreeQuota() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(context, LivroVivoDatabase::class.java).build()
+        try {
+            val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter())
+            val child = ChildProfile("a", "Lia", AgeGroup.TODDLER.code, companionId = "luna")
+            db.childProfileDao().saveAndActivate(child.toEntity())
+            val trail = literacy.getTrail()
+            val letters = trail.module("vogais")!!.phases + trail.module("consoantes")!!.phases
+            val syllables = trail.module("silabas")!!.phases
+
+            (letters + syllables.take(2)).forEach { literacy.recordAttempt(child.id, it.id, stars = 3, mistakes = 0) }
+            assertTrue("2 fases de sílabas ainda não dão livro", books.ensureEarnedBooks(child).isEmpty())
+
+            literacy.recordAttempt(child.id, syllables[2].id, stars = 1, mistakes = 4)
+            val first = books.ensureEarnedBooks(child).single()
+            assertTrue(first.isEuLeio)
+            assertEquals(4, first.chapters.size)
+            assertTrue(first.chapters.all { it.choices.isEmpty() })
+            assertTrue(first.chapters.last().isEnding)
+            assertEquals("silabas", first.themeId)
+
+            // O texto salvo é o que a criança consegue ler com B, C e D.
+            val saved = db.storyDao().getStoryWithChapters(first.id)!!.toDomain()
+            val knowledge = LiteracyRules.knowledge(trail, (letters + syllables.take(3)).map { it.id }.toSet())
+            (listOf(saved.title) + saved.chapters.map { it.content }).forEach { text ->
+                assertEquals(text, emptyList<String>(), DecodableValidator.invalidWords(text, knowledge, trail.supportWords.toSet(), "Lia"))
+            }
+
+            assertTrue("pedir de novo não duplica", books.ensureEarnedBooks(child).isEmpty())
+            assertEquals("livro Eu leio não conta no limite grátis", 0, db.storyDao().getStoryCount())
+
+            syllables.drop(3).take(2).forEach { literacy.recordAttempt(child.id, it.id, stars = 3, mistakes = 0) }
+            assertEquals(1, books.ensureEarnedBooks(child).size)
+            assertEquals(2, books.observeBooks(child.id).first().size)
+
+            books.recordPageReadAlone(first.id, 1, child.id)
+            books.recordPageReadAlone(first.id, 1, child.id)
+            books.recordPageReadAlone(first.id, 2, child.id)
+            assertEquals(setOf(1, 2), books.pagesReadAlone(first.id))
+            assertEquals(2, db.literacyDao().getPageRead(first.id, 1)!!.timesRead)
+
+            books.markBookFinished(first.id)
+            assertTrue(db.storyDao().getStoryWithChapters(first.id)!!.story.isCompleted)
+
+            db.storyDao().setDeletedAt(first.id, 1L)
+            assertTrue("livro na lixeira não faz outro aparecer", books.ensureEarnedBooks(child).isEmpty())
+            assertEquals(1, books.observeBooks(child.id).first().size)
+        } finally {
+            db.close()
         }
     }
 
@@ -82,9 +182,7 @@ class LiteracyStorageTest {
             assertTrue(saved.isEuLeio)
 
             var now = 100L
-            val repo = LiteracyRepositoryImpl(db.literacyDao(), clock = { now }) {
-                context.assets.open(TrailParser.ASSET_PATH).bufferedReader().use { it.readText() }
-            }
+            val repo = LiteracyRepositoryImpl(db.literacyDao(), clock = { now }) { trailJson() }
             assertEquals(51, repo.getTrail().phases.size)
             repo.recordAttempt("a", "silabas_b", stars = 0, mistakes = 5)
             assertNull(repo.getProgress("a").single().completedAt)

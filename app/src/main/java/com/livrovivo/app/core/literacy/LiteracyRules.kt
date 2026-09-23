@@ -2,6 +2,7 @@ package com.livrovivo.app.core.literacy
 
 import com.livrovivo.app.domain.model.AgeGroup
 import com.livrovivo.app.domain.model.LiteracyKnowledge
+import com.livrovivo.app.domain.model.LiteracyPhase
 import com.livrovivo.app.domain.model.LiteracyTrail
 import com.livrovivo.app.domain.model.PhaseProgress
 
@@ -20,6 +21,10 @@ object LiteracyRules {
 
     /** Depois do primeiro, um livro novo a cada 2 fases de sílabas, palavras ou ditado. */
     const val PHASES_PER_NEW_BOOK = 2
+
+    /** Todas as sílabas que a trilha ensina (BA ... VU). */
+    fun allSyllables(trail: LiteracyTrail): Set<String> =
+        trail.module(MODULE_SYLLABLES)?.phases?.flatMap { it.teaches }?.toSet().orEmpty()
 
     /** Fases com pelo menos 1 estrela. */
     fun completedPhaseIds(progress: List<PhaseProgress>): Set<String> =
@@ -43,12 +48,39 @@ object LiteracyRules {
     }
 
     /** Quantos livros "Eu leio" a criança já ganhou com as fases concluídas. */
-    fun booksEarned(trail: LiteracyTrail, completed: Set<String>): Int {
-        fun done(moduleId: String): Int = trail.module(moduleId)?.phases?.count { it.id in completed } ?: 0
-        val syllablePhases = done(MODULE_SYLLABLES)
-        if (syllablePhases < FIRST_BOOK_SYLLABLE_PHASES) return 0
-        val counted = syllablePhases + done(MODULE_WORDS) + done(MODULE_DICTATION)
-        return 1 + (counted - FIRST_BOOK_SYLLABLE_PHASES) / PHASES_PER_NEW_BOOK
+    fun booksEarned(trail: LiteracyTrail, completed: Set<String>): Int = bookTriggerPhases(trail, completed).size
+
+    /**
+     * A fase que liberou cada livro, em ordem: a 3ª fase de sílabas, depois uma a cada 2 fases de
+     * sílabas, palavras ou ditado. O livro usa o que a criança sabia naquela fase.
+     */
+    fun bookTriggerPhases(trail: LiteracyTrail, completed: Set<String>): List<LiteracyPhase> {
+        val syllablePhases = trail.module(MODULE_SYLLABLES)?.phases?.count { it.id in completed } ?: 0
+        if (syllablePhases < FIRST_BOOK_SYLLABLE_PHASES) return emptyList()
+        val counted = listOf(MODULE_SYLLABLES, MODULE_WORDS, MODULE_DICTATION)
+            .mapNotNull { trail.module(it) }
+            .flatMap { module -> module.phases.filter { it.id in completed } }
+        return counted.filterIndexed { index, _ ->
+            val position = index + 1
+            position >= FIRST_BOOK_SYLLABLE_PHASES && (position - FIRST_BOOK_SYLLABLE_PHASES) % PHASES_PER_NEW_BOOK == 0
+        }
+    }
+
+    /** O que a criança sabia logo depois de concluir [phase] (fases concluídas até ela, na ordem da trilha). */
+    fun knowledgeUpTo(trail: LiteracyTrail, completed: Set<String>, phase: LiteracyPhase): LiteracyKnowledge {
+        val position = trail.phases.indexOfFirst { it.id == phase.id }
+        val before = trail.phases.take(position + 1).map { it.id }.filter { it in completed }.toSet()
+        return knowledge(trail, before)
+    }
+
+    /**
+     * Sílabas treinadas numa fase, para o livro liberado por ela usar: a fase de sílabas ensina as próprias;
+     * as de palavras e ditado treinam as sílabas das palavras delas.
+     */
+    fun phaseSyllables(trail: LiteracyTrail, phase: LiteracyPhase): Set<String> {
+        if (trail.moduleOf(phase.id)?.id == MODULE_SYLLABLES) return phase.teaches.toSet()
+        val words = (phase.teaches + phase.questions.map { it.answer }).toSet()
+        return trail.vocabulary.filter { it.word in words }.flatMap { it.syllables }.toSet()
     }
 
     fun knowledge(trail: LiteracyTrail, completed: Set<String>): LiteracyKnowledge {

@@ -5,6 +5,9 @@ import com.livrovivo.app.domain.model.ChildAppearance
 import com.livrovivo.app.domain.model.ChildGender
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Choice
+import com.livrovivo.app.domain.model.DecodableBook
+import com.livrovivo.app.domain.model.DecodablePage
+import com.livrovivo.app.domain.model.VocabularyWord
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
 import org.junit.Assert.assertEquals
@@ -80,6 +83,39 @@ class MappersTest {
 
         assertEquals(listOf(1, 2), mapped.chapters.map { it.index })
         assertEquals(story.copy(chapters = mapped.chapters), mapped)
+    }
+
+    @Test
+    fun `an eu leio book becomes a 4 page story without choices`() {
+        val child = ChildProfile(id = "c-1", name = "Lia", ageGroup = "3-5", companionId = "luna")
+        val dado = VocabularyWord("DADO", listOf("DA", "DO"), "img_dado", "O")
+        val doce = VocabularyWord("DOCE", listOf("DO", "CE"), "img_doce", "O")
+        val book = DecodableBook(
+            title = "O DOCE DE LIA",
+            pages = listOf(
+                DecodablePage("LIA TEM UM DOCE.", doce),
+                DecodablePage("O DOCE É DE LIA.", doce),
+                DecodablePage("LIA TEM UM DADO.", dado),
+                DecodablePage("O DOCE E O DADO. SÃO DE LIA!", dado)
+            )
+        )
+
+        val story = book.toEuLeioStory("s-1", child, moduleId = "silabas", isOffline = true, createdAt = 5L)
+
+        assertTrue(story.isEuLeio)
+        assertEquals("O DOCE DE LIA", story.title)
+        assertEquals(4, story.plannedChapters)
+        assertEquals(listOf(1, 2, 3, 4), story.chapters.map { it.index })
+        assertTrue(story.chapters.all { it.choices.isEmpty() })
+        assertEquals(listOf(false, false, false, true), story.chapters.map { it.isEnding })
+        assertEquals(listOf("DOCE", "DOCE", "DADO", "DADO"), story.chapters.map { it.newWords.single() })
+        assertEquals("silabas", story.themeId)
+        assertEquals("Lia", story.childSnapshot?.name)
+        assertTrue(story.isOffline)
+
+        val saved = story.toEntity().toDomain(story.chapters.map { it.toEntity(story.id) })
+        assertEquals(Story.KIND_EU_LEIO, saved.kind)
+        assertEquals(story.chapters, saved.chapters)
     }
 
     @Test

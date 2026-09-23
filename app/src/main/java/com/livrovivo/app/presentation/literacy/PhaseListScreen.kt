@@ -12,7 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -40,12 +45,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.ui.InfoPill
+import com.livrovivo.app.domain.model.Story
 
 /** Fases de um módulo, com estrelas, cadeado e o selo das fases de assinantes. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +61,8 @@ fun PhaseListScreen(
     viewModel: LiteracyViewModel,
     moduleId: String,
     onNavigateBack: () -> Unit,
-    onOpenPhase: (phaseId: String) -> Unit
+    onOpenPhase: (phaseId: String) -> Unit,
+    onOpenBook: (storyId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val moduleUi = uiState.module(moduleId)
@@ -94,7 +102,15 @@ fun PhaseListScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(moduleUi.phases, key = { it.phase.id }) { phase ->
+                val books = uiState.booksOf(moduleId)
+                if (books.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        BooksRow(books = books, onOpenBook = onOpenBook)
+                    }
+                }
+                // Sem "key": ao voltar para a tela, a lista recomeça do topo e mostra um livro recém-ganho
+                // (com key ela ficava presa na fase 1 e o livro novo aparecia acima, fora da tela).
+                items(moduleUi.phases) { phase ->
                     PhaseCard(
                         phase = phase,
                         color = color,
@@ -102,6 +118,49 @@ fun PhaseListScreen(
                             if (phase.isLocked) viewModel.speak("Termine a fase de antes para abrir esta.")
                             else onOpenPhase(phase.phase.id)
                         }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Livros "Eu leio" ganhos neste módulo, com o selo "Eu li!" nos que a criança já leu. */
+@Composable
+private fun BooksRow(books: List<Story>, onOpenBook: (String) -> Unit) {
+    Column {
+        Text("Livros para ler sozinho 📖", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            books.forEach { book ->
+                Column(
+                    modifier = Modifier
+                        .width(150.dp)
+                        .heightIn(min = 110.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF0B7A57))
+                        .clickable(role = Role.Button) { onOpenBook(book.id) }
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = book.title,
+                        color = Color.White,
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 17.sp,
+                        maxLines = 3
+                    )
+                    Text(
+                        text = if (book.isCompleted) "Eu li! ⭐" else "Ler ▶",
+                        color = FairyGold,
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }

@@ -2,6 +2,7 @@ package com.livrovivo.app.data.repository
 
 import com.livrovivo.app.core.database.dao.LiteracyDao
 import com.livrovivo.app.core.literacy.TrailParser
+import com.livrovivo.app.data.model.LiteracyPageReadEntity
 import com.livrovivo.app.data.model.LiteracyProgressEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,5 +87,17 @@ class LiteracyRepositoryImplTest {
         override suspend fun upsert(progress: LiteracyProgressEntity) {
             rows.value = rows.value + ((progress.childId to progress.phaseId) to progress)
         }
+
+        private val reads = mutableMapOf<Pair<String, Int>, LiteracyPageReadEntity>()
+
+        override suspend fun getPageRead(storyId: String, chapterIndex: Int) = reads[storyId to chapterIndex]
+
+        override suspend fun upsertPageRead(read: LiteracyPageReadEntity) {
+            reads[read.storyId to read.chapterIndex] = read
+        }
+
+        override suspend fun pagesReadAlone(storyId: String) = reads.values.filter { it.storyId == storyId }.map { it.chapterIndex }
+
+        override suspend fun countPagesReadAlone(childId: String) = reads.values.count { it.childId == childId }
     }
 }

@@ -89,6 +89,9 @@ data class Story(
     companion object {
         const val KIND_ADVENTURE = "aventura"
         const val KIND_EU_LEIO = "eu_leio"
+
+        /** Texto de tema dos livros "Eu leio" (aparece embaixo do título na estante). */
+        const val EU_LEIO_THEME = "Eu leio"
     }
 }
 

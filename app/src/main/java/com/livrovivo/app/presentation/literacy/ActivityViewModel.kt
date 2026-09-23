@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.literacy.FeedbackSounds
 import com.livrovivo.app.core.literacy.LiteracyRules
+import com.livrovivo.app.domain.model.ChildProfile
+import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
 import kotlinx.coroutines.Job
@@ -18,13 +20,16 @@ data class ActivityScreenState(
     val session: ActivityState? = null,
     val error: String? = null,
     /** Estrelas da fase, preenchido só depois que o resultado foi salvo (aí a tela pode sair). */
-    val savedStars: Int? = null
+    val savedStars: Int? = null,
+    /** Livro "Eu leio" ganho com esta fase, se houver. */
+    val newBookId: String? = null
 )
 
 /** Uma fase sendo jogada: as 5 perguntas, a narração de cada instrução e os sons de acerto e erro. */
 class ActivityViewModel(
     private val phaseId: String,
     private val literacyRepository: LiteracyRepository,
+    private val euLeioRepository: EuLeioRepository,
     private val getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController,
     private val feedbackSounds: FeedbackSounds
@@ -35,7 +40,7 @@ class ActivityViewModel(
 
     private var feedbackJob: Job? = null
 
-    private var childId: String? = null
+    private var child: ChildProfile? = null
 
     init {
         viewModelScope.launch {
@@ -51,7 +56,7 @@ class ActivityViewModel(
                 _state.value = ActivityScreenState(error = "Esta fase ainda está trancada. Termine as fases de antes!")
                 return@launch
             }
-            childId = child.id
+            this@ActivityViewModel.child = child
             _state.value = ActivityScreenState(session = ActivitySession.start(phase))
             speakPrompt()
         }
@@ -97,13 +102,17 @@ class ActivityViewModel(
         }
     }
 
-    /** Guarda a melhor nota antes de a tela sair (a tela espera o [ActivityScreenState.savedStars]). */
+    /**
+     * Guarda a melhor nota e escreve os livros "Eu leio" que a fase liberou, antes de a tela sair
+     * (a tela espera o [ActivityScreenState.savedStars]).
+     */
     private suspend fun saveResult(session: ActivityState) {
-        val child = childId
-        if (child != null) {
-            runCatching { literacyRepository.recordAttempt(child, phaseId, session.stars, session.totalMistakes) }
+        var newBookId: String? = null
+        child?.let { child ->
+            runCatching { literacyRepository.recordAttempt(child.id, phaseId, session.stars, session.totalMistakes) }
+            newBookId = runCatching { euLeioRepository.ensureEarnedBooks(child) }.getOrNull()?.lastOrNull()?.id
         }
-        _state.value = _state.value.copy(savedStars = session.stars)
+        _state.value = _state.value.copy(savedStars = session.stars, newBookId = newBookId)
     }
 
     private fun onTryAgain() {

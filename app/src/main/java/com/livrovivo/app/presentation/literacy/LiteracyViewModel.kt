@@ -10,15 +10,17 @@ import com.livrovivo.app.domain.model.LiteracyModule
 import com.livrovivo.app.domain.model.LiteracyPhase
 import com.livrovivo.app.domain.model.LiteracyTrail
 import com.livrovivo.app.domain.model.PhaseProgress
+import com.livrovivo.app.domain.model.Story
+import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class PhaseUi(
@@ -49,8 +51,13 @@ data class LiteracyUiState(
     val child: ChildProfile? = null,
     val trail: LiteracyTrail? = null,
     val modules: List<ModuleUi> = emptyList(),
-    val knowledge: LiteracyKnowledge = LiteracyKnowledge()
+    val knowledge: LiteracyKnowledge = LiteracyKnowledge(),
+    /** Livros "Eu leio" da criança, do mais antigo para o mais novo. */
+    val books: List<Story> = emptyList()
 ) {
+    /** Livros ganhos em um módulo (o módulo fica em [Story.themeId]). */
+    fun booksOf(moduleId: String): List<Story> = books.filter { it.themeId == moduleId }
+
     val totalPhases: Int get() = modules.sumOf { it.phases.size }
     val completedPhases: Int get() = modules.sumOf { it.completedPhases }
 
@@ -69,6 +76,7 @@ data class LiteracyUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiteracyViewModel(
     private val literacyRepository: LiteracyRepository,
+    private val euLeioRepository: EuLeioRepository,
     getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController
 ) : ViewModel() {
@@ -82,9 +90,11 @@ class LiteracyViewModel(
                 emit(LiteracyUiState(isLoading = false, error = "Não foi possível abrir a trilha.", child = child))
                 return@flow
             }
-            literacyRepository.observeProgress(child.id)
-                .map { progress -> buildState(child, trail, progress) }
-                .collect { emit(it) }
+            // Quem já tinha fases concluídas antes desta versão também recebe os livros que ganhou.
+            runCatching { euLeioRepository.ensureEarnedBooks(child) }
+            combine(literacyRepository.observeProgress(child.id), euLeioRepository.observeBooks(child.id)) { progress, books ->
+                buildState(child, trail, progress).copy(books = books)
+            }.collect { emit(it) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LiteracyUiState())
 

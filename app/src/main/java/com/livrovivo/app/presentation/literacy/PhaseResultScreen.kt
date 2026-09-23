@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -38,6 +39,7 @@ import com.livrovivo.app.core.theme.FairyPurple
 import com.livrovivo.app.core.ui.BouncyCardButton
 import com.livrovivo.app.core.ui.ConfettiOverlay
 import com.livrovivo.app.core.ui.MagicalSparklesEffect
+import com.livrovivo.app.presentation.literacy.activity.LetterFont
 import com.livrovivo.app.presentation.literacy.activity.MinTouch
 import kotlinx.coroutines.delay
 
@@ -47,6 +49,8 @@ fun PhaseResultScreen(
     viewModel: LiteracyViewModel,
     phaseId: String,
     stars: Int,
+    newBookId: String?,
+    onOpenBook: (storyId: String) -> Unit,
     onNextPhase: (phaseId: String) -> Unit,
     onPlayAgain: () -> Unit,
     onBackToTrail: () -> Unit
@@ -59,7 +63,8 @@ fun PhaseResultScreen(
         1 -> "Boa! Você ganhou 1 estrela!"
         else -> "Você treinou bastante! Vamos tentar de novo?"
     }
-    LaunchedEffect(phaseId, stars) { viewModel.speak(message) }
+    val bookNotice = "Você ganhou um livro novo para ler sozinho!"
+    LaunchedEffect(phaseId, stars) { viewModel.speak(if (newBookId != null) "$message $bookNotice" else message) }
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
 
     Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
@@ -85,8 +90,12 @@ fun PhaseResultScreen(
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(28.dp))
 
+            if (newBookId != null) {
+                NewBookCard(text = bookNotice, onOpen = { onOpenBook(newBookId) })
+                Spacer(Modifier.height(14.dp))
+            }
             if (stars >= 1 && next != null && !next.isLocked) {
                 BouncyCardButton(
                     onClick = { onNextPhase(next.phase.id) },
@@ -105,6 +114,21 @@ fun PhaseResultScreen(
             }
         }
         ConfettiOverlay(visible = stars >= 1, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/** "Você ganhou um livro novo para ler sozinho!" com o botão para abrir o livro. */
+@Composable
+private fun NewBookCard(text: String, onOpen: () -> Unit) {
+    BouncyCardButton(onClick = onOpen, containerColor = Color(0xFF0B7A57), modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("📖", fontSize = 40.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text, color = Color.White, fontFamily = LetterFont, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text("Ler agora ▶", color = FairyGold, fontFamily = LetterFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        }
     }
 }
 

@@ -67,13 +67,13 @@ import com.livrovivo.app.presentation.literacy.activity.PictureWordActivity
 fun ActivityScreen(
     viewModel: ActivityViewModel,
     onClose: () -> Unit,
-    onFinished: (stars: Int) -> Unit
+    onFinished: (stars: Int, newBookId: String?) -> Unit
 ) {
     val screen by viewModel.state.collectAsState()
     val session = screen.session
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
     LaunchedEffect(screen.savedStars) {
-        screen.savedStars?.let(onFinished)
+        screen.savedStars?.let { stars -> onFinished(stars, screen.newBookId) }
     }
 
     Box(
