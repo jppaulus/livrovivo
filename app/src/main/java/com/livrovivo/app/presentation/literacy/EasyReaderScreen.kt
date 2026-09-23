@@ -44,12 +44,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +73,6 @@ import com.livrovivo.app.domain.model.ChildGender
 import com.livrovivo.app.presentation.literacy.activity.LetterFont
 import com.livrovivo.app.presentation.literacy.activity.LiteracyPicture
 import com.livrovivo.app.presentation.literacy.activity.MinTouch
-import kotlinx.coroutines.delay
 
 /** O narrador está falando (ou preparando a fala) do trecho com esta chave. */
 private fun PlaybackState.isSpeaking(key: String): Boolean =
@@ -134,7 +129,7 @@ private fun PageContent(
     val tapped = state.tappedWord?.let { index ->
         val word = state.words.getOrNull(index)?.word.orEmpty()
         val speaking = playback.isSpeaking(viewModel.wordKey(word)) || playback.isSpeaking(viewModel.splitKey(word))
-        index.takeIf { speaking || state.tapHighlight }
+        index.takeIf { speaking || state.tapHighlight || state.split?.wordIndex == index }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -172,11 +167,7 @@ private fun PageContent(
             Spacer(Modifier.height(20.dp))
 
             state.split?.let { split ->
-                SyllableCard(
-                    split = split,
-                    speaking = playback.isSpeaking(viewModel.splitKey(state.words.getOrNull(split.wordIndex)?.word.orEmpty())),
-                    playing = playback.status == NarrationStatus.PLAYING
-                )
+                SyllableCard(split = split)
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -309,18 +300,10 @@ private fun WordChip(
     }
 }
 
-/** "BO · LA": cada sílaba acende enquanto o narrador fala, e no fim a palavra inteira. */
+/** "BO · LA": cada sílaba acende enquanto soa ([SyllableSplit.active]), e no fim a palavra inteira. */
 @Composable
-private fun SyllableCard(split: SyllableSplit, speaking: Boolean, playing: Boolean) {
-    var active by remember(split) { mutableIntStateOf(-1) }
-    LaunchedEffect(split, playing && speaking) {
-        if (!(playing && speaking)) return@LaunchedEffect
-        for (index in split.syllables.indices) {
-            active = index
-            delay(SYLLABLE_MS)
-        }
-        active = split.syllables.size // a palavra inteira
-    }
+private fun SyllableCard(split: SyllableSplit) {
+    val active = split.active
     Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(22.dp))
@@ -345,8 +328,6 @@ private fun SyllableCard(split: SyllableSplit, speaking: Boolean, playing: Boole
             }
     }
 }
-
-private const val SYLLABLE_MS = 750L
 
 @Composable
 private fun PageDots(current: Int, total: Int) {

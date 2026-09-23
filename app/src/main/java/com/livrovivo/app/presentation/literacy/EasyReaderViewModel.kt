@@ -7,6 +7,7 @@ import com.livrovivo.app.core.literacy.FeedbackSounds
 import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.ReaderWord
 import com.livrovivo.app.core.literacy.ReaderWords
+import com.livrovivo.app.core.literacy.SoundPlayer
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.VocabularyWord
@@ -23,8 +24,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Palavra que a criança segurou: mostra as sílabas (BO · LA) enquanto o narrador lê. */
-data class SyllableSplit(val wordIndex: Int, val syllables: List<String>)
+/**
+ * Palavra que a criança segurou: mostra as sílabas (BO · LA) enquanto elas soam.
+ * [active] é a sílaba soando agora; igual ao número de sílabas quando é a vez da palavra inteira.
+ */
+data class SyllableSplit(val wordIndex: Int, val syllables: List<String>, val active: Int = -1)
 
 data class EasyReaderState(
     val story: Story? = null,
@@ -58,7 +62,8 @@ class EasyReaderViewModel(
     private val literacyRepository: LiteracyRepository,
     private val euLeioRepository: EuLeioRepository,
     private val audioPlayerController: AudioPlayerController,
-    private val feedbackSounds: FeedbackSounds
+    private val feedbackSounds: FeedbackSounds,
+    private val soundPlayer: SoundPlayer
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EasyReaderState())
@@ -109,19 +114,40 @@ class EasyReaderViewModel(
     /** Tocar numa palavra: o narrador lê só ela, e ela fica destacada enquanto soa. */
     fun tapWord(index: Int) {
         val word = _state.value.words.getOrNull(index) ?: return
+        stopSplit()
         _state.update { it.copy(tappedWord = index, split = null) }
         holdHighlight()
         speak(wordKey(word.word), word.word, word.word.lowercase())
     }
 
-    /** Tocar e segurar: separa em sílabas (BO · LA), lê cada uma e depois a palavra inteira. */
+    private var splitJob: Job? = null
+
+    /**
+     * Tocar e segurar: separa em sílabas (BO · LA), toca cada uma pelo [SoundPlayer] (áudio gravado ou a
+     * dica de pronúncia) e depois lê a palavra inteira. Cada sílaba acende enquanto soa.
+     */
     fun holdWord(index: Int) {
         val word = _state.value.words.getOrNull(index) ?: return
         val parts = word.syllables ?: return tapWord(index)
+        stopSplit()
         _state.update { it.copy(tappedWord = index, split = SyllableSplit(index, parts)) }
         holdHighlight()
-        val spoken = parts.joinToString(", ") { it.lowercase() } + "... " + word.word.lowercase()
-        speak(splitKey(word.word), word.word, spoken)
+        splitJob = viewModelScope.launch {
+            parts.forEachIndexed { position, syllable ->
+                _state.update { state -> state.copy(split = state.split?.copy(active = position)) }
+                // Sem exemplo: no meio da palavra, "bô, de bola" confundiria.
+                soundPlayer.play(syllable)
+            }
+            _state.update { state -> state.copy(split = state.split?.copy(active = parts.size)) }
+            soundPlayer.say(splitKey(word.word), word.word, word.word.lowercase())
+            delay(SPLIT_LINGER_MS)
+            _state.update { state -> state.copy(split = null) }
+        }
+    }
+
+    private fun stopSplit() {
+        splitJob?.cancel()
+        soundPlayer.stop()
     }
 
     private var highlightJob: Job? = null
@@ -138,6 +164,7 @@ class EasyReaderViewModel(
     /** "Ouvir a página": narra a página inteira, com o destaque de frase do leitor normal. */
     fun listenPage() {
         val chapter = _state.value.chapter ?: return
+        stopSplit()
         _state.update { it.copy(tappedWord = null, split = null) }
         speak(pageKey(chapter), chapter.content, chapter.content.lowercase())
     }
@@ -211,13 +238,17 @@ class EasyReaderViewModel(
     }
 
     fun stopNarration() {
-        if (audioPlayerController.playbackState.value.chapterKey?.startsWith("eu-leio-") == true) {
+        stopSplit()
+        val key = audioPlayerController.playbackState.value.chapterKey
+        if (key?.startsWith("eu-leio-") == true || soundPlayer.isOwnKey(key)) {
             audioPlayerController.stop()
         }
     }
 
     private companion object {
         const val MIN_HIGHLIGHT_MS = 1_200L
+        /** As sílabas ficam na tela um pouco depois da palavra inteira. */
+        const val SPLIT_LINGER_MS = 1_500L
     }
 
     override fun onCleared() {

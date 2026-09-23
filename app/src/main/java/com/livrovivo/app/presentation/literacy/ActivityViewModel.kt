@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.literacy.FeedbackSounds
 import com.livrovivo.app.core.literacy.LiteracyRules
+import com.livrovivo.app.core.literacy.Pronunciation
+import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.domain.model.VocabularyWord
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
@@ -36,7 +39,8 @@ class ActivityViewModel(
     private val euLeioRepository: EuLeioRepository,
     private val getActiveChildUseCase: GetActiveChildUseCase,
     private val audioPlayerController: AudioPlayerController,
-    private val feedbackSounds: FeedbackSounds
+    private val feedbackSounds: FeedbackSounds,
+    private val soundPlayer: SoundPlayer
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivityScreenState())
@@ -45,6 +49,11 @@ class ActivityViewModel(
     private var feedbackJob: Job? = null
 
     private var child: ChildProfile? = null
+
+    /** Letras e sílabas da trilha (para achar a que fecha a instrução) e o vocabulário (exemplos). */
+    private var units: Set<String> = emptySet()
+    private var vocabulary: List<VocabularyWord> = emptyList()
+    private var promptJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -61,6 +70,9 @@ class ActivityViewModel(
                 return@launch
             }
             this@ActivityViewModel.child = child
+            units = trail.modules.filter { it.id == LiteracyRules.MODULE_VOWELS || it.id == LiteracyRules.MODULE_CONSONANTS }
+                .flatMap { module -> module.phases.flatMap { it.teaches } }.toSet() + LiteracyRules.allSyllables(trail)
+            vocabulary = trail.vocabulary
             _state.value = ActivityScreenState(session = ActivitySession.start(phase))
             speakPrompt()
         }
@@ -72,15 +84,35 @@ class ActivityViewModel(
 
     fun removeFromSlot(slot: Int) = update { ActivitySession.removeFromSlot(it, slot) }
 
-    /** Botão de alto-falante: repete a instrução da pergunta. */
+    /**
+     * Botão de alto-falante: repete a instrução da pergunta. Quando ela termina numa letra ou sílaba
+     * ("Toque na sílaba BE"), a frase sai pela voz do app e o "BE" pelo [SoundPlayer]: áudio gravado,
+     * ou a dica de pronúncia ("bê") enquanto os áudios não existirem.
+     */
     fun speakPrompt() {
         val question = _state.value.session?.question ?: return
-        speak(narrationFor(question.prompt))
+        val parts = Pronunciation.promptTarget(question.prompt, units)
+        if (parts == null) {
+            speak(narrationFor(question.prompt))
+            return
+        }
+        stopPrompt()
+        promptJob = viewModelScope.launch {
+            soundPlayer.say(KEY_PREFIX + parts.carrier.hashCode(), parts.carrier, narrationFor(parts.carrier))
+            soundPlayer.play(parts.target, example = Pronunciation.exampleWord(parts.target, vocabulary))
+        }
+    }
+
+    private fun stopPrompt() {
+        promptJob?.cancel()
+        soundPlayer.stop()
     }
 
     fun stopNarration() {
         feedbackJob?.cancel()
-        if (audioPlayerController.playbackState.value.chapterKey?.startsWith(KEY_PREFIX) == true) {
+        stopPrompt()
+        val key = audioPlayerController.playbackState.value.chapterKey
+        if (key?.startsWith(KEY_PREFIX) == true || soundPlayer.isOwnKey(key)) {
             audioPlayerController.onReaderStopped()
         }
     }
@@ -134,6 +166,7 @@ class ActivityViewModel(
     }
 
     private fun speak(text: String) {
+        stopPrompt()
         val key = KEY_PREFIX + text.hashCode()
         if (audioPlayerController.playbackState.value.chapterKey == key) audioPlayerController.replay()
         else audioPlayerController.load(key, text, null, "alegre", null, true)
