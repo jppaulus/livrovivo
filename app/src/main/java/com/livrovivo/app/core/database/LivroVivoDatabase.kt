@@ -7,9 +7,11 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.livrovivo.app.core.database.dao.ChildProfileDao
+import com.livrovivo.app.core.database.dao.LiteracyDao
 import com.livrovivo.app.core.database.dao.StoryDao
 import com.livrovivo.app.data.model.ChapterEntity
 import com.livrovivo.app.data.model.ChildProfileEntity
+import com.livrovivo.app.data.model.LiteracyProgressEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.StoryEntity
 import com.livrovivo.app.data.model.appJson
@@ -20,14 +22,16 @@ import kotlinx.serialization.encodeToString
         ChildProfileEntity::class,
         StoryEntity::class,
         ChapterEntity::class,
-        ReadingSessionEntity::class
+        ReadingSessionEntity::class,
+        LiteracyProgressEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class LivroVivoDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
     abstract fun childProfileDao(): ChildProfileDao
+    abstract fun literacyDao(): LiteracyDao
 
     companion object {
         @Volatile
@@ -114,6 +118,23 @@ abstract class LivroVivoDatabase : RoomDatabase() {
             }
         }
 
+        /** Trilha da Leitura: progresso por fase e tipo de livro. Histórias e sessões ficam intactas. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS literacy_progress (" +
+                        "childId TEXT NOT NULL, " +
+                        "phaseId TEXT NOT NULL, " +
+                        "stars INTEGER NOT NULL, " +
+                        "attempts INTEGER NOT NULL, " +
+                        "mistakes INTEGER NOT NULL, " +
+                        "completedAt INTEGER, " +
+                        "PRIMARY KEY(childId, phaseId))"
+                )
+                db.execSQL("ALTER TABLE stories ADD COLUMN kind TEXT NOT NULL DEFAULT 'aventura'")
+            }
+        }
+
         fun getInstance(context: Context): LivroVivoDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -121,7 +142,7 @@ abstract class LivroVivoDatabase : RoomDatabase() {
                     LivroVivoDatabase::class.java,
                     "livro_vivo.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

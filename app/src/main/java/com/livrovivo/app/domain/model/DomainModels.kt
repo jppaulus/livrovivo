@@ -76,12 +76,20 @@ data class Story(
     val childSnapshot: ChildProfile? = null,
     val deletedAt: Long? = null,
     /** Original adventure when this book preserves a previous path. */
-    val originId: String? = null
+    val originId: String? = null,
+    /** [KIND_ADVENTURE] (história interativa) ou [KIND_EU_LEIO] (livro da Trilha da Leitura). */
+    val kind: String = KIND_ADVENTURE
 ) {
     val sortedChapters: List<Chapter> get() = chapters.sortedBy { it.index }
     val lastChapter: Chapter? get() = chapters.maxByOrNull { it.index }
     val coverPath: String? get() = coverImageUrl ?: sortedChapters.firstNotNullOfOrNull { it.imagePath }
     val chosenVirtues: List<Virtue> get() = sortedChapters.mapNotNull { it.selectedChoice?.virtue }
+    val isEuLeio: Boolean get() = kind == KIND_EU_LEIO
+
+    companion object {
+        const val KIND_ADVENTURE = "aventura"
+        const val KIND_EU_LEIO = "eu_leio"
+    }
 }
 
 enum class ChildGender(val code: String, val label: String) {

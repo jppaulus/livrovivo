@@ -5,6 +5,7 @@ import com.livrovivo.app.domain.model.ChildAppearance
 import com.livrovivo.app.domain.model.ChildGender
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Choice
+import com.livrovivo.app.domain.model.PhaseProgress
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.Virtue
 import kotlinx.serialization.encodeToString
@@ -78,7 +79,8 @@ fun StoryEntity.toDomain(chapters: List<ChapterEntity>): Story {
             runCatching { appJson.decodeFromString<ChildProfileEntity>(raw).toDomain() }.getOrNull()
         },
         deletedAt = deletedAt,
-        originId = originId
+        originId = originId,
+        kind = kind
     )
 }
 
@@ -127,7 +129,8 @@ fun Story.toEntity(): StoryEntity {
         isOffline = isOffline,
         childSnapshotJson = childSnapshot?.let { appJson.encodeToString(it.toEntity()) },
         deletedAt = deletedAt,
-        originId = originId
+        originId = originId,
+        kind = kind
     )
 }
 
@@ -149,3 +152,6 @@ fun Chapter.toEntity(storyId: String): ChapterEntity {
         openedAt = openedAt
     )
 }
+
+fun LiteracyProgressEntity.toDomain(): PhaseProgress =
+    PhaseProgress(childId, phaseId, stars, attempts, mistakes, completedAt)

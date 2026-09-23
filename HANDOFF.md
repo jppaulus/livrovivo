@@ -1,6 +1,6 @@
 # Livro Vivo — contexto para retomar em um novo chat
 
-> Documento de passagem de bastão. Atualizado em 17/09/2026.
+> Documento de passagem de bastão. Atualizado em 22/09/2026.
 > Para começar rápido: leia as seções **1**, **5** e **6**.
 
 ---
@@ -13,7 +13,7 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 - **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
-- **Estado:** compila, 62 testes unitários passando, rodou no emulador. As integrações de IA
+- **Estado:** compila, 89 testes unitários e 5 instrumentados passando, rodou no emulador. As integrações de IA
   **ainda não foram testadas com chaves reais**.
 
 ---
@@ -29,9 +29,14 @@ protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustra
 | Emulador | AVD `Medium_Phone_API_36.1` |
 
 ```bash
-./gradlew testDebugUnitTest   # 62 testes
+./gradlew testDebugUnitTest   # 89 testes
 ./gradlew assembleDebug       # APK em app/build/outputs/apk/debug/
 ./gradlew installDebug        # instala no aparelho/emulador conectado
+
+# Testes instrumentados (banco/migrações) numa cópia descartável do emulador, sem tocar no do usuário:
+emulator -avd Medium_Phone_API_36.1 -read-only -no-window -no-audio -no-snapshot -port 5582
+adb -s emulator-5582 shell settings put global sys_storage_threshold_percentage 1   # AVD quase cheio
+ANDROID_SERIAL=emulator-5582 ./gradlew connectedDebugAndroidTest
 ```
 
 ⚠️ **O usuário costuma usar o app no emulador em paralelo.** Se a tela mudar sozinha (narrador trocado,
@@ -57,7 +62,9 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/audio/LullabySynth.kt` | Caixinha de música sintetizada ("Brilha, Brilha, Estrelinha") |
 | `core/illustration/IllustrationService.kt` | Ilustração por página, consistência via imagem anterior, 5 estilos |
 | `core/ui/SceneArt.kt` | 8 cenas desenhadas em Canvas (fallback offline e capa) |
-| `core/database/` | Room v3 + migração 2→3 que **preserva histórias antigas** |
+| `core/database/` | Room v5; migrações 2→3, 3→4 e 4→5 **preservam histórias antigas** (testes em `androidTest/`) |
+| `core/literacy/TrailParser.kt` | Lê e valida `assets/alfabetizacao/trilha.json` (Trilha da Leitura) |
+| `data/repository/LiteracyRepositoryImpl.kt` | Conteúdo da trilha (em cache) + progresso por fase na tabela `literacy_progress` |
 | `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `applyPendingDefaults()` |
 | `presentation/reader/` | Leitor: páginas, escolhas, voltar e trocar de caminho, comemoração, barra de narração |
 | `presentation/{home,creation,onboarding,parent,settings,paywall}/` | Demais telas |
@@ -95,32 +102,31 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 
 ## 5. Estado do Git
 
-- **No GitHub:** commit `5876283` — "Livro Vivo: histórias com IA, vozes naturais e ilustrações" (76 arquivos).
-- **Ainda não commitado** (15 modificados + 3 novos), em três frentes:
+- **No GitHub (`origin/main`):** commit `5876283`.
+- **`main` local:** `17460eb`, com todo o trabalho que estava sem commit até 22/09 (narração em partes, erros 403,
+  Capitão padrão, revisão editorial, perfis da família, Room v4). **Ainda sem push.**
+- **`feature/trilha-da-leitura`:** a partir do `17460eb`, trabalho da Trilha da Leitura (`ALFABETIZACAO.md`).
+  Fica no worktree `.claude/worktrees/leitura-docs-iniciais-62ddbc`.
+- ⚠️ **Linha paralela não integrada:** a branch `claude/projeto-conforme-md-8263f2` (10 commits até 19/09) saiu do
+  mesmo `5876283` e tem Google Play Billing real, álbum de figurinhas, ritual da hora de dormir, sons da página e
+  memória do companheiro, que **não estão no `main`**. As duas linhas mexem em 35 arquivos em comum (inclusive
+  perfis de criança, feitos de jeitos diferentes) e o banco dela está na versão 3. Integrar exige decisão do
+  usuário antes da etapa 8 da trilha (assinatura).
 
-| Frente | Arquivos |
+## 5.1. Trilha da Leitura — andamento
+
+| Etapa | Estado |
 |---|---|
-| Erro 403 / troca de modelo | `core/ai/AiException.kt`, `core/ai/GeminiService.kt`, `core/ai/ModelFallback.kt` (novo), `core/ai/ElevenLabsService.kt`, `core/settings/SettingsManager.kt`, `presentation/settings/SettingsViewModel.kt`, `core/di/AppModule.kt`, testes `AiExceptionTest.kt` + `ModelFallbackTest.kt` (novo) |
-| Narração em partes | `core/audio/AudioPlayerController.kt`, `core/audio/NarrationText.kt`, `core/audio/NarrationEngines.kt`, `presentation/reader/ReaderScreen.kt`, teste `NarrationChunkerTest.kt` (novo) |
-| Narrador padrão (Capitão) | `core/audio/VoicePersona.kt`, `core/settings/SettingsManager.kt`, `presentation/creation/CreationScreen.kt`, `presentation/navigation/LivroVivoNavGraph.kt` |
+| 0. Commit, testes, branch | ✅ 22/09 |
+| 1. Conteúdo e dados | ✅ 22/09: `trilha.json` em assets, `TrailParser` (mesmas regras do script Python), modelos em `domain/model/Literacy.kt`, `LiteracyRepository`, tabela `literacy_progress` e coluna `stories.kind` (Room 4→5) |
+| 2 a 8 | Pendentes |
 
-Mensagem sugerida para o commit:
-
-```
-Narração em partes, diagnóstico de erros da IA e Capitão como narrador padrão
-
-- Narra a página em partes: a primeira toca em poucos segundos e o resto
-  é gerado em segundo plano (antes esperava a página inteira, ~30s).
-- Separa os tipos de 403 do Gemini (chave inválida, conta bloqueada, API
-  desativada, chave restrita, modelo sem acesso, imagem sem faturamento) e
-  tenta outros modelos gratuitos, salvando o que funcionar.
-- "Testar conexão" valida a chave sem gastar cota e mostra o resultado por modelo.
-- Capitão Aventura passa a ser o narrador padrão em todos os aparelhos.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-```
-
----
+Detalhes da etapa 1:
+- O conteúdo nunca fica no Kotlin: `ferramentas/gerar_conteudo.py` gera `trilha.json` e `lista_imagens.txt`;
+  copie o JSON para `app/src/main/assets/alfabetizacao/`. `TrailParserTest` falha se o arquivo mudar de forma inválida.
+- `recordAttempt` guarda a **melhor** nota (0–3), soma tentativas e erros e grava `completedAt` só na primeira vez
+  com ≥ 1 estrela. O cálculo das estrelas a partir dos acertos e o desbloqueio são da etapa 3.
+- `Story.kind`: `aventura` (padrão) ou `eu_leio`.
 
 ## 6. Pendências (em ordem de prioridade)
 

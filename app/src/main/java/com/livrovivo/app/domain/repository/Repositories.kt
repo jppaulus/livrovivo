@@ -3,8 +3,10 @@ package com.livrovivo.app.domain.repository
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.Choice
+import com.livrovivo.app.domain.model.LiteracyTrail
 import com.livrovivo.app.domain.model.ObjectiveType
 import com.livrovivo.app.domain.model.ParentInsights
+import com.livrovivo.app.domain.model.PhaseProgress
 import com.livrovivo.app.domain.model.Story
 import kotlinx.coroutines.flow.Flow
 
@@ -50,6 +52,17 @@ interface ChildProfileRepository {
     suspend fun saveProfile(profile: ChildProfile)
     fun observeProfiles(): Flow<List<ChildProfile>>
     suspend fun activateProfile(id: String)
+}
+
+interface LiteracyRepository {
+    /** Conteúdo da trilha (lido uma vez e guardado). Falha com InvalidTrailException se o JSON estiver errado. */
+    suspend fun getTrail(): LiteracyTrail
+
+    fun observeProgress(childId: String): Flow<List<PhaseProgress>>
+    suspend fun getProgress(childId: String): List<PhaseProgress>
+
+    /** Registra uma tentativa da fase: guarda a melhor nota e soma tentativas e erros. */
+    suspend fun recordAttempt(childId: String, phaseId: String, stars: Int, mistakes: Int): PhaseProgress
 }
 
 interface BillingRepository {

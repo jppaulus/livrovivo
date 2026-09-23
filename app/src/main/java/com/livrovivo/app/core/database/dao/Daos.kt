@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.livrovivo.app.data.model.ChapterEntity
 import com.livrovivo.app.data.model.ChildProfileEntity
+import com.livrovivo.app.data.model.LiteracyProgressEntity
 import com.livrovivo.app.data.model.ReadingSessionEntity
 import com.livrovivo.app.data.model.StoryEntity
 import com.livrovivo.app.data.model.StoryWithChapters
@@ -148,5 +149,29 @@ interface ChildProfileDao {
     suspend fun saveAndActivate(profile: ChildProfileEntity) {
         insertProfile(profile)
         activate(profile.id)
+    }
+}
+
+@Dao
+interface LiteracyDao {
+    @Query("SELECT * FROM literacy_progress WHERE childId = :childId")
+    fun observeProgress(childId: String): Flow<List<LiteracyProgressEntity>>
+
+    @Query("SELECT * FROM literacy_progress WHERE childId = :childId")
+    suspend fun getProgress(childId: String): List<LiteracyProgressEntity>
+
+    @Query("SELECT * FROM literacy_progress WHERE childId = :childId AND phaseId = :phaseId LIMIT 1")
+    suspend fun getPhase(childId: String, phaseId: String): LiteracyProgressEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(progress: LiteracyProgressEntity)
+
+    /** Lê e grava na mesma transação, para duas tentativas seguidas não se sobrescreverem. */
+    @Transaction
+    suspend fun recordAttempt(childId: String, phaseId: String, stars: Int, mistakes: Int, now: Long): LiteracyProgressEntity {
+        val updated = (getPhase(childId, phaseId) ?: LiteracyProgressEntity.empty(childId, phaseId))
+            .withAttempt(stars, mistakes, now)
+        upsert(updated)
+        return updated
     }
 }

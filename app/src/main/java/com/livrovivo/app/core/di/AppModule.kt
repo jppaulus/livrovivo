@@ -11,13 +11,16 @@ import com.livrovivo.app.core.audio.DeviceNarrationEngine
 import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
+import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.core.illustration.IllustrationService
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.repository.BillingRepositoryImpl
 import com.livrovivo.app.data.repository.ChildProfileRepositoryImpl
+import com.livrovivo.app.data.repository.LiteracyRepositoryImpl
 import com.livrovivo.app.data.repository.StoryRepositoryImpl
 import com.livrovivo.app.domain.repository.BillingRepository
 import com.livrovivo.app.domain.repository.ChildProfileRepository
+import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.repository.StoryRepository
 import com.livrovivo.app.domain.usecase.CheckStoryQuotaUseCase
 import com.livrovivo.app.domain.usecase.ContinueStoryUseCase
@@ -48,6 +51,7 @@ val appModule = module {
     single { LivroVivoDatabase.getInstance(androidContext()) }
     single { get<LivroVivoDatabase>().storyDao() }
     single { get<LivroVivoDatabase>().childProfileDao() }
+    single { get<LivroVivoDatabase>().literacyDao() }
 
     // Settings & DataStore
     single { SettingsManager(androidContext()) }
@@ -70,6 +74,12 @@ val appModule = module {
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }
     single<ChildProfileRepository> { ChildProfileRepositoryImpl(get()) }
     single<BillingRepository> { BillingRepositoryImpl(get(), get()) }
+    single<LiteracyRepository> {
+        val context = androidContext()
+        LiteracyRepositoryImpl(get()) {
+            context.assets.open(TrailParser.ASSET_PATH).bufferedReader().use { it.readText() }
+        }
+    }
 
     // UseCases
     factory { GenerateStoryUseCase(get(), get(), get()) }

@@ -103,7 +103,7 @@ class FamilyStorageTest {
             old.version = 3
         }
         val db = Room.databaseBuilder(context, LivroVivoDatabase::class.java, name)
-            .addMigrations(LivroVivoDatabase.MIGRATION_3_4).build()
+            .addMigrations(LivroVivoDatabase.MIGRATION_3_4, LivroVivoDatabase.MIGRATION_4_5).build()
         try {
             val story = db.storyDao().getStoryWithChapters("s")!!.toDomain()
             assertEquals("Lia encontrou uma luz.", story.chapters.single().content)

@@ -46,7 +46,9 @@ data class StoryEntity(
     val isOffline: Boolean = false,
     val childSnapshotJson: String? = null,
     val deletedAt: Long? = null,
-    val originId: String? = null
+    val originId: String? = null,
+    /** "aventura" (história interativa) ou "eu_leio" (livro da Trilha da Leitura). */
+    @androidx.room.ColumnInfo(defaultValue = "aventura") val kind: String = "aventura"
 )
 
 @Entity(
@@ -89,6 +91,35 @@ data class ReadingSessionEntity(
     val startedAt: Long,
     val durationMs: Long
 )
+
+/** Melhor resultado de cada fase da Trilha da Leitura, por criança. */
+@Entity(tableName = "literacy_progress", primaryKeys = ["childId", "phaseId"])
+data class LiteracyProgressEntity(
+    val childId: String,
+    val phaseId: String,
+    val stars: Int,
+    val attempts: Int,
+    val mistakes: Int,
+    val completedAt: Long?
+) {
+    /**
+     * Soma uma nova tentativa: guarda a melhor nota, conta tentativas e erros e marca a data da
+     * primeira conclusão com pelo menos 1 estrela.
+     */
+    fun withAttempt(stars: Int, mistakes: Int, now: Long): LiteracyProgressEntity {
+        val safeStars = stars.coerceIn(0, 3)
+        return copy(
+            stars = maxOf(this.stars, safeStars),
+            attempts = attempts + 1,
+            mistakes = this.mistakes + mistakes.coerceAtLeast(0),
+            completedAt = completedAt ?: now.takeIf { safeStars >= 1 }
+        )
+    }
+
+    companion object {
+        fun empty(childId: String, phaseId: String) = LiteracyProgressEntity(childId, phaseId, 0, 0, 0, null)
+    }
+}
 
 data class StoryWithChapters(
     @Embedded val story: StoryEntity,
