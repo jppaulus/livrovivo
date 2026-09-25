@@ -13,9 +13,11 @@ import com.livrovivo.app.core.ai.ChapterSanitizer
 import com.livrovivo.app.core.ai.ElevenLabsService
 import com.livrovivo.app.core.ai.ElevenLabsVoice
 import com.livrovivo.app.core.ai.GeminiService
+import com.livrovivo.app.core.ai.SpeechChunk
 import com.livrovivo.app.core.settings.AppSettings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -74,6 +76,13 @@ class GeminiNarrationEngine(private val gemini: GeminiService) : NarrationEngine
 
     override fun cacheSignature(request: NarrationRequest, settings: AppSettings): String =
         "gemini|${settings.ttsModel}|${request.persona.geminiVoice}|${request.mood}|v2"
+
+    /** Dá para narrar em partes (tocando enquanto gera)? */
+    suspend fun canStream(): Boolean = gemini.canStreamSpeech()
+
+    /** A página inteira num pedido só, em partes: o primeiro pedaço chega em cerca de 1 s. */
+    fun stream(request: NarrationRequest): Flow<SpeechChunk> =
+        gemini.streamSpeech(buildPrompt(request), request.persona.geminiVoice)
 
     override suspend fun synthesize(request: NarrationRequest, settings: AppSettings, outputBase: File): File {
         val speech = gemini.generateSpeech(buildPrompt(request), request.persona.geminiVoice)

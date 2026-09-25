@@ -11,7 +11,7 @@
 App Android nativo (Kotlin + Jetpack Compose) de **histórias infantis interativas com IA**: a criança é a
 protagonista, escolhe os rumos da aventura, e cada página é **escrita, ilustrada e narrada** na hora.
 
-- **Pasta local:** `%USERPROFILE%\Desktop\Creates\Livro Vivo`
+- **Pasta local:** a pasta principal do projeto no PC do desenvolvedor
 - **Repositório:** https://github.com/jppaulus/livrovivo (branch `main`)
 - **Público:** pais de crianças de 3 a 9 anos. Modelo freemium (3 histórias grátis).
 - **Estado:** compila, 175 testes unitários e 9 instrumentados passando, rodou no emulador. As integrações de IA
@@ -74,8 +74,9 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/literacy/LiteracyBookWriter.kt` | Escreve os livros "Eu leio": IA com lista fechada de palavras, 1 nova tentativa e o motor offline como garantia |
 | `data/repository/EuLeioRepositoryImpl.kt` | Cria os livros ganhos, guarda "Li sozinho!" e marca o livro como lido |
 | `presentation/literacy/EasyReaderScreen.kt` | Leitor "Eu leio": tocar lê a palavra, segurar separa em sílabas, "Ouvir a página", "Li sozinho!" |
-| `core/literacy/Pronunciation.kt` + `SoundPlayer.kt` | Voz das letras e sílabas: áudio gravado `res/raw/som_xx` ou a voz do app com dica de pronúncia ("bá, de bala") |
-| `ferramentas/gerar_audios.py` | Grava os 83 áudios (ElevenLabs ou Gemini, voz do Capitão) com a chave do `local.properties` |
+| `core/literacy/VoiceClips.kt` + `SoundPlayer.kt` | Voz da trilha: toca a fala gravada antes (`assets/voz`, índice `voz/indice.json`) ou, se ela faltar, a voz do app com dica de pronúncia ("bá, de bala") |
+| `core/literacy/TrailPhrases.kt` | Frases fixas das telas da trilha ("Muito bem!", resultados, "Chame um adulto"); a mesma lista está no script de gravação |
+| `ferramentas/gerar_audios.py` | Grava as 370 falas fixas da trilha com a voz do Capitão no Gemini (Puck) e cria `ferramentas/revisao_audios.html` para ouvir |
 | `core/literacy/ReadingInsights.kt` | Seção "Leitura" do painel dos pais: fases, livros, "Li sozinho", letras/sílabas trabalhadas, fases com mais erros e ideia fora da tela |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
@@ -104,14 +105,49 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
    `DEFAULTS_VERSION` (chamado em `AppStartViewModel`).
    ⚠️ **Não reordenar o enum `VoicePersona`:** o `ordinal` decide qual voz do aparelho cada narrador usa, e
    o usuário aprovou justamente a voz atual do Capitão.
-5. **Narração em partes:** a primeira parte (~260 caracteres) toca em poucos segundos; o resto é gerado em
-   segundo plano e entra na fila do ExoPlayer. Cortes só em parágrafo/frase.
+5. **Narração em partes:** a primeira parte (~180 caracteres) toca em poucos segundos; o resto é gerado em
+   segundo plano e entra na fila do ExoPlayer. Cortes só em parágrafo/frase. **Desde 24/09, com a chave do Gemini a
+   página inteira vai num pedido só em streaming** (`streamGenerateContent`, `GeminiService.streamSpeech` +
+   `StreamingPcmPlayer`): o som começa em ~1,3 s (medido no emulador) e toca enquanto chega; a página inteira fica
+   guardada em `files/narration` e "Ouvir de novo" toca o arquivo. Medido no PC: gerar 180 letras de uma vez leva 9 a
+   12 s (quase o tempo da fala), e o app antigo desistia em 8 s e caía na voz robótica. Sem o primeiro pedaço em 6 s,
+   volta ao caminho antigo. O servidor (`ai-gateway`) ainda não repassa em partes: com ele, usa o caminho antigo.
+9. **Área dos Pais sem chaves (24/09):** a tela virou "Narração e ilustrações" (narrador, velocidade, ilustrações,
+   privacidade). Chaves, motor de voz, ElevenLabs, modelos e testes ficam numa seção "Desenvolvedor" fechada, que só
+   existe na versão de teste (`BuildConfig.DEBUG`); a chave de desenvolvimento vem do `local.properties`. Saiu da tela
+   inicial o cartão "Para os pais: ative a magia completa". ⚠️ O APK de teste leva a chave do `local.properties` dentro:
+   não compartilhar.
+10. **Sons da trilha sem "parar tudo":** cada tela cancela só o próprio pedido de som (`SoundPlayer` não tem mais
+   `stop()` público). Antes, a lista de fases, ao sair, parava o som que a fase tinha acabado de começar, e a
+   instrução era cortada no "Toque..." (vídeo do usuário em celular de verdade, 24/09).
 6. **Limite gratuito conta histórias criadas** (`storiesCreated` no DataStore), então apagar histórias não
    devolve as grátis.
 7. **Segredos fora do repositório:** `.gitignore` exclui `local.properties`, `*.env`, keystores, APKs e
    pastas de build. Já foi feita varredura por chaves antes do commit.
 8. **Escolhas ligadas a virtudes** (coragem, empatia, criatividade, curiosidade, calma, cooperação) — elas
    alimentam as conquistas da criança e o painel dos pais.
+11. **Vozes (23/09/2026):** a voz do aparelho soa robótica ("tipo Google Maps") e assusta na hora de dormir, e os pais
+   não vão conseguir criar chaves de API. O usuário ouviu e **recusou vozes neurais que rodam no celular** (Supertonic 3,
+   Kokoro, Piper). As vozes que ele quer são as do Gemini que ouviu com a chave dele: **Capitão = Puck, Ursinho =
+   Algieba**. Caminho escolhido:
+   - Tudo o que é fixo é **gravado antes** e vai dentro do app (`assets/voz`): instruções da trilha, letras, sílabas,
+     palavras dos livros "Eu leio" e frases das telas. Toca na hora, sem internet e sem chave.
+   - Histórias (texto que muda) vão ser narradas por um **servidor do app** (`supabase/functions/ai-gateway`), que guarda
+     a chave; os pais não configuram nada. A tela de chaves sai da Área dos Pais.
+   - Em produção a voz vem do **Google Cloud**, não do AI Studio: a API do Gemini do AI Studio (a chave atual) proíbe
+     apps usados por menores de 18 e serve só para testes. Nos termos do Google Cloud não há essa proibição; modelos em
+     prévia são só para teste, **exceto os listados na Agent Platform (antigo Vertex AI)**, e o Gemini 3.1 Flash TTS está
+     na lista. Por isso as falas fixas foram gravadas pela Agent Platform com `gemini-3.1-flash-tts-preview` (US$ 0,03 por
+     minuto de áudio; o estável `gemini-2.5-flash-tts` custa metade, mas nos testes de 24/09 repetiu "Muito bem" e
+     embolou "bola"). Essas vozes **não aceitam chave de API** no Google Cloud: precisa de login (token OAuth).
+   - Também testados e recusados pelo usuário (23–24/09): ElevenLabs (a política de uso proíbe disponibilizar o serviço
+     para menores de 13, então não pode narrar ao vivo no app) e os modelos abertos grandes Qwen3-TTS e Chatterbox,
+     rodando na RTX 3060 do PC ("ainda robóticos, com sotaque de Portugal").
+   - Sem internet: página já narrada toca do cache; página nova não usa voz robótica (proposta: aviso para os pais lerem).
+   - **Google Cloud:** projeto "Livro Vivo" (o mesmo da chave do AI Studio; o ID fica em `googlecloud.projeto` no
+     `local.properties`, fora do git), com as APIs Cloud Text-to-Speech e Agent Platform ativadas em 24/09. O usuário
+     mantém o faturamento **desligado** por precaução: liga só quando precisa e desliga depois. Há um alerta de
+     orçamento (alerta não bloqueia gasto). Login no PC pelo Google Cloud CLI (`gcloud auth application-default login`).
 
 ---
 
@@ -257,7 +293,7 @@ e cada integração tem botão "Testar" nas configurações.
 ## 7. Texto pronto para começar o novo chat
 
 > Estou retomando o app Livro Vivo (Android/Kotlin/Compose), em
-> `%USERPROFILE%\Desktop\Creates\Livro Vivo`, repo https://github.com/jppaulus/livrovivo.
+> na pasta principal do projeto, repo https://github.com/jppaulus/livrovivo.
 > Leia o `HANDOFF.md` na raiz do projeto: ele tem a arquitetura, as decisões já tomadas e as pendências.
 > Há mudanças ainda não commitadas (narração em partes, diagnóstico do erro 403 e narrador padrão).
 > Minha prioridade agora é: [ex.: descobrir o erro 403 da minha chave / medir o tempo da narração /
@@ -285,25 +321,40 @@ chave da ElevenLabs em elevenlabs.io/app/settings/api-keys
 
 ## 9. Backup do código original (antes das melhorias)
 
-`%LOCALAPPDATA%\Temp\claude\C--Users-usuario-Desktop-Creates-Livro-Vivo\4db335ba-e2af-4cbd-93b1-f66b33f8ba7a\scratchpad\original`
-
-É uma pasta temporária e pode ser apagada pelo sistema. O histórico confiável é o commit `5876283` no GitHub.
+Ficou numa pasta temporária de um chat antigo e pode já ter sido apagada. O histórico confiável é o commit
+`5876283` no GitHub.
 
 Detalhes da etapa 7:
 - **Pronúncia (`Pronunciation`):** letras pelo nome ("B" → "bê", "F" → "éfe", como em "Toque na letra B"); sílabas
   com a vogal marcada ("BA" → "bá", "BE" → "bê"); quando o vocabulário tem palavra que começa com a letra/sílaba, a
   voz do app diz o exemplo ("bá, de bala"). O `gerar_audios.py` tem a mesma regra e um teste confere as 83.
-- **`SoundPlayer`:** toca `res/raw/som_xx` (mp3, wav ou ogg) se existir; senão, a voz do app com a dica. Só termina
-  quando o som acaba, para encadear. Registra no log (tag `LivroVivoSom`) o que usou em cada letra/sílaba.
+- **`SoundPlayer`:** toca a fala gravada em `assets/voz` (ver `VoiceClips`, mudança de 23/09 que substituiu o antigo
+  `res/raw/som_xx`) se existir; senão, a voz do app com a dica. Só termina quando o som acaba, para encadear. Registra no
+  log (tag `LivroVivoSom`) o que usou em cada fala.
 - **Onde soa:** nas 137 instruções que terminam em letra/sílaba ("Toque na sílaba BE", "Junte as letras e forme BA",
   "Cadê a letra A?"), a frase sai pela voz do app e o "BE" pelo `SoundPlayer`. No leitor "Eu leio", segurar uma
   palavra toca cada sílaba pelo `SoundPlayer` (acendendo junto) e depois lê a palavra inteira.
 - **Conferido no emulador de testes** com dois áudios provisórios (um bipe em `som_la` e `som_do`, apagados depois):
   LA e DO saíram do arquivo; LE, LI, CE pela dica; LO e LU com exemplo ("lô, de lobo"). **Ninguém ouviu ainda**.
-- **Para gravar:** chave no `local.properties` e, em `ferramentas/`, `python gerar_audios.py --teste` e depois
-  `python gerar_audios.py`. Ouça os arquivos em `app/src/main/res/raw/` antes do commit; regrave com `--so BA --refazer`.
-- Palavras de apoio tocadas sozinhas no leitor ("O", "E") ainda saem pela voz do app sem dica; se soarem mal, dá para
-  incluí-las nos áudios gravados.
+- **Falas gravadas (23/09):** o `gerar_audios.py` grava 370 falas com a voz Puck: 200 instruções inteiras (a pergunta
+  "Toque na sílaba BE" toca de uma vez, sem emenda), 18 letras, 65 sílabas, 72 palavras (vocabulário, palavras de apoio
+  com contexto para "o" não virar "ó", LUNA e PIPOCA) e 15 frases das telas. Chaves do índice: `fala:`, `letra:`,
+  `silaba:`, `palavra:` e `frase:` + texto (NFC; letras, sílabas e palavras em maiúsculas). Áudio em `.ogg` (ffmpeg),
+  volume nivelado, silêncio das pontas cortado. O script continua de onde parou se o limite do dia do Gemini acabar.
+- **Para gravar (24/09):** faturamento ligado no projeto, login do Google Cloud CLI feito e, em `ferramentas/`,
+  `python gerar_audios.py --teste` e depois `python gerar_audios.py` (padrão: `--provedor vertex`, modelo 3.1, uma
+  fala por pedido). O `--provedor gemini` usa a chave do AI Studio só para testes: no plano gratuito são 3 pedidos por
+  minuto e uns 5 por dia. Gravar várias falas num pedido (`--lote`) economiza pedidos, mas o modelo às vezes para no
+  meio do lote, e uma fala pulada trocaria o áudio de uma sílaba por outra. Ouça tudo antes do commit e regrave com
+  `--so "texto" --refazer`. O teste `VoiceClipsTest` confere que toda fala da trilha tem áudio.
+- **Pronúncia na gravação:** letra vai como a própria letra ("F", com o nome "éfe" só na direção de voz), porque escrito
+  "éfe" a voz soletrava o acento; palavras sem "pronunciar cada sílaba" na direção (senão "bola" saía "bo-la").
+- **Conferência pelo Whisper:** fora do repositório, em `%TEMP%\lvtts2` (ambiente `qwen`,
+  `conferir.py`), o Whisper large-v3-turbo transcreve cada fala na placa de vídeo e marca as que não batem com o texto.
+- **Conferido no emulador de testes (23/09)** com bipes provisórios no lugar das falas da fase Letra A (apagados depois):
+  instruções, "Tente de novo!", "Muito bem!" e o resultado tocaram do arquivo assim que a tela pediu; na fase sem
+  áudio, a voz do aparelho levou 3,9 s para começar a primeira instrução. O nome da criança e "Ouvir a página" ainda
+  usam a voz do app (vão para o servidor).
 
 Detalhes da etapa 8 (decisões que a especificação não cobria):
 - **Progressão sem assinatura:** um módulo libera quando todas as fases **que a criança pode jogar** do anterior têm
@@ -323,7 +374,7 @@ Detalhes da etapa 8 (decisões que a especificação não cobria):
 
 ## 5.2. O que falta depois da Trilha da Leitura
 1. Testar os livros com IA com uma chave real (etapa 6) e ouvir a voz das sílabas num aparelho com som (etapa 7).
-2. Gravar os 83 áudios com `ferramentas/gerar_audios.py` (precisa de chave ElevenLabs ou Gemini) e ouvi-los.
+2. Ouvir as 370 falas gravadas em 24/09 pela Agent Platform (decisão 11 da seção 4) e regravar as que ficarem ruins.
 3. Criar as 55 figuras (`ferramentas/lista_imagens.txt`, estilo guache do `DIRECAO_EDITORIAL.md`); até lá o app mostra
    cartões com a palavra.
 4. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual de dormir, sons) com esta linha.

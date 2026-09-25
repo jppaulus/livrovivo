@@ -107,8 +107,7 @@ data class HomeUiState(
     val activeChild: ChildProfile? = null,
     val profiles: List<ChildProfile> = emptyList(),
     val stories: List<Story> = emptyList(),
-    val quotaStatus: QuotaStatus = QuotaStatus.Limited(remaining = 3, max = 3),
-    val aiConfigured: Boolean = true
+    val quotaStatus: QuotaStatus = QuotaStatus.Limited(remaining = 3, max = 3)
 ) {
     val inProgress: Story? get() = stories.firstOrNull { !it.isCompleted && it.chapters.isNotEmpty() && !it.isEuLeio }
 }
@@ -123,7 +122,6 @@ class HomeViewModel(
     private val checkStoryQuotaUseCase: CheckStoryQuotaUseCase,
     private val deleteStoryUseCase: DeleteStoryUseCase,
     settingsManager: SettingsManager,
-    backendConfigured: Boolean,
     private val audioPlayerController: AudioPlayerController,
     private val literacyRepository: LiteracyRepository
 ) : ViewModel() {
@@ -136,13 +134,12 @@ class HomeViewModel(
         settingsManager.settingsFlow,
         quota,
         getActiveChildUseCase.profiles()
-    ) { stories, child, settings, quotaStatus, profiles ->
+    ) { stories, child, _, quotaStatus, profiles ->
         HomeUiState(
             activeChild = child,
             profiles = profiles,
             stories = stories.filter { it.childId == child?.id },
-            quotaStatus = quotaStatus,
-            aiConfigured = settings.hasGeminiKey || backendConfigured
+            quotaStatus = quotaStatus
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -336,12 +333,6 @@ fun HomeScreen(
                     )
                 }
 
-                if (!uiState.aiConfigured) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        ParentHintCard(onClick = { afterParentalGate = onNavigateToParentArea })
-                    }
-                }
-
                 literacyCard?.let { card ->
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         LearnToReadCard(state = card, onClick = onNavigateToLiteracy)
@@ -399,35 +390,6 @@ fun HomeScreen(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ParentHintCard(onClick: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "🪄", fontSize = 26.sp)
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Para os pais: ative a magia completa",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Text(
-                    text = "Conecte a IA para histórias únicas, ilustrações e narradores com voz natural.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
-                )
             }
         }
     }

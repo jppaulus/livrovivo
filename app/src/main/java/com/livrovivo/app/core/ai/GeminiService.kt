@@ -13,6 +13,13 @@ import com.livrovivo.app.core.ai.JsonUtils.string
 import com.livrovivo.app.core.settings.AiModelDefaults
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.data.model.appJson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
@@ -23,12 +30,17 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 class GeneratedImage(val bytes: ByteArray, val mimeType: String)
 
 class GeneratedSpeech(val pcm: ByteArray, val sampleRate: Int)
+
+/** Um pedaço da narração em partes: PCM 16-bit mono. */
+class SpeechChunk(val pcm: ByteArray, val sampleRate: Int)
 
 /** Resultado do teste de chave: se ela foi aceita e quantos modelos a conta enxerga. */
 data class KeyValidation(val valid: Boolean, val visibleModels: List<String>, val error: AiException?)
@@ -52,6 +64,8 @@ class GeminiService(
         const val TEXT_TIMEOUT_S = 30L
         const val IMAGE_TIMEOUT_S = 150L
         const val SPEECH_TIMEOUT_S = 150L
+        /** Tempo máximo sem receber nada no meio da narração em partes. */
+        const val STREAM_READ_TIMEOUT_S = 20L
         val BLOCK_REASONS = setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "IMAGE_SAFETY", "RECITATION")
     }
 
@@ -168,27 +182,80 @@ class GeminiService(
         return GeneratedImage(bytes, mimeOf(inline))
     }
 
+    private fun speechBody(prompt: String, voiceName: String) = buildJsonObject {
+        putJsonArray("contents") {
+            addJsonObject {
+                put("role", "user")
+                putJsonArray("parts") { addJsonObject { put("text", prompt) } }
+            }
+        }
+        putJsonObject("generationConfig") {
+            putJsonArray("responseModalities") { add("AUDIO") }
+            putJsonObject("speechConfig") {
+                putJsonObject("voiceConfig") {
+                    putJsonObject("prebuiltVoiceConfig") { put("voiceName", voiceName) }
+                }
+            }
+        }
+    }
+
+    /** A narração pode vir em partes ([streamSpeech]): por enquanto só com chave (o servidor ainda não repassa em partes). */
+    suspend fun canStreamSpeech(): Boolean = settings.current().hasGeminiKey
+
+    /**
+     * Narração em partes, conforme o Gemini gera (streamGenerateContent): o primeiro pedaço chega em cerca de
+     * 1 s, enquanto a página inteira levaria quase o tempo da própria fala (medido em 24/09/2026: 180 letras
+     * em 9 a 12 s de uma vez, contra 0,8 s até o primeiro pedaço). Emite PCM 16-bit mono.
+     */
+    fun streamSpeech(prompt: String, voiceName: String): Flow<SpeechChunk> = flow {
+        val current = settings.current()
+        if (current.geminiApiKey.isBlank()) throw AiException(AiException.Kind.NOT_CONFIGURED)
+        val model = current.ttsModel
+        val request = Request.Builder()
+            .url("$BASE_URL/$model:streamGenerateContent?alt=sse")
+            .addHeader("x-goog-api-key", current.geminiApiKey)
+            .addAndroidIdentity()
+            .post(AiHttp.jsonBody(speechBody(prompt, voiceName).toString()))
+            .build()
+        val call = http.newBuilder().readTimeout(STREAM_READ_TIMEOUT_S, TimeUnit.SECONDS).build().newCall(request)
+        // Sair da página cancela a corrotina: a conexão precisa fechar junto (a leitura abaixo é bloqueante).
+        val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    val error = parseError(HttpResult(response.code, response.body?.bytes() ?: ByteArray(0), response.header("Content-Type")))
+                    if (BuildConfig.DEBUG) Log.w("LivroVivoIA", "Voz em partes falhou em $model: HTTP ${response.code} ${error.kind}")
+                    throw error
+                }
+                val source = response.body?.source() ?: throw AiException(AiException.Kind.PARSE, "Resposta vazia")
+                while (true) {
+                    val line = source.readUtf8Line() ?: break
+                    if (!line.startsWith("data:")) continue
+                    val event = appJson.parseToJsonElement(line.substring(5).trim()).asObjectOrNull() ?: continue
+                    firstCandidateParts(event).forEach { part ->
+                        val inline = inlineData(part) ?: return@forEach
+                        val mime = mimeOf(inline)
+                        if (!mime.startsWith("audio/")) return@forEach
+                        val pcm = Base64.getDecoder().decode(inline.string("data").orEmpty())
+                        val rate = Regex("rate=(\\d+)").find(mime)?.groupValues?.get(1)?.toIntOrNull() ?: 24_000
+                        if (pcm.isNotEmpty()) emit(SpeechChunk(pcm, rate))
+                    }
+                }
+            }
+        } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
+            throw AiException(AiException.Kind.NETWORK, e.message.orEmpty(), cause = e)
+        } finally {
+            cancelHandle?.dispose()
+        }
+    }.flowOn(Dispatchers.IO)
+
     /** Narração com voz neural expressiva. Retorna PCM 16-bit mono. */
     suspend fun generateSpeech(prompt: String, voiceName: String): GeneratedSpeech {
         val configured = settings.current().ttsModel
         val models = (listOf(configured) + AiModelDefaults.TTS_FALLBACKS).distinct()
         val response = callWithFallback(models, SPEECH_TIMEOUT_S, persistDefault = settings::setTtsModel) { _, _ ->
-            buildJsonObject {
-                putJsonArray("contents") {
-                    addJsonObject {
-                        put("role", "user")
-                        putJsonArray("parts") { addJsonObject { put("text", prompt) } }
-                    }
-                }
-                putJsonObject("generationConfig") {
-                    putJsonArray("responseModalities") { add("AUDIO") }
-                    putJsonObject("speechConfig") {
-                        putJsonObject("voiceConfig") {
-                            putJsonObject("prebuiltVoiceConfig") { put("voiceName", voiceName) }
-                        }
-                    }
-                }
-            }
+            speechBody(prompt, voiceName)
         }.second
         checkBlocked(response)
         val audioPart = firstCandidateParts(response).firstOrNull { part ->

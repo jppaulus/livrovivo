@@ -16,6 +16,9 @@ import com.livrovivo.app.core.settings.AppSettings
 import com.livrovivo.app.core.settings.SettingsManager
 import com.livrovivo.app.core.settings.VoiceEngineChoice
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
 
@@ -74,6 +78,10 @@ class AudioPlayerController(
         const val MAX_CACHE_BYTES = 300L * 1024 * 1024
         const val DUCKED_VOLUME = 0.18f
         const val AMBIENT_VOLUME = 0.5f
+        /** Sem o primeiro pedaço da voz em partes neste tempo, volta ao caminho antigo (arquivo por parte). */
+        const val FIRST_AUDIO_TIMEOUT_MS = 6_000L
+        /** Letras por segundo de fala do Gemini (medido em 24/09/2026), para o destaque antes de saber a duração. */
+        const val CHARS_PER_SECOND = 10.5
     }
 
     private data class LoadParams(
@@ -109,6 +117,9 @@ class AudioPlayerController(
     private var parts: List<NarrationPart> = emptyList()
     private var queuedParts = 0
     private var activeEngine: NarrationEngine? = null
+
+    /** Narração tocando enquanto chega (voz do Gemini em partes); null quando é o ExoPlayer que toca. */
+    private var stream: StreamingPcmPlayer? = null
 
     private var ambientTrack: AudioTrack? = null
     private var ambientJob: Job? = null
@@ -250,6 +261,10 @@ class AudioPlayerController(
             val pageParts = parts
             if (pageParts.isEmpty()) return@launch
 
+            // 0) Voz do Gemini em partes: a página inteira num pedido só, tocando desde o primeiro pedaço (~1 s).
+            if (shouldStream(settings) && streamPage(params, settings)) return@launch
+            if (currentParams?.key != params.key) return@launch
+
             // 1) Só a primeira parte é esperada: a criança ouve em poucos segundos.
             val first = synthesizeWithFallback(requestFor(params, pageParts, 0), settings, orderedEngines(settings))
             if (currentParams?.key != params.key) return@launch
@@ -300,6 +315,165 @@ class AudioPlayerController(
                 }
             }
         }
+    }
+
+    /** A voz em partes vale para o Gemini com chave, quando ele é o primeiro motor da vez. */
+    private suspend fun shouldStream(settings: AppSettings): Boolean =
+        orderedEngines(settings).firstOrNull() === geminiEngine && geminiEngine.canStream()
+
+    /** A página inteira como uma parte só (a voz em partes narra tudo num pedido). */
+    private fun wholePage(params: LoadParams): NarrationPart = NarrationPart(
+        chunk = NarrationChunker.Chunk(params.text.indices, params.script ?: params.text),
+        sentenceStart = 0,
+        timeline = NarrationTimeline.build(params.text)
+    )
+
+    /**
+     * Narra a página com a voz do Gemini em partes: toca desde o primeiro pedaço e guarda a página inteira
+     * para ouvir de novo sem gerar outra vez. Devolve false se o primeiro pedaço não chegou a tempo (aí a
+     * narração segue pelo caminho antigo).
+     */
+    private suspend fun streamPage(params: LoadParams, settings: AppSettings): Boolean {
+        val request = NarrationRequest(
+            text = params.text,
+            script = params.script,
+            persona = _playbackState.value.activePersona,
+            mood = params.mood,
+            listenerAge = params.listenerAge
+        )
+        val base = File(narrationDir, sha256("stream|" + geminiEngine.cacheSignature(request, settings) + "|" + (request.script ?: request.text)))
+        val whole = wholePage(params)
+
+        // Página já narrada antes: toca o arquivo guardado, sem gastar outra geração.
+        val cached = withContext(Dispatchers.IO) {
+            listOf("m4a", "wav").map { File("${base.path}.$it") }.firstOrNull { it.exists() && it.length() > 1_000 }
+        }
+        if (cached != null) {
+            cached.setLastModified(System.currentTimeMillis())
+            parts = listOf(whole)
+            activeEngine = geminiEngine
+            startPlayback(cached, EngineKind.GEMINI, null)
+            return true
+        }
+
+        val started = System.nanoTime()
+        return kotlinx.coroutines.coroutineScope {
+            val chunks = Channel<ByteArray>(Channel.UNLIMITED)
+            val firstRate = CompletableDeferred<Int>()
+            val producer = launch(Dispatchers.IO) {
+                val all = ByteArrayOutputStream()
+                var rate = 24_000
+                try {
+                    geminiEngine.stream(request).collect { chunk ->
+                        rate = chunk.sampleRate
+                        all.write(chunk.pcm)
+                        chunks.send(chunk.pcm)
+                        if (!firstRate.isCompleted) firstRate.complete(rate)
+                    }
+                    chunks.close()
+                    if (all.size() == 0) throw AiException(AiException.Kind.PARSE, "A voz não devolveu áudio")
+                    val file = saveWholePage(all.toByteArray(), rate, base)
+                    withContext(Dispatchers.Main) { if (currentParams?.key == params.key) currentFile = file }
+                } catch (e: CancellationException) {
+                    chunks.close()
+                    throw e
+                } catch (e: Throwable) {
+                    chunks.close(e)
+                    firstRate.completeExceptionally(e)
+                    if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.w("LivroVivoVoz", "Voz em partes falhou: ${friendly(e)}")
+                }
+            }
+            val rate = withTimeoutOrNull(FIRST_AUDIO_TIMEOUT_MS) { runCatching { firstRate.await() }.getOrNull() }
+            if (rate == null || currentParams?.key != params.key) {
+                producer.cancel()
+                return@coroutineScope false
+            }
+            if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.d("LivroVivoPerf",
+                "voice engine=GEMINI stream firstAudioMs=${(System.nanoTime() - started) / 1_000_000}")
+            playStream(params, rate, chunks, whole)
+            true
+        }
+    }
+
+    /** Toca os pedaços conforme chegam, atualizando progresso e destaque, até o último ser ouvido. */
+    private suspend fun playStream(params: LoadParams, rate: Int, chunks: ReceiveChannel<ByteArray>, whole: NarrationPart) =
+        kotlinx.coroutines.coroutineScope {
+            player?.stop()
+            player?.clearMediaItems()
+            val out = StreamingPcmPlayer(rate, _playbackState.value.speed)
+            stream = out
+            parts = listOf(whole)
+            activeEngine = geminiEngine
+            val estimate = (params.text.length / CHARS_PER_SECOND * rate).toLong()
+            _playbackState.update {
+                it.copy(
+                    status = if (playWhenReady) NarrationStatus.PLAYING else NarrationStatus.READY,
+                    engine = EngineKind.GEMINI,
+                    notice = null,
+                    error = null,
+                    partIndex = 1,
+                    partCount = 1
+                )
+            }
+            applyDucking()
+            val writer = launch(Dispatchers.IO) {
+                var first = true
+                try {
+                    for (pcm in chunks) {
+                        out.write(pcm) // bloqueia enquanto está pausado ou com o buffer cheio
+                        if (first) {
+                            first = false
+                            if (playWhenReady) out.play()
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // A conexão caiu no meio: termina no que já chegou e avisa os pais.
+                    _playbackState.update { it.copy(notice = "Não consegui narrar o resto desta página (${friendly(e)}).") }
+                }
+            }
+            try {
+                while (isActive) {
+                    val written = out.framesWritten
+                    val played = out.framesPlayed.coerceAtMost(written)
+                    val total = if (writer.isCompleted) written else maxOf(estimate, written)
+                    val progress = if (total > 0) (played.toFloat() / total).coerceIn(0f, 1f) else 0f
+                    _playbackState.update {
+                        it.copy(
+                            currentPositionMs = played * 1000 / rate,
+                            durationMs = total * 1000 / rate,
+                            playbackProgress = progress,
+                            highlightedSentence = if (out.isPlaying || played > 0) whole.timeline.sentenceAt(progress) else -1
+                        )
+                    }
+                    // Terminou: tudo chegou e o alto-falante tocou até o fim (com folga de 50 ms).
+                    if (writer.isCompleted && written > 0 && played >= written - rate / 20) break
+                    delay(100)
+                }
+                _playbackState.update {
+                    it.copy(status = NarrationStatus.ENDED, playbackProgress = 1f, highlightedSentence = -1)
+                }
+            } finally {
+                out.release()
+                if (stream === out) stream = null
+                applyDucking()
+            }
+        }
+
+    /** Guarda a página narrada (AAC, ou WAV se o aparelho não codificar) para tocar de novo sem gerar. */
+    private suspend fun saveWholePage(pcm: ByteArray, rate: Int, base: File): File = withContext(Dispatchers.IO) {
+        val m4a = File(base.path + ".m4a")
+        val file = try {
+            AacEncoder.encode(pcm, rate, m4a)
+            if (m4a.length() < 1_000) throw IllegalStateException("AAC vazio")
+            m4a
+        } catch (_: Exception) {
+            m4a.delete()
+            File(base.path + ".wav").also { WavWriter.write(it, pcm, rate) }
+        }
+        trimCache()
+        file
     }
 
     /** Divide a página em partes e associa cada uma às frases que ela cobre. */
@@ -435,6 +609,23 @@ class AudioPlayerController(
 
     fun togglePlayPause() {
         val state = _playbackState.value
+        stream?.let { live ->
+            when (state.status) {
+                NarrationStatus.PLAYING -> {
+                    live.pause()
+                    _playbackState.update { it.copy(status = NarrationStatus.PAUSED) }
+                }
+                NarrationStatus.READY, NarrationStatus.PAUSED -> {
+                    playWhenReady = true
+                    live.play()
+                    _playbackState.update { it.copy(status = NarrationStatus.PLAYING) }
+                }
+                NarrationStatus.PREPARING -> playWhenReady = !playWhenReady
+                else -> Unit
+            }
+            applyDucking()
+            return
+        }
         val exo = player
         when (state.status) {
             NarrationStatus.PLAYING -> exo?.pause()
@@ -446,9 +637,16 @@ class AudioPlayerController(
     }
 
     fun replay() {
-        val exo = player ?: return
-        if (currentFile == null) {
+        val file = currentFile
+        if (file == null) {
             currentParams?.let { startLoad(it, autoPlay = true) }
+            return
+        }
+        val exo = player
+        if (exo == null || exo.mediaItemCount == 0) {
+            // A página tocou pela voz em partes: agora ela está guardada inteira num arquivo.
+            playWhenReady = true
+            startPlayback(file, activeEngine?.kind ?: EngineKind.GEMINI, null)
             return
         }
         exo.seekTo(0, 0L)
@@ -484,6 +682,7 @@ class AudioPlayerController(
         val value = speed.coerceIn(0.7f, 1.3f)
         _playbackState.update { it.copy(speed = value) }
         player?.setPlaybackParameters(PlaybackParameters(value))
+        stream?.setSpeed(value)
         scope.launch { settingsManager.setNarrationSpeed(value) }
     }
 
@@ -674,6 +873,8 @@ class AudioPlayerController(
 
     fun release() {
         loadJob?.cancel()
+        stream?.release()
+        stream = null
         stopProgressTracker()
         stopAmbient()
         player?.release()

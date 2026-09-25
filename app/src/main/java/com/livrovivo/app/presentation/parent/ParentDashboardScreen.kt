@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
+import com.livrovivo.app.core.audio.VoicePersona
 import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.ReadingInsights
 import com.livrovivo.app.core.literacy.ReadingInsightsBuilder
@@ -501,9 +502,9 @@ fun ParentDashboardScreen(
 
             SectionHeader(title = "Configurações")
             NavigationCard(
-                emoji = "🪄",
-                title = "IA, vozes e ilustrações",
-                subtitle = aiSummary(uiState),
+                emoji = "🎙️",
+                title = "Narração e ilustrações",
+                subtitle = narrationSummary(uiState),
                 onClick = onOpenSettings
             )
             NavigationCard(
@@ -523,16 +524,12 @@ fun ParentDashboardScreen(
 
 private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
 
-private fun aiSummary(state: ParentDashboardUiState): String {
+/** Resumo para os pais: quem narra e como são as ilustrações (nada de chaves ou modelos de IA). */
+private fun narrationSummary(state: ParentDashboardUiState): String {
     val s = state.settings
-    val text = if (s.hasGeminiKey || state.backendConfigured) "IA conectada" else "IA não configurada (modo offline)"
-    val voice = when {
-        s.hasElevenLabsKey -> "voz ElevenLabs"
-        s.hasGeminiKey || state.backendConfigured -> "voz Gemini"
-        else -> "voz do aparelho"
-    }
-    val art = if (s.illustrationsEnabled && (s.hasGeminiKey || state.backendConfigured)) "ilustrações ${s.illustrationStyle.title.lowercase()}" else "ilustrações do app"
-    return "$text · $voice · $art"
+    val narrator = VoicePersona.fromId(s.defaultPersonaId).title
+    val art = if (s.illustrationsEnabled) "ilustrações ${s.illustrationStyle.title.lowercase()}" else "sem ilustrações novas"
+    return "Narrador: $narrator · $art"
 }
 
 @Composable

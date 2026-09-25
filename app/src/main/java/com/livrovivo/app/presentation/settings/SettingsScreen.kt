@@ -72,6 +72,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.BuildConfig
 import com.livrovivo.app.core.audio.VoicePersona
 import com.livrovivo.app.core.settings.AiModelDefaults
 import com.livrovivo.app.core.settings.VoiceEngineChoice
@@ -89,8 +90,6 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val settings = uiState.settings
     val snackbar = remember { SnackbarHostState() }
-    val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
 
     LaunchedEffect(uiState.savedMessage) {
         uiState.savedMessage?.let {
@@ -102,7 +101,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("IA, vozes e ilustrações", fontWeight = FontWeight.Bold) },
+                title = { Text("Narração e ilustrações", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -122,80 +121,12 @@ fun SettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ---------------------------------------------------------------- IA de texto
+            // ---------------------------------------------------------------- Narrador (pais)
             SettingsCard {
                 SectionHeader(
-                    title = "🧠 Inteligência Artificial (Google Gemini)",
-                    subtitle = "Cria histórias únicas que mudam de acordo com cada escolha. A mesma chave também gera ilustrações e vozes naturais."
+                    title = "🎙️ Narrador",
+                    subtitle = "Ouça uma amostra de cada narrador e escolha o preferido da sua família."
                 )
-                if (uiState.backendConfigured) {
-                    StatusLine(ok = true, text = "Servidor Livro Vivo configurado: a chave abaixo é opcional.")
-                }
-                if (settings.geminiKeyFromDevConfig) {
-                    StatusLine(ok = true, text = "Usando a chave do local.properties (build de desenvolvimento).")
-                }
-                SecretField(
-                    value = uiState.geminiKeyInput,
-                    onValueChange = viewModel::onGeminiKeyChange,
-                    label = "Chave de API do Gemini",
-                    placeholder = "AIza..."
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.saveGeminiKey() }) { Text("Salvar") }
-                    OutlinedButton(onClick = viewModel::testText) { Text("Testar conexão") }
-                }
-                TestResult(uiState.textTest)
-                TextButton(onClick = { uriHandler.openUri("https://aistudio.google.com/apikey") }) {
-                    Text("Obter uma chave no Google AI Studio →")
-                }
-                Text(
-                    text = "Sem chave, o app usa histórias offline escritas à mão e ilustrações desenhadas pelo próprio app.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                )
-            }
-
-            // ---------------------------------------------------------------- Voz
-            SettingsCard {
-                SectionHeader(
-                    title = "🎙️ Voz do narrador",
-                    subtitle = "Escolha o motor de voz e ouça uma amostra de cada narrador."
-                )
-                val hasAiVoice = settings.hasGeminiKey || settings.hasElevenLabsKey || uiState.backendConfigured
-                if (!hasAiVoice || settings.voiceEngine == VoiceEngineChoice.DEVICE) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = if (!hasAiVoice) {
-                                "🔈 Sem chave de IA, os narradores usam a voz do aparelho — a mesma voz robótica do Google Maps. " +
-                                    "Cole a chave gratuita do Gemini na seção acima para cada narrador ganhar uma voz natural e diferente."
-                            } else {
-                                "🔈 \"Voz do aparelho\" está selecionada: ela soa robótica. Escolha Automático para usar as vozes naturais."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    VoiceEngineChoice.entries.forEach { choice ->
-                        FilterChip(
-                            selected = settings.voiceEngine == choice,
-                            onClick = { viewModel.setVoiceEngine(choice) },
-                            label = { Text(choice.title) }
-                        )
-                    }
-                }
-                Text(
-                    text = settings.voiceEngine.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                HorizontalDivider()
                 VoicePersona.entries.forEach { persona ->
                     PersonaRow(
                         persona = persona,
@@ -217,90 +148,18 @@ fun SettingsScreen(
                     }
                 }
                 SwitchRow("Preparar os próximos caminhos durante a leitura", settings.prepareNextChoices) { viewModel.setPrepareChoices(it) }
-                Text("Reduz a espera após escolher. Gera até duas continuações por página e pode aumentar o consumo de IA.", style = MaterialTheme.typography.bodySmall)
+                Text("A próxima página fica pronta enquanto a criança ainda está lendo.", style = MaterialTheme.typography.bodySmall)
                 SwitchRow("Narrar automaticamente ao abrir a página", settings.autoPlayNarration) { viewModel.setAutoPlay(it) }
                 SwitchRow("Destacar a frase que está sendo lida", settings.highlightReading) { viewModel.setHighlight(it) }
             }
 
-            // ---------------------------------------------------------------- ElevenLabs
-            SettingsCard {
-                SectionHeader(
-                    title = "✨ ElevenLabs (voz premium)",
-                    subtitle = "A narração mais expressiva: sussurros, risadinhas e emoção. Requer conta na ElevenLabs."
-                )
-                if (settings.elevenLabsKeyFromDevConfig) {
-                    StatusLine(ok = true, text = "Usando a chave do local.properties (build de desenvolvimento).")
-                }
-                SecretField(
-                    value = uiState.elevenKeyInput,
-                    onValueChange = viewModel::onElevenKeyChange,
-                    label = "Chave de API da ElevenLabs",
-                    placeholder = "sk_..."
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.saveElevenKey() }) { Text("Salvar") }
-                    OutlinedButton(onClick = viewModel::loadElevenVoices) { Text("Carregar minhas vozes") }
-                }
-                TestResult(uiState.voicesState)
-                TextButton(onClick = { uriHandler.openUri("https://elevenlabs.io/app/settings/api-keys") }) {
-                    Text("Criar uma chave na ElevenLabs →")
-                }
-                Text("Modelo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AiModelDefaults.ELEVENLABS_MODELS.forEach { (model, label) ->
-                        FilterChip(
-                            selected = settings.elevenLabsModel == model,
-                            onClick = { viewModel.setElevenModel(model) },
-                            label = { Text(label) }
-                        )
-                    }
-                }
-                if (uiState.elevenVoices.isNotEmpty()) {
-                    Text("Voz de cada narrador", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        text = "Dica: na biblioteca da ElevenLabs, adicione à sua conta vozes com sotaque brasileiro para um resultado ainda mais natural.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                    )
-                    VoicePersona.entries.forEach { persona ->
-                        VoicePicker(
-                            persona = persona,
-                            voices = uiState.elevenVoices,
-                            selectedId = settings.elevenLabsVoiceIds[persona.id],
-                            onSelect = { viewModel.setElevenVoice(persona, it) }
-                        )
-                    }
-                }
-            }
-
-            // ---------------------------------------------------------------- Voz do aparelho
-            SettingsCard {
-                SectionHeader(
-                    title = "📱 Voz do aparelho (offline)",
-                    subtitle = "Usada sem internet. Instale as vozes em português de alta qualidade para soar melhor."
-                )
-                OutlinedButton(onClick = {
-                    val intents = listOf(
-                        Intent("com.android.settings.TTS_SETTINGS"),
-                        Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
-                    )
-                    for (intent in intents) {
-                        try {
-                            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            break
-                        } catch (_: ActivityNotFoundException) {
-                        }
-                    }
-                }) { Text("Abrir configurações de voz do Android") }
-            }
-
-            // ---------------------------------------------------------------- Ilustrações
+            // ---------------------------------------------------------------- Ilustrações (pais)
             SettingsCard {
                 SectionHeader(
                     title = "🎨 Ilustrações",
                     subtitle = "Uma ilustração por página, mantendo os personagens iguais do começo ao fim."
                 )
-                SwitchRow("Gerar ilustrações com IA", settings.illustrationsEnabled) { viewModel.setIllustrationsEnabled(it) }
+                SwitchRow("Ilustrar cada página", settings.illustrationsEnabled) { viewModel.setIllustrationsEnabled(it) }
                 Text("Estilo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     IllustrationStyle.entries.forEach { style ->
@@ -311,74 +170,193 @@ fun SettingsScreen(
                         )
                     }
                 }
-                Text("Qualidade", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AiModelDefaults.IMAGE_MODELS.forEach { (model, label) ->
-                        FilterChip(
-                            selected = settings.imageModel == model,
-                            onClick = { viewModel.setImageModel(model) },
-                            label = { Text(label) }
-                        )
-                    }
-                }
-                OutlinedButton(onClick = viewModel::testIllustration) { Text("Gerar ilustração de teste") }
-                TestResult(uiState.imageTest)
-                uiState.sampleImagePath?.let { path ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .clip(RoundedCornerShape(18.dp))
-                    ) {
-                        LocalImage(path = path, modifier = Modifier.fillMaxSize())
-                    }
-                }
-                Text(
-                    text = "A geração de imagens pode exigir faturamento ativo na conta do Google AI Studio.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                )
-            }
-
-            // ---------------------------------------------------------------- Avançado
-            SettingsCard {
-                SectionHeader(
-                    title = "⚙️ Avançado",
-                    subtitle = "Se um modelo for desativado pelo Google, o app tenta automaticamente os mais novos."
-                )
-                OutlinedTextField(
-                    value = uiState.textModelInput,
-                    onValueChange = viewModel::onTextModelChange,
-                    label = { Text("Modelo de texto") },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = uiState.ttsModelInput,
-                    onValueChange = viewModel::onTtsModelChange,
-                    label = { Text("Modelo de voz (Gemini TTS)") },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { viewModel.saveModels() }) { Text("Salvar modelos") }
-                    TextButton(onClick = {
-                        viewModel.onTextModelChange(AiModelDefaults.TEXT)
-                        viewModel.onTtsModelChange(AiModelDefaults.TTS)
-                    }) { Text("Restaurar padrão") }
-                }
             }
 
             SettingsCard {
                 SectionHeader(
                     title = "🔒 Privacidade",
-                    subtitle = "Para criar as histórias enviamos apenas o primeiro nome, a faixa de idade, os interesses e a aparência escolhida. As chaves ficam salvas somente neste aparelho."
+                    subtitle = "Para criar as histórias usamos apenas o primeiro nome, a faixa de idade, os interesses e a aparência escolhida."
                 )
             }
 
+            // Chaves, modelos e testes: só na versão de desenvolvimento. Na loja, os pais nunca configuram IA.
+            if (BuildConfig.DEBUG) {
+                DeveloperOptions(uiState = uiState, viewModel = viewModel)
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * Opções de quem desenvolve o app (só existem na versão de teste): chaves, motor de voz, ElevenLabs,
+ * modelos e testes. Com a chave no local.properties, nada disso precisa ser preenchido.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DeveloperOptions(uiState: SettingsUiState, viewModel: SettingsViewModel) {
+    val settings = uiState.settings
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+
+    SettingsCard {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("🛠️ Desenvolvedor", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Só aparece na versão de teste; some na versão da loja.", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = { open = !open }) { Text(if (open) "Fechar" else "Abrir") }
+        }
+        if (!open) return@SettingsCard
+
+        // ------------------------------------------------------------ IA de texto
+        HorizontalDivider()
+        Text("🧠 Google Gemini (chave de API)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        if (uiState.backendConfigured) {
+            StatusLine(ok = true, text = "Servidor Livro Vivo configurado: a chave abaixo é opcional.")
+        }
+        if (settings.geminiKeyFromDevConfig) {
+            StatusLine(ok = true, text = "Usando a chave do local.properties.")
+        }
+        SecretField(
+            value = uiState.geminiKeyInput,
+            onValueChange = viewModel::onGeminiKeyChange,
+            label = "Chave de API do Gemini",
+            placeholder = "AIza..."
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { viewModel.saveGeminiKey() }) { Text("Salvar") }
+            OutlinedButton(onClick = viewModel::testText) { Text("Testar conexão") }
+        }
+        TestResult(uiState.textTest)
+        TextButton(onClick = { uriHandler.openUri("https://aistudio.google.com/apikey") }) {
+            Text("Obter uma chave no Google AI Studio →")
+        }
+
+        // ------------------------------------------------------------ Motor de voz
+        HorizontalDivider()
+        Text("🔈 Motor de voz", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            VoiceEngineChoice.entries.forEach { choice ->
+                FilterChip(
+                    selected = settings.voiceEngine == choice,
+                    onClick = { viewModel.setVoiceEngine(choice) },
+                    label = { Text(choice.title) }
+                )
+            }
+        }
+        Text(
+            text = settings.voiceEngine.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        OutlinedButton(onClick = {
+            val intents = listOf(
+                Intent("com.android.settings.TTS_SETTINGS"),
+                Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+            )
+            for (intent in intents) {
+                try {
+                    context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    break
+                } catch (_: ActivityNotFoundException) {
+                }
+            }
+        }) { Text("Configurações de voz do Android") }
+
+        // ------------------------------------------------------------ ElevenLabs
+        HorizontalDivider()
+        Text("✨ ElevenLabs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "A política de uso da ElevenLabs proíbe o serviço para menores de 13 anos: serve só para testes.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        if (settings.elevenLabsKeyFromDevConfig) {
+            StatusLine(ok = true, text = "Usando a chave do local.properties.")
+        }
+        SecretField(
+            value = uiState.elevenKeyInput,
+            onValueChange = viewModel::onElevenKeyChange,
+            label = "Chave de API da ElevenLabs",
+            placeholder = "sk_..."
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { viewModel.saveElevenKey() }) { Text("Salvar") }
+            OutlinedButton(onClick = viewModel::loadElevenVoices) { Text("Carregar vozes") }
+        }
+        TestResult(uiState.voicesState)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            AiModelDefaults.ELEVENLABS_MODELS.forEach { (model, label) ->
+                FilterChip(
+                    selected = settings.elevenLabsModel == model,
+                    onClick = { viewModel.setElevenModel(model) },
+                    label = { Text(label) }
+                )
+            }
+        }
+        if (uiState.elevenVoices.isNotEmpty()) {
+            VoicePersona.entries.forEach { persona ->
+                VoicePicker(
+                    persona = persona,
+                    voices = uiState.elevenVoices,
+                    selectedId = settings.elevenLabsVoiceIds[persona.id],
+                    onSelect = { viewModel.setElevenVoice(persona, it) }
+                )
+            }
+        }
+
+        // ------------------------------------------------------------ Ilustrações
+        HorizontalDivider()
+        Text("🎨 Modelo de ilustração", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            AiModelDefaults.IMAGE_MODELS.forEach { (model, label) ->
+                FilterChip(
+                    selected = settings.imageModel == model,
+                    onClick = { viewModel.setImageModel(model) },
+                    label = { Text(label) }
+                )
+            }
+        }
+        OutlinedButton(onClick = viewModel::testIllustration) { Text("Gerar ilustração de teste") }
+        TestResult(uiState.imageTest)
+        uiState.sampleImagePath?.let { path ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(4f / 3f)
+                    .clip(RoundedCornerShape(18.dp))
+            ) {
+                LocalImage(path = path, modifier = Modifier.fillMaxSize())
+            }
+        }
+
+        // ------------------------------------------------------------ Modelos
+        HorizontalDivider()
+        Text("⚙️ Modelos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            value = uiState.textModelInput,
+            onValueChange = viewModel::onTextModelChange,
+            label = { Text("Modelo de texto") },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.ttsModelInput,
+            onValueChange = viewModel::onTtsModelChange,
+            label = { Text("Modelo de voz (Gemini TTS)") },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = { viewModel.saveModels() }) { Text("Salvar modelos") }
+            TextButton(onClick = {
+                viewModel.onTextModelChange(AiModelDefaults.TEXT)
+                viewModel.onTtsModelChange(AiModelDefaults.TTS)
+            }) { Text("Restaurar padrão") }
         }
     }
 }
