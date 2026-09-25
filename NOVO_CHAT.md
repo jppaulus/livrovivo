@@ -11,9 +11,13 @@
 
 | O quê | Onde |
 |---|---|
-| Pasta do projeto | a pasta principal do projeto no PC (branch `main`, commit `17460eb`) |
+| Pasta do projeto | a pasta principal do projeto no PC (branch `main`, commit `a226e2f`) |
 | **Linha atual** | branch **`feature/trilha-da-leitura`**: a trilha (etapas 1–8) + as vozes de 24/09 |
-| GitHub (privado) | https://github.com/jppaulus/livrovivo — em 24/09 foram enviados `main`, `feature/trilha-da-leitura` e `claude/projeto-conforme-md-8263f2` |
+| GitHub (**público**) | https://github.com/jppaulus/livrovivo — `main`, `feature/trilha-da-leitura` e `claude/projeto-conforme-md-8263f2` |
+
+- **Repositório público:** nunca commitar chaves, o ID do projeto do Google Cloud, caminhos do PC ou anotações
+  pessoais do usuário. Em 25/09 o histórico foi reescrito para tirar o e-mail pessoal e caminhos do PC: os commits
+  mudaram de código (ver HANDOFF §5) e usam o e-mail privado do GitHub.
 
 - Este arquivo e o `HANDOFF.md` atualizado estão na branch `feature/trilha-da-leitura`
   (`git show feature/trilha-da-leitura:NOVO_CHAT.md`). O `HANDOFF.md` da pasta principal (`main`) é antigo.

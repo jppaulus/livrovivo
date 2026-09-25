@@ -153,13 +153,17 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
 
 ## 5. Estado do Git
 
-- **No GitHub (`origin/main`):** commit `5876283`.
-- **`main` local:** `17460eb`, com todo o trabalho que estava sem commit até 22/09 (narração em partes, erros 403,
-  Capitão padrão, revisão editorial, perfis da família, Room v4). **Ainda sem push.**
-- **`feature/trilha-da-leitura`:** a partir do `17460eb`, trabalho da Trilha da Leitura (`ALFABETIZACAO.md`).
-  Fica no worktree `.claude/worktrees/leitura-docs-iniciais-62ddbc`.
+- **GitHub (público desde 24/09):** `main`, `feature/trilha-da-leitura` e `claude/projeto-conforme-md-8263f2`.
+- **Histórico reescrito em 25/09:** para tirar o e-mail pessoal e caminhos do PC, todos os commits ganharam
+  códigos novos (o conteúdo é o mesmo). Códigos citados em documentos ou chats de antes de 25/09 não existem mais;
+  os principais: `5876283` → `91f0697`, `17460eb` → `a226e2f`, `2958223` → `cef52f7`, `41e3558` → `b368abc`,
+  `59ae891` → `0de69f1`. Os commits usam o e-mail privado do GitHub (`user.email` na configuração deste repositório).
+- **`main`:** `a226e2f`, com o trabalho até 22/09 (narração em partes, erros 403, Capitão padrão, revisão editorial,
+  perfis da família, Room v4).
+- **`feature/trilha-da-leitura`:** a partir do `a226e2f`, trabalho da Trilha da Leitura (`ALFABETIZACAO.md`) e as
+  vozes de 24/09. Fica no worktree `.claude/worktrees/leitura-docs-iniciais-62ddbc`.
 - ⚠️ **Linha paralela não integrada:** a branch `claude/projeto-conforme-md-8263f2` (10 commits até 19/09) saiu do
-  mesmo `5876283` e tem Google Play Billing real, álbum de figurinhas, ritual da hora de dormir, sons da página e
+  mesmo `91f0697` e tem Google Play Billing real, álbum de figurinhas, ritual da hora de dormir, sons da página e
   memória do companheiro, que **não estão no `main`**. As duas linhas mexem em 35 arquivos em comum (inclusive
   perfis de criança, feitos de jeitos diferentes) e o banco dela está na versão 3. Integrar exige decisão do
   usuário antes da etapa 8 da trilha (assinatura).
@@ -322,7 +326,7 @@ chave da ElevenLabs em elevenlabs.io/app/settings/api-keys
 ## 9. Backup do código original (antes das melhorias)
 
 Ficou numa pasta temporária de um chat antigo e pode já ter sido apagada. O histórico confiável é o commit
-`5876283` no GitHub.
+`91f0697` no GitHub.
 
 Detalhes da etapa 7:
 - **Pronúncia (`Pronunciation`):** letras pelo nome ("B" → "bê", "F" → "éfe", como em "Toque na letra B"); sílabas
