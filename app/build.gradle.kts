@@ -44,11 +44,15 @@ android {
             // Nunca vão para o build de release.
             buildConfigField("String", "DEV_GEMINI_API_KEY", "\"${localProperty("gemini.apiKey")}\"")
             buildConfigField("String", "DEV_ELEVENLABS_API_KEY", "\"${localProperty("elevenlabs.apiKey")}\"")
+            buildConfigField("String", "DEV_AZURE_SPEECH_KEY", "\"${localProperty("azure.speechKey")}\"")
+            buildConfigField("String", "DEV_AZURE_SPEECH_REGION", "\"${localProperty("azure.speechRegion")}\"")
         }
         release {
             isMinifyEnabled = false
             buildConfigField("String", "DEV_GEMINI_API_KEY", "\"\"")
             buildConfigField("String", "DEV_ELEVENLABS_API_KEY", "\"\"")
+            buildConfigField("String", "DEV_AZURE_SPEECH_KEY", "\"\"")
+            buildConfigField("String", "DEV_AZURE_SPEECH_REGION", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

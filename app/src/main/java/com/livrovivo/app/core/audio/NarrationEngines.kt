@@ -9,6 +9,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import com.livrovivo.app.core.ai.AiException
+import com.livrovivo.app.core.ai.AzureSpeechService
 import com.livrovivo.app.core.ai.ChapterSanitizer
 import com.livrovivo.app.core.ai.ElevenLabsService
 import com.livrovivo.app.core.ai.ElevenLabsVoice
@@ -32,6 +33,7 @@ import java.util.UUID
 private const val LOG_TAG = "LivroVivoVoz"
 
 enum class EngineKind(val label: String) {
+    AZURE("Microsoft"),
     ELEVENLABS("ElevenLabs"),
     GEMINI("Gemini"),
     DEVICE("Voz do aparelho")
@@ -67,9 +69,67 @@ interface NarrationEngine {
     suspend fun synthesize(request: NarrationRequest, settings: AppSettings, outputBase: File): File
 }
 
+/** Motor que narra a página inteira num pedido só e toca enquanto a voz chega. */
+interface StreamingNarrationEngine : NarrationEngine {
+    /** Dá para narrar em partes (tocando enquanto gera)? */
+    suspend fun canStream(): Boolean
+
+    fun stream(request: NarrationRequest): Flow<SpeechChunk>
+}
+
+/** Grava a fala em AAC (.m4a) ou, se o aparelho não codificar, em WAV; devolve o arquivo final. */
+suspend fun savePcm(pcm: ByteArray, sampleRate: Int, outputBase: File): File = withContext(Dispatchers.IO) {
+    val m4a = File(outputBase.path + ".m4a")
+    try {
+        AacEncoder.encode(pcm, sampleRate, m4a)
+        if (m4a.length() < 1_000) throw IllegalStateException("AAC vazio")
+        m4a
+    } catch (_: Exception) {
+        m4a.delete()
+        File(outputBase.path + ".wav").also { WavWriter.write(it, pcm, sampleRate) }
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 
-class GeminiNarrationEngine(private val gemini: GeminiService) : NarrationEngine {
+/**
+ * Vozes da Microsoft Azure: as que podem ir para a loja (HANDOFF §4, item 12). Cada narrador tem a sua
+ * ([VoicePersona.azureVoice]); a página inteira vai num pedido e toca desde o primeiro pedaço.
+ */
+class AzureNarrationEngine(private val azure: AzureSpeechService) : StreamingNarrationEngine {
+    override val kind = EngineKind.AZURE
+
+    override suspend fun isAvailable(settings: AppSettings): Boolean = azure.isAvailable
+
+    override fun cacheSignature(request: NarrationRequest, settings: AppSettings): String =
+        "azure|${request.persona.azureVoice}|$RATE|v1"
+
+    override suspend fun canStream(): Boolean = azure.isAvailable
+
+    override fun stream(request: NarrationRequest): Flow<SpeechChunk> = azure.stream(buildSsml(request))
+
+    override suspend fun synthesize(request: NarrationRequest, settings: AppSettings, outputBase: File): File {
+        val speech = azure.synthesize(buildSsml(request))
+        return savePcm(speech.pcm, speech.sampleRate, outputBase)
+    }
+
+    companion object {
+        /** Um pouco mais devagar que a fala normal: a velocidade das amostras que o usuário aprovou (25/09/2026). */
+        const val RATE = "-8%"
+
+        /** As marcações de emoção ([whispers]...) são do Gemini: a Azure as leria em voz alta. */
+        fun buildSsml(request: NarrationRequest): String =
+            AzureSpeechService.ssml(
+                voice = request.persona.azureVoice,
+                text = ChapterSanitizer.stripAudioTags(request.script ?: request.text),
+                rate = RATE
+            )
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+class GeminiNarrationEngine(private val gemini: GeminiService) : StreamingNarrationEngine {
     override val kind = EngineKind.GEMINI
 
     override suspend fun isAvailable(settings: AppSettings): Boolean = gemini.isAvailable()
@@ -77,26 +137,15 @@ class GeminiNarrationEngine(private val gemini: GeminiService) : NarrationEngine
     override fun cacheSignature(request: NarrationRequest, settings: AppSettings): String =
         "gemini|${settings.ttsModel}|${request.persona.geminiVoice}|${request.mood}|v2"
 
-    /** Dá para narrar em partes (tocando enquanto gera)? */
-    suspend fun canStream(): Boolean = gemini.canStreamSpeech()
+    override suspend fun canStream(): Boolean = gemini.canStreamSpeech()
 
     /** A página inteira num pedido só, em partes: o primeiro pedaço chega em cerca de 1 s. */
-    fun stream(request: NarrationRequest): Flow<SpeechChunk> =
+    override fun stream(request: NarrationRequest): Flow<SpeechChunk> =
         gemini.streamSpeech(buildPrompt(request), request.persona.geminiVoice)
 
     override suspend fun synthesize(request: NarrationRequest, settings: AppSettings, outputBase: File): File {
         val speech = gemini.generateSpeech(buildPrompt(request), request.persona.geminiVoice)
-        return withContext(Dispatchers.IO) {
-            val m4a = File(outputBase.path + ".m4a")
-            try {
-                AacEncoder.encode(speech.pcm, speech.sampleRate, m4a)
-                if (m4a.length() < 1_000) throw IllegalStateException("AAC vazio")
-                m4a
-            } catch (_: Exception) {
-                m4a.delete()
-                File(outputBase.path + ".wav").also { WavWriter.write(it, speech.pcm, speech.sampleRate) }
-            }
-        }
+        return savePcm(speech.pcm, speech.sampleRate, outputBase)
     }
 
     companion object {

@@ -194,22 +194,20 @@ O que fazer:
             persistPendingGeminiKey()
             persistPendingElevenKey()
             _uiState.update { it.copy(voiceTests = it.voiceTests + (persona to TestState.Running)) }
-            val settings = settingsManager.current()
-            val engine = when (settings.voiceEngine) {
+            val engine = when (settingsManager.current().voiceEngine) {
+                VoiceEngineChoice.AZURE -> EngineKind.AZURE
                 VoiceEngineChoice.ELEVENLABS -> EngineKind.ELEVENLABS
                 VoiceEngineChoice.GEMINI -> EngineKind.GEMINI
                 VoiceEngineChoice.DEVICE -> EngineKind.DEVICE
-                VoiceEngineChoice.AUTO -> when {
-                    settings.hasElevenLabsKey -> EngineKind.ELEVENLABS
-                    settings.hasGeminiKey || _uiState.value.backendConfigured -> EngineKind.GEMINI
-                    else -> EngineKind.DEVICE
-                }
+                VoiceEngineChoice.AUTO -> null // o mesmo motor que a narração usaria agora
             }
             val state = audioPlayerController.previewVoice(persona, engine).fold(
                 onSuccess = { kind ->
                     if (kind == EngineKind.DEVICE) {
                         val voice = audioPlayerController.lastDeviceVoiceName?.let { " ($it)" }.orEmpty()
-                        TestState.Success("Tocando com a voz do aparelho$voice ▶ — é a voz robótica do Google. Para vozes naturais, adicione a chave do Gemini.")
+                        TestState.Success("Tocando com a voz do aparelho$voice ▶. A voz natural do narrador precisa de internet.")
+                    } else if (kind == EngineKind.AZURE) {
+                        TestState.Success("Tocando ▶")
                     } else {
                         TestState.Success("Tocando com ${kind.label} ▶")
                     }

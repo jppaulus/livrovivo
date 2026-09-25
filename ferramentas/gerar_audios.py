@@ -2,8 +2,7 @@
 Livro Vivo - Trilha da Leitura - Gravador das falas fixas
 =========================================================
 
-Grava, uma vez só, com a voz do Capitão Aventura no Gemini (Puck), tudo o que a
-trilha fala sempre do mesmo jeito:
+Grava, uma vez só, com a voz da trilha, tudo o que a trilha fala sempre do mesmo jeito:
 
     fala     as instruções das perguntas ("Toque na sílaba BE")
     letra    as letras, pelo nome ("B" -> "bê")
@@ -16,28 +15,33 @@ Os áudios vão para app/src/main/assets/voz/, junto com o índice indice.json q
 app lê. Assim a trilha fala na hora, sem internet e sem chave nenhuma no aparelho.
 Enquanto uma fala não foi gravada, o app usa a voz de narração normal.
 
+Provedores:
+    azure   (padrão, para a loja) Microsoft Azure AI Speech, recurso "Speech" no plano pago S0 (só ele dá
+            direito de usar o áudio no app). No local.properties:
+                azure.speechKey=...
+                azure.speechRegion=eastus
+            Escolha a voz ouvindo ferramentas/amostras_vozes.html (python amostras_vozes.py).
+    vertex, cloud, gemini   vozes do Gemini, SÓ PARA TESTES: os termos do Google Cloud (e os do AI Studio)
+            proíbem IA generativa em apps usados por menores de 18 anos. vertex e cloud usam o login do
+            Google Cloud CLI (gcloud auth application-default login) e o projeto googlecloud.projeto=...;
+            gemini usa gemini.apiKey=AIza... do local.properties.
+
 Como usar:
-    1. Google Cloud (padrão, para a loja): faturamento ativo no projeto, a API "Cloud Text-to-Speech"
-       ativada e o Google Cloud CLI instalado, com login feito uma vez no terminal:
-           gcloud auth application-default login
-       (essas vozes não aceitam chave de API). O projeto vem do gcloud ou da linha
-       googlecloud.projeto=... no local.properties.
-       AI Studio (--provedor gemini, só para testes): gemini.apiKey=AIza... no local.properties.
+    1. Configure o provedor (acima).
     2. Abra o terminal na pasta deste arquivo e rode:
            python gerar_audios.py --teste       (mostra o que falta gravar, sem chamar nada)
-           python gerar_audios.py               (grava tudo o que ainda não existe)
+           python gerar_audios.py --voz pt-BR-AntonioNeural --refazer   (grava tudo com esta voz)
+           python gerar_audios.py               (grava tudo o que ainda não existe, na voz do índice)
            python gerar_audios.py --tipo silaba (só um tipo: fala, letra, silaba, palavra ou frase)
            python gerar_audios.py --so BA,BOLA  (só estas falas; vale o texto ou a chave "silaba:BA")
            python gerar_audios.py --refazer     (grava de novo o que já existe)
     3. Ouça tudo em ferramentas/revisao_audios.html (o script cria essa página).
        Se alguma fala ficou estranha, grave de novo com --so e --refazer.
 
-Limites: no plano gratuito, a voz do Gemini aceita só 3 pedidos por minuto e poucos
-por dia (em 23/09/2026 acabou depois de uns 5). Com o faturamento ativo no AI Studio,
-gravar tudo custa menos de US$ 1. Quando o limite do dia acaba, o script para e
-guarda o que já gravou; rode de novo no dia seguinte e ele continua de onde parou.
-Com --lote 18, várias falas vão num pedido só e o áudio é cortado nos silêncios
-(economiza pedidos, mas ouça tudo com atenção depois).
+Custo: na Azure, as 370 falas têm uns 6 mil caracteres (menos de US$ 0,20 mesmo nas vozes HD).
+No Gemini (testes), o plano gratuito aceita só 3 pedidos por minuto e poucos por dia; quando o
+limite do dia acaba, o script para e guarda o que já gravou. Com --lote 18 (só Gemini), várias
+falas vão num pedido só e o áudio é cortado nos silêncios (ouça tudo com atenção depois).
 
 Precisa do ffmpeg instalado (converte para .ogg, que é bem menor). Sem ele, os
 arquivos saem em .wav, que funcionam mas deixam o app bem maior.
@@ -62,6 +66,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 import wave
+from xml.sax.saxutils import escape
 
 # =====================================================================
 # CONFIGURAÇÕES
@@ -75,22 +80,29 @@ PASTA_VOZ = os.path.join(RAIZ, "app", "src", "main", "assets", "voz")
 ARQUIVO_INDICE = os.path.join(PASTA_VOZ, "indice.json")
 PAGINA_REVISAO = os.path.join(PASTA, "revisao_audios.html")
 
-# Voz do Capitão Aventura no Gemini (a mesma do app: VoicePersona.AVENTUREIRO).
+# Microsoft Azure AI Speech: a voz da trilha é escolhida com --voz (fica gravada no índice).
+URL_AZURE = "https://{regiao}.tts.speech.microsoft.com/cognitiveservices/v1"
+# A trilha fala um pouco mais devagar que o normal, para a criança ouvir bem cada som.
+VELOCIDADE_AZURE = "-8%"
+# Palavras de apoio que, sozinhas, a voz leria como o nome da letra ("o" -> "ó"): pronúncia em IPA.
+FONEMAS_AZURE = {"O": "u", "E": "i", "OS": "us", "DE": "dʒi", "DO": "du", "NO": "nu", "UM": "ũ", "EM": "ẽj"}
+
+# Gemini (só testes; ver o topo). Voz do Capitão Aventura: a mesma do app em VoicePersona.AVENTUREIRO.
 VOZ_GEMINI = "Puck"
 MODELOS_GEMINI = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"]
 
-# Google Cloud Text-to-Speech (Gemini-TTS): as mesmas vozes do Gemini, com termos que permitem app infantil.
-# É o caminho para os áudios que vão para a loja. O modelo estável (GA) pode ir para produção; os de
-# prévia ("-preview") o Google Cloud só libera para testes.
+# Google Cloud Text-to-Speech (Gemini-TTS): as mesmas vozes do Gemini.
 MODELO_CLOUD = "gemini-2.5-flash-tts"
 URL_CLOUD = "https://texttospeech.googleapis.com/v1/text:synthesize"
 
-# Agent Platform (antigo Vertex AI), do Google Cloud: o modelo 3.1 em prévia é liberado para produção por
-# aqui (exceção listada nos termos de produtos em prévia do Google Cloud). Em 24/09/2026 foi o mais fiel
-# nos testes: o 2.5 repetiu "Muito bem" e embolou "bola".
+# Agent Platform (antigo Vertex AI), do Google Cloud. Em 24/09/2026 o 3.1 foi o mais fiel nos testes:
+# o 2.5 repetiu "Muito bem" e embolou "bola".
 MODELO_VERTEX = "gemini-3.1-flash-tts-preview"
 URL_VERTEX = "https://aiplatform.googleapis.com/v1/projects/{projeto}/locations/global/publishers/google/models/{modelo}:generateContent"
 DOLARES_POR_MINUTO = {"gemini-2.5-flash-tts": 0.015, "gemini-2.5-pro-tts": 0.03, "gemini-3.1-flash-tts-preview": 0.03}
+
+PROVEDORES = {"azure": "Microsoft Azure AI Speech", "vertex": "Google Cloud Agent Platform (Vertex AI)",
+              "cloud": "Google Cloud Text-to-Speech", "gemini": "Gemini API (AI Studio)"}
 
 TIPOS = ["frase", "letra", "silaba", "palavra", "fala"]
 PASTAS_DOS_TIPOS = {"fala": "falas", "letra": "letras", "silaba": "silabas", "palavra": "palavras", "frase": "frases"}
@@ -638,6 +650,73 @@ def gravar_gemini(chave_api, modelos, falas):
     raise RuntimeError(f"nenhum modelo de voz do Gemini funcionou: {ultimo_erro}")
 
 
+def ssml_azure(voz, fala, com_fonema=True):
+    """Pedido SSML de uma fala: letra soletrada pelo nome, palavras ambíguas com a pronúncia em IPA."""
+    if fala.tipo == "letra":
+        corpo = f'<say-as interpret-as="characters">{escape(fala.texto)}</say-as>'
+    elif fala.tipo == "palavra" and com_fonema and fala.texto in FONEMAS_AZURE:
+        corpo = f'<phoneme alphabet="ipa" ph="{FONEMAS_AZURE[fala.texto]}">{escape(fala.falado)}</phoneme>'
+    else:
+        corpo = escape(fala.falado)
+    corpo = f'<prosody rate="{VELOCIDADE_AZURE}">{corpo}</prosody>'
+    return ('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="pt-BR">'
+            f'<voice name="{voz}">{corpo}</voice></speak>')
+
+
+def gravar_azure(chave_api, regiao, voz, fala):
+    """Microsoft Azure AI Speech: uma fala por pedido, em PCM 24 kHz."""
+    url = URL_AZURE.format(regiao=regiao)
+    cabecalhos = {"Ocp-Apim-Subscription-Key": chave_api, "Content-Type": "application/ssml+xml",
+                  "X-Microsoft-OutputFormat": "riff-24khz-16bit-mono-pcm", "User-Agent": "livro-vivo-gerar-audios"}
+    com_fonema = True
+    for tentativa in range(6):
+        pedido = urllib.request.Request(url, data=ssml_azure(voz, fala, com_fonema).encode("utf-8"),
+                                        headers=cabecalhos, method="POST")
+        try:
+            with urllib.request.urlopen(pedido, timeout=120) as resposta:
+                audio = resposta.read()
+            break
+        except urllib.error.HTTPError as erro:
+            detalhe = erro.read().decode("utf-8", "replace")[:300]
+            if erro.code in (401, 403):
+                raise ErroDeConfiguracao("a Azure recusou a chave (confira azure.speechKey e azure.speechRegion)") from erro
+            if erro.code == 400 and com_fonema and fala.texto in FONEMAS_AZURE:
+                print("   a voz não aceitou a pronúncia em IPA; gravando o texto simples (ouça com atenção)")
+                com_fonema = False
+                continue
+            if erro.code == 429 or erro.code >= 500:
+                time.sleep(3 * (tentativa + 1))
+                continue
+            raise RuntimeError(f"HTTP {erro.code}: {detalhe or 'sem detalhe'}") from erro
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as erro:
+            if tentativa < 2:
+                time.sleep(5)
+                continue
+            raise RuntimeError(f"sem conexão ou sem resposta: {getattr(erro, 'reason', erro)}") from erro
+    else:
+        raise RuntimeError("a Azure continuou pedindo pausa")
+    with wave.open(io.BytesIO(audio), "rb") as arquivo:
+        return arquivo.readframes(arquivo.getnframes()), arquivo.getframerate(), "hd" if "DragonHD" in voz else "neural"
+
+
+def gravar_azure_conferido(chave_api, regiao, voz, fala, tentativas=3):
+    """
+    As vozes HD às vezes inventam palavras (em 25/09, "bu" virou uma frase inteira). Fala comprida demais para o
+    texto é regravada; fica a tentativa mais curta.
+    """
+    limite = 1.6 * duracao_esperada(fala.falado) + 0.8
+    melhor = None
+    for tentativa in range(tentativas):
+        pcm, taxa, modelo = gravar_azure(chave_api, regiao, voz, fala)
+        _, segundos = aparar_e_nivelar(pcm, taxa)
+        if melhor is None or segundos < melhor[0]:
+            melhor = (segundos, pcm, taxa, modelo)
+        if 0 < segundos <= limite:
+            break
+        print(f"   {fala.chave}: {segundos:.1f} s para um texto de {duracao_esperada(fala.falado):.1f} s; gravando de novo")
+    return melhor[1], melhor[2], melhor[3]
+
+
 def lotes(falas, tamanho):
     """Agrupa as falas do mesmo tipo em lotes (um pedido por lote)."""
     fila = []
@@ -753,14 +832,18 @@ def main():
     for fluxo in (sys.stdout, sys.stderr):
         if hasattr(fluxo, "reconfigure"):
             fluxo.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description="Grava as falas fixas da trilha com a voz do Gemini.")
+    parser = argparse.ArgumentParser(description="Grava as falas fixas da trilha com a voz da trilha.")
     parser.add_argument("--teste", action="store_true", help="só mostra o que falta gravar")
     parser.add_argument("--tipo", default="", help="só estes tipos: fala, letra, silaba, palavra, frase")
     parser.add_argument("--so", default="", help='só estas falas, separadas por vírgula (ex.: BA,BOLA ou "silaba:BA")')
     parser.add_argument("--refazer", action="store_true", help="grava de novo o que já existe")
-    parser.add_argument("--provedor", choices=["vertex", "cloud", "gemini"], default="vertex",
-                        help="vertex = Agent Platform do Google Cloud (padrão, pode ir para a loja); "
-                             "cloud = Cloud Text-to-Speech; gemini = AI Studio (só testes: os termos vetam apps infantis)")
+    parser.add_argument("--provedor", choices=["azure", "vertex", "cloud", "gemini"], default="azure",
+                        help="azure = Microsoft Azure AI Speech (padrão, pode ir para a loja); vertex, cloud e gemini "
+                             "= vozes do Gemini, só para testes (os termos do Google vetam apps usados por menores)")
+    parser.add_argument("--voz", help="voz da Azure (ex.: pt-BR-AntonioNeural); sem ela, usa a voz do índice")
+    parser.add_argument("--voz-curta", help="voz da Azure para letras, sílabas e palavras soltas (padrão: a mesma de "
+                                            "--voz). Vozes HD inventam palavras em falas curtas: use a versão comum "
+                                            "do mesmo locutor (ex.: pt-BR-MacerioMultilingualNeural)")
     parser.add_argument("--modelo", help=f"modelo de voz (padrão: {MODELO_VERTEX} na Agent Platform, "
                                          f"{MODELO_CLOUD} no Cloud Text-to-Speech)")
     parser.add_argument("--lote", type=int, default=1,
@@ -773,14 +856,21 @@ def main():
     indice = ler_indice()
     faltando = [f for f in falas if opcoes.refazer or not existe(f, indice)]
     # O Google Cloud aceita a direção de voz num campo separado; lá cada fala vai num pedido.
-    fila = lotes(faltando, 1 if opcoes.provedor in ("cloud", "vertex") else max(1, opcoes.lote))
+    fila = lotes(faltando, max(1, opcoes.lote) if opcoes.provedor == "gemini" else 1)
     modelo_cloud = opcoes.modelo or (MODELO_VERTEX if opcoes.provedor == "vertex" else MODELO_CLOUD)
+    do_indice = indice.get("provedor") == PROVEDORES["azure"]
+    voz_azure = opcoes.voz or (indice.get("voz") if do_indice else None)
+    voz_curta = opcoes.voz_curta or (indice.get("voz_curta") if do_indice and not opcoes.voz else None) or voz_azure
 
     contagem = {t: sum(1 for f in todas if f.tipo == t) for t in TIPOS}
     print("Falas da trilha: " + ", ".join(f"{contagem[t]} {PASTAS_DOS_TIPOS[t]}" for t in TIPOS) + ".")
     minutos = sum(duracao_esperada(f.falado) for f in faltando) / 60
     print(f"A gravar agora: {len(faltando)} (cerca de {minutos:.0f} minutos de áudio, em {len(fila)} pedidos).")
-    if opcoes.provedor in ("cloud", "vertex"):
+    if opcoes.provedor == "azure":
+        caracteres = sum(len(f.falado) for f in faltando)
+        print(f"Azure, voz {voz_azure or '(escolha com --voz)'}: {caracteres} caracteres, "
+              f"no máximo US$ {caracteres * 30 / 1_000_000:.2f}.")
+    elif opcoes.provedor in ("cloud", "vertex"):
         custo = minutos * DOLARES_POR_MINUTO.get(modelo_cloud, 0.03)
         print(f"Google Cloud, modelo {modelo_cloud}: custo estimado de US$ {custo:.2f}.")
     print()
@@ -794,8 +884,18 @@ def main():
         return 0
 
     propriedades = ler_propriedades()
-    credencial, chave_api = None, ""
-    if opcoes.provedor in ("cloud", "vertex"):
+    credencial, chave_api, regiao = None, "", ""
+    if opcoes.provedor == "azure":
+        chave_api, regiao = propriedades.get("azure.speechKey", ""), propriedades.get("azure.speechRegion", "")
+        if not chave_api or not regiao:
+            print("Coloque no local.properties (na raiz do projeto):")
+            print("    azure.speechKey=...")
+            print("    azure.speechRegion=eastus")
+            return 1
+        if not voz_azure:
+            print("Escolha a voz da trilha com --voz (ouça as opções: python amostras_vozes.py).")
+            return 1
+    elif opcoes.provedor in ("cloud", "vertex"):
         try:
             credencial = CredencialCloud(propriedades.get("googlecloud.projeto", ""))
         except ErroDeConfiguracao as erro:
@@ -808,12 +908,16 @@ def main():
             print("Chave não encontrada. Coloque no local.properties (na raiz do projeto):")
             print("    gemini.apiKey=AIza...")
             return 1
-    if indice.get("voz") != VOZ_GEMINI and indice["clips"] and not opcoes.refazer:
-        print(f"Os áudios existentes são da voz {indice.get('voz')}. Para trocar para {VOZ_GEMINI}, use --refazer.")
+    voz = voz_azure if opcoes.provedor == "azure" else VOZ_GEMINI
+    if indice.get("voz") != voz and indice["clips"] and not opcoes.refazer:
+        print(f"Os áudios existentes são da voz {indice.get('voz')}. Para trocar para {voz}, use --refazer.")
         return 1
-    indice["voz"] = VOZ_GEMINI
-    indice["provedor"] = {"vertex": "Google Cloud Agent Platform (Vertex AI)", "cloud": "Google Cloud Text-to-Speech",
-                          "gemini": "Gemini API (AI Studio)"}[opcoes.provedor]
+    indice["voz"] = voz
+    if opcoes.provedor == "azure" and voz_curta != voz:
+        indice["voz_curta"] = voz_curta
+    else:
+        indice.pop("voz_curta", None)
+    indice["provedor"] = PROVEDORES[opcoes.provedor]
 
     extensao = ".ogg" if shutil.which("ffmpeg") else ".wav"
     if extensao == ".wav":
@@ -826,7 +930,10 @@ def main():
             lote = fila.pop(0)
             rotulo = lote[0].chave if len(lote) == 1 else f"{len(lote)} {PASTAS_DOS_TIPOS[lote[0].tipo]} ({lote[0].texto} ... {lote[-1].texto})"
             try:
-                if opcoes.provedor == "vertex":
+                if opcoes.provedor == "azure":
+                    curta = lote[0].tipo in ("letra", "silaba", "palavra")
+                    pcm, taxa, modelo = gravar_azure_conferido(chave_api, regiao, voz_curta if curta else voz, lote[0])
+                elif opcoes.provedor == "vertex":
                     pcm, taxa, modelo = gravar_vertex(credencial, modelo_cloud, lote)
                 elif opcoes.provedor == "cloud":
                     pcm, taxa, modelo = gravar_cloud(credencial, modelo_cloud, lote[0])

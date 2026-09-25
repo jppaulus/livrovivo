@@ -28,8 +28,9 @@ private const val CURRENT_DEFAULTS_VERSION = 1
 
 enum class VoiceEngineChoice(val id: String, val title: String, val description: String) {
     AUTO("auto", "Automático", "Usa a voz mais natural disponível"),
-    ELEVENLABS("elevenlabs", "ElevenLabs", "A mais expressiva (chave ElevenLabs)"),
-    GEMINI("gemini", "Google Gemini", "Vozes naturais com a chave do Gemini"),
+    AZURE("azure", "Microsoft", "As vozes da versão da loja (chave da Azure no local.properties)"),
+    ELEVENLABS("elevenlabs", "ElevenLabs", "A mais expressiva (chave ElevenLabs; só testes)"),
+    GEMINI("gemini", "Google Gemini", "Vozes naturais com a chave do Gemini (só testes)"),
     DEVICE("device", "Voz do aparelho", "Funciona offline, menos natural");
 
     companion object {

@@ -1,15 +1,16 @@
 package com.livrovivo.app.core.audio
 
 /**
- * Personagens narradores. Cada um tem uma voz neural do Gemini, uma "direção de atuação"
- * para o narrador soar como um contador de histórias de verdade e um perfil para escolher
- * a voz da ElevenLabs automaticamente.
+ * Personagens narradores. Cada um tem uma voz da Microsoft Azure (a que vai para a loja, escolhida de
+ * ouvido pelo usuário em 25/09/2026), uma voz do Gemini e um perfil da ElevenLabs (só para testes: os
+ * termos dos dois vetam apps usados por crianças) e uma "direção de atuação" para o Gemini.
  */
 enum class VoicePersona(
     val id: String,
     val title: String,
     val description: String,
     val emoji: String,
+    val azureVoice: String,
     val geminiVoice: String,
     val elevenLabsGender: String,
     val elevenLabsPreferredAges: List<String>,
@@ -24,6 +25,7 @@ enum class VoicePersona(
         title = "Fada Encantada",
         description = "Doce, calorosa e acolhedora",
         emoji = "🌸",
+        azureVoice = "pt-BR-LeticiaNeural",
         geminiVoice = "Sulafat",
         elevenLabsGender = "female",
         elevenLabsPreferredAges = listOf("young", "middle_aged", "middle aged"),
@@ -38,6 +40,7 @@ enum class VoicePersona(
         title = "Ursinho Gentil",
         description = "Grave, calma e aconchegante",
         emoji = "🐻",
+        azureVoice = "pt-BR-ValerioNeural",
         geminiVoice = "Algieba",
         elevenLabsGender = "male",
         elevenLabsPreferredAges = listOf("middle_aged", "middle aged", "old"),
@@ -52,6 +55,7 @@ enum class VoicePersona(
         title = "Vovó Contadora",
         description = "Carinhosa, expressiva e divertida",
         emoji = "👵",
+        azureVoice = "pt-BR-ThalitaMultilingualNeural",
         geminiVoice = "Gacrux",
         elevenLabsGender = "female",
         elevenLabsPreferredAges = listOf("old", "middle_aged", "middle aged"),
@@ -66,6 +70,7 @@ enum class VoicePersona(
         title = "Capitão Aventura",
         description = "Animado, vibrante e cheio de energia",
         emoji = "🧭",
+        azureVoice = "pt-BR-Macerio:DragonHDLatestNeural",
         geminiVoice = "Puck",
         elevenLabsGender = "male",
         elevenLabsPreferredAges = listOf("young", "middle_aged", "middle aged"),

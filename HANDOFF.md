@@ -76,7 +76,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `presentation/literacy/EasyReaderScreen.kt` | Leitor "Eu leio": tocar lê a palavra, segurar separa em sílabas, "Ouvir a página", "Li sozinho!" |
 | `core/literacy/VoiceClips.kt` + `SoundPlayer.kt` | Voz da trilha: toca a fala gravada antes (`assets/voz`, índice `voz/indice.json`) ou, se ela faltar, a voz do app com dica de pronúncia ("bá, de bala") |
 | `core/literacy/TrailPhrases.kt` | Frases fixas das telas da trilha ("Muito bem!", resultados, "Chame um adulto"); a mesma lista está no script de gravação |
-| `ferramentas/gerar_audios.py` | Grava as 370 falas fixas da trilha com a voz do Capitão no Gemini (Puck) e cria `ferramentas/revisao_audios.html` para ouvir |
+| `ferramentas/gerar_audios.py` | Grava as 370 falas fixas da trilha com a voz do Capitão (Azure, seção 4 item 12) e cria `ferramentas/revisao_audios.html` para ouvir |
+| `ferramentas/amostras_vozes.py` | Grava o mesmo trecho em todas as vozes pt-BR da Azure (`ferramentas/amostras_vozes.html`, fora do git) para escolher de ouvido |
 | `core/literacy/ReadingInsights.kt` | Seção "Leitura" do painel dos pais: fases, livros, "Li sozinho", letras/sílabas trabalhadas, fases com mais erros e ideia fora da tela |
 | `core/literacy/FeedbackSounds.kt` | Sons de acerto e "tente de novo" sintetizados na hora (sem arquivos) |
 | `presentation/literacy/` | Trilha: `TrailScreen` (mapa), `PhaseListScreen`, `ActivityScreen` + `activity/` (um Composable por tipo), `PhaseResultScreen`; `ActivitySession` é a lógica pura de uma fase |
@@ -148,6 +149,31 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
      `local.properties`, fora do git), com as APIs Cloud Text-to-Speech e Agent Platform ativadas em 24/09. O usuário
      mantém o faturamento **desligado** por precaução: liga só quando precisa e desliga depois. Há um alerta de
      orçamento (alerta não bloqueia gasto). Login no PC pelo Google Cloud CLI (`gcloud auth application-default login`).
+12. **Vozes, correção (25/09/2026): Google fora da versão da loja.** O item 11 estava errado sobre o Google Cloud. Os
+   termos específicos do Google Cloud, seção "Generative AI Services", item "d. Age Restrictions" (existe desde pelo
+   menos 07/2024), proíbem usar qualquer serviço de IA generativa em site ou app "directed towards or is likely to be
+   accessed by individuals under the age of 18", e o Google pode suspender na hora. Vale para Vertex AI, Firebase AI
+   Logic e qualquer recurso de IA generativa (inclusive as vozes do Gemini no Cloud Text-to-Speech). Então **Gemini
+   (texto, imagens, vozes Puck/Algieba) só em testes**; na loja, outros fornecedores.
+   - **Voz: Microsoft Azure AI Speech.** Os termos da Microsoft não proíbem app infantil (pedem aviso claro aos pais de
+     que a voz é sintética); só o plano **pago S0** dá direito de usar o áudio no app; prévias de IA generativa (ex.:
+     vozes MAI-Voice) não são para produção. Conta de avaliação gratuita (crédito de US$ 200, limite de gasto: não
+     cobra o cartão sem "upgrade"; **nunca** clicar em "Atualizar para pagamento conforme o uso"). Recurso
+     `livro-vivo-voz` (East US, S0). Chave em `azure.speechKey` / `azure.speechRegion` no `local.properties`.
+   - **Narradores escolhidos pelo usuário (ouviu `ferramentas/amostras_vozes.py`):** Capitão Aventura =
+     `pt-BR-Macerio:DragonHDLatestNeural`; Ursinho Gentil = `pt-BR-ValerioNeural` (ele preferia o
+     `pt-BR-Pedro:MAI-Voice-2-Flash`, que é prévia); Vovó Contadora = `pt-BR-ThalitaMultilingualNeural`; Fada Encantada
+     = `pt-BR-LeticiaNeural`.
+   - **Trilha regravada em 25/09** com a voz do Capitão: frases e instruções com o Macerio HD; letras, sílabas e
+     palavras soltas com `pt-BR-MacerioMultilingualNeural` (mesmo locutor, voz comum). As vozes HD **inventam palavras
+     em falas curtas** (teste de 25/09: "bu" virou uma frase inteira, "I" virou "Ai, deixa eu te ver...") e erram o
+     nome da letra O; o gravador regrava falas longas demais para o texto. Conferência pelo Whisper (`%TEMP%\lvtts2`).
+   - **No app (25/09):** `AzureSpeechService` + `AzureNarrationEngine` (primeiro motor no modo automático, narra a
+     página inteira em streaming: 1º som em 0,5 a 0,8 s no PC, 0,35 a 1 s no emulador). Só a versão de teste tem a
+     chave (`DEV_AZURE_SPEECH_KEY`); a da loja precisa do servidor. A amostra de cada narrador na Área dos Pais é uma
+     saudação gravada (`assets/voz/narradores/<id>.ogg`, `ferramentas/gravar_narradores.py`).
+   - **Texto das histórias:** proposta ainda não decidida: Claude (Anthropic permite produtos para menores com
+     proteções e aviso de IA). **Ilustrações por IA:** sem fornecedor liberado ainda; na loja, ficam desligadas.
 
 ---
 
@@ -340,7 +366,7 @@ Detalhes da etapa 7:
   palavra toca cada sílaba pelo `SoundPlayer` (acendendo junto) e depois lê a palavra inteira.
 - **Conferido no emulador de testes** com dois áudios provisórios (um bipe em `som_la` e `som_do`, apagados depois):
   LA e DO saíram do arquivo; LE, LI, CE pela dica; LO e LU com exemplo ("lô, de lobo"). **Ninguém ouviu ainda**.
-- **Falas gravadas (23/09):** o `gerar_audios.py` grava 370 falas com a voz Puck: 200 instruções inteiras (a pergunta
+- **Falas gravadas (23/09, regravadas com a Azure em 25/09):** o `gerar_audios.py` grava 370 falas: 200 instruções inteiras (a pergunta
   "Toque na sílaba BE" toca de uma vez, sem emenda), 18 letras, 65 sílabas, 72 palavras (vocabulário, palavras de apoio
   com contexto para "o" não virar "ó", LUNA e PIPOCA) e 15 frases das telas. Chaves do índice: `fala:`, `letra:`,
   `silaba:`, `palavra:` e `frase:` + texto (NFC; letras, sílabas e palavras em maiúsculas). Áudio em `.ogg` (ffmpeg),
@@ -378,7 +404,8 @@ Detalhes da etapa 8 (decisões que a especificação não cobria):
 
 ## 5.2. O que falta depois da Trilha da Leitura
 1. Testar os livros com IA com uma chave real (etapa 6) e ouvir a voz das sílabas num aparelho com som (etapa 7).
-2. Ouvir as 370 falas gravadas em 24/09 pela Agent Platform (decisão 11 da seção 4) e regravar as que ficarem ruins.
+2. O usuário ouvir as 370 falas regravadas em 25/09 com a Azure (decisão 12 da seção 4) e regravar as que ficarem ruins
+   (`python gerar_audios.py --so "texto" --refazer`).
 3. Criar as 55 figuras (`ferramentas/lista_imagens.txt`, estilo guache do `DIRECAO_EDITORIAL.md`); até lá o app mostra
    cartões com a palavra.
 4. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual de dormir, sons) com esta linha.

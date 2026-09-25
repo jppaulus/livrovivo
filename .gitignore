@@ -47,3 +47,5 @@ Thumbs.db
 # Página gerada pelo gerar_audios.py para ouvir as falas gravadas
 ferramentas/revisao_audios.html
 __pycache__/
+
+ferramentas/amostras_vozes.html

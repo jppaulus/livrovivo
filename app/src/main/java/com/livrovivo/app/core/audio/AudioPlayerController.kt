@@ -70,6 +70,7 @@ data class PlaybackState(
 class AudioPlayerController(
     private val context: Context,
     private val settingsManager: SettingsManager,
+    private val azureEngine: AzureNarrationEngine,
     private val elevenLabsEngine: ElevenLabsNarrationEngine,
     private val geminiEngine: GeminiNarrationEngine,
     private val deviceEngine: DeviceNarrationEngine
@@ -80,8 +81,10 @@ class AudioPlayerController(
         const val AMBIENT_VOLUME = 0.5f
         /** Sem o primeiro pedaço da voz em partes neste tempo, volta ao caminho antigo (arquivo por parte). */
         const val FIRST_AUDIO_TIMEOUT_MS = 6_000L
-        /** Letras por segundo de fala do Gemini (medido em 24/09/2026), para o destaque antes de saber a duração. */
+        /** Letras por segundo de fala (Gemini, medido em 24/09/2026), para o destaque antes de saber a duração. */
         const val CHARS_PER_SECOND = 10.5
+        /** Saudação gravada de cada narrador, tocada quando os pais escolhem o narrador. */
+        const val NARRATOR_SAMPLES = "voz/narradores"
     }
 
     private data class LoadParams(
@@ -261,8 +264,8 @@ class AudioPlayerController(
             val pageParts = parts
             if (pageParts.isEmpty()) return@launch
 
-            // 0) Voz do Gemini em partes: a página inteira num pedido só, tocando desde o primeiro pedaço (~1 s).
-            if (shouldStream(settings) && streamPage(params, settings)) return@launch
+            // 0) Voz em partes (Microsoft ou Gemini): a página inteira num pedido só, tocando desde o primeiro pedaço.
+            streamingEngine(settings)?.let { engine -> if (streamPage(engine, params, settings)) return@launch }
             if (currentParams?.key != params.key) return@launch
 
             // 1) Só a primeira parte é esperada: a criança ouve em poucos segundos.
@@ -317,9 +320,10 @@ class AudioPlayerController(
         }
     }
 
-    /** A voz em partes vale para o Gemini com chave, quando ele é o primeiro motor da vez. */
-    private suspend fun shouldStream(settings: AppSettings): Boolean =
-        orderedEngines(settings).firstOrNull() === geminiEngine && geminiEngine.canStream()
+    /** O primeiro motor disponível da vez, se ele narra em partes (Microsoft, ou Gemini com chave). */
+    private suspend fun streamingEngine(settings: AppSettings): StreamingNarrationEngine? =
+        (orderedEngines(settings).firstOrNull { it.isAvailable(settings) } as? StreamingNarrationEngine)
+            ?.takeIf { it.canStream() }
 
     /** A página inteira como uma parte só (a voz em partes narra tudo num pedido). */
     private fun wholePage(params: LoadParams): NarrationPart = NarrationPart(
@@ -329,11 +333,11 @@ class AudioPlayerController(
     )
 
     /**
-     * Narra a página com a voz do Gemini em partes: toca desde o primeiro pedaço e guarda a página inteira
+     * Narra a página com a voz em partes: toca desde o primeiro pedaço e guarda a página inteira
      * para ouvir de novo sem gerar outra vez. Devolve false se o primeiro pedaço não chegou a tempo (aí a
      * narração segue pelo caminho antigo).
      */
-    private suspend fun streamPage(params: LoadParams, settings: AppSettings): Boolean {
+    private suspend fun streamPage(engine: StreamingNarrationEngine, params: LoadParams, settings: AppSettings): Boolean {
         val request = NarrationRequest(
             text = params.text,
             script = params.script,
@@ -341,7 +345,7 @@ class AudioPlayerController(
             mood = params.mood,
             listenerAge = params.listenerAge
         )
-        val base = File(narrationDir, sha256("stream|" + geminiEngine.cacheSignature(request, settings) + "|" + (request.script ?: request.text)))
+        val base = File(narrationDir, sha256("stream|" + engine.cacheSignature(request, settings) + "|" + (request.script ?: request.text)))
         val whole = wholePage(params)
 
         // Página já narrada antes: toca o arquivo guardado, sem gastar outra geração.
@@ -351,8 +355,8 @@ class AudioPlayerController(
         if (cached != null) {
             cached.setLastModified(System.currentTimeMillis())
             parts = listOf(whole)
-            activeEngine = geminiEngine
-            startPlayback(cached, EngineKind.GEMINI, null)
+            activeEngine = engine
+            startPlayback(cached, engine.kind, null)
             return true
         }
 
@@ -364,7 +368,7 @@ class AudioPlayerController(
                 val all = ByteArrayOutputStream()
                 var rate = 24_000
                 try {
-                    geminiEngine.stream(request).collect { chunk ->
+                    engine.stream(request).collect { chunk ->
                         rate = chunk.sampleRate
                         all.write(chunk.pcm)
                         chunks.send(chunk.pcm)
@@ -389,26 +393,32 @@ class AudioPlayerController(
                 return@coroutineScope false
             }
             if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.d("LivroVivoPerf",
-                "voice engine=GEMINI stream firstAudioMs=${(System.nanoTime() - started) / 1_000_000}")
-            playStream(params, rate, chunks, whole)
+                "voice engine=${engine.kind} stream firstAudioMs=${(System.nanoTime() - started) / 1_000_000}")
+            playStream(engine, params, rate, chunks, whole)
             true
         }
     }
 
     /** Toca os pedaços conforme chegam, atualizando progresso e destaque, até o último ser ouvido. */
-    private suspend fun playStream(params: LoadParams, rate: Int, chunks: ReceiveChannel<ByteArray>, whole: NarrationPart) =
+    private suspend fun playStream(
+        engine: StreamingNarrationEngine,
+        params: LoadParams,
+        rate: Int,
+        chunks: ReceiveChannel<ByteArray>,
+        whole: NarrationPart
+    ) =
         kotlinx.coroutines.coroutineScope {
             player?.stop()
             player?.clearMediaItems()
             val out = StreamingPcmPlayer(rate, _playbackState.value.speed)
             stream = out
             parts = listOf(whole)
-            activeEngine = geminiEngine
+            activeEngine = engine
             val estimate = (params.text.length / CHARS_PER_SECOND * rate).toLong()
             _playbackState.update {
                 it.copy(
                     status = if (playWhenReady) NarrationStatus.PLAYING else NarrationStatus.READY,
-                    engine = EngineKind.GEMINI,
+                    engine = engine.kind,
                     notice = null,
                     error = null,
                     partIndex = 1,
@@ -537,7 +547,7 @@ class AudioPlayerController(
                         ?: throw AiException(AiException.Kind.TIMEOUT, "Tempo inicial de voz excedido")
                 }
                 if (engine.kind == EngineKind.DEVICE && notice == null && settings.voiceEngine != VoiceEngineChoice.DEVICE &&
-                    !settings.hasGeminiKey && !settings.hasElevenLabsKey
+                    !settings.hasGeminiKey && !settings.hasElevenLabsKey && !azureEngine.isAvailable(settings)
                 ) {
                     notice = "Dica para os pais: ative a IA na Área dos Pais para uma narração natural."
                 }
@@ -580,7 +590,8 @@ class AudioPlayerController(
     }
 
     private fun orderedEngines(settings: AppSettings): List<NarrationEngine> = when (settings.voiceEngine) {
-        VoiceEngineChoice.AUTO -> listOf(elevenLabsEngine, geminiEngine, deviceEngine)
+        VoiceEngineChoice.AUTO -> listOf(azureEngine, elevenLabsEngine, geminiEngine, deviceEngine)
+        VoiceEngineChoice.AZURE -> listOf(azureEngine, deviceEngine)
         VoiceEngineChoice.ELEVENLABS -> listOf(elevenLabsEngine, deviceEngine)
         VoiceEngineChoice.GEMINI -> listOf(geminiEngine, deviceEngine)
         VoiceEngineChoice.DEVICE -> listOf(deviceEngine)
@@ -591,9 +602,13 @@ class AudioPlayerController(
     }
 
     private fun startPlayback(file: File, kind: EngineKind, notice: String?) {
-        val exo = obtainPlayer()
         currentFile = file
-        exo.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        startPlayback(Uri.fromFile(file), kind, notice)
+    }
+
+    private fun startPlayback(uri: Uri, kind: EngineKind, notice: String?) {
+        val exo = obtainPlayer()
+        exo.setMediaItem(MediaItem.fromUri(uri))
         exo.setPlaybackParameters(PlaybackParameters(_playbackState.value.speed))
         exo.prepare()
         exo.playWhenReady = playWhenReady
@@ -646,7 +661,7 @@ class AudioPlayerController(
         if (exo == null || exo.mediaItemCount == 0) {
             // A página tocou pela voz em partes: agora ela está guardada inteira num arquivo.
             playWhenReady = true
-            startPlayback(file, activeEngine?.kind ?: EngineKind.GEMINI, null)
+            startPlayback(file, activeEngine?.kind ?: EngineKind.AZURE, null)
             return
         }
         exo.seekTo(0, 0L)
@@ -719,14 +734,30 @@ class AudioPlayerController(
         deviceCacheDir.listFiles()?.forEach { it.delete() }
     }
 
-    /** Toca uma amostra da persona com um motor específico (tela de configurações). */
-    suspend fun previewVoice(persona: VoicePersona, engineKind: EngineKind): Result<EngineKind> {
+    /**
+     * Toca uma amostra da persona (tela de configurações) com o motor pedido. Sem [engineKind], toca a saudação
+     * gravada com a voz da loja (assets/voz/narradores, feita pelo ferramentas/gravar_narradores.py): na hora e
+     * sem internet; sem ela, usa o motor que a narração usaria agora.
+     */
+    suspend fun previewVoice(persona: VoicePersona, engineKind: EngineKind? = null): Result<EngineKind> {
         ensureInitialized()
+        if (engineKind == null && hasBundledSample(persona)) {
+            loadJob?.cancel()
+            currentParams = null
+            currentFile = null
+            parts = emptyList()
+            queuedParts = 0
+            playWhenReady = true
+            startPlayback(Uri.parse("asset:///${bundledSamplePath(persona)}"), EngineKind.AZURE, null)
+            return Result.success(EngineKind.AZURE)
+        }
         val settings = settingsManager.current()
         val engine = when (engineKind) {
+            EngineKind.AZURE -> azureEngine
             EngineKind.ELEVENLABS -> elevenLabsEngine
             EngineKind.GEMINI -> geminiEngine
             EngineKind.DEVICE -> deviceEngine
+            null -> orderedEngines(settings).firstOrNull { it.isAvailable(settings) } ?: deviceEngine
         }
         val sample = "[warmly] Oi! Eu sou ${if (persona == VoicePersona.URSINHO || persona == VoicePersona.AVENTUREIRO) "o" else "a"} ${persona.title}. " +
             "[excited] Hoje vamos viver uma história mágica juntos, cheia de estrelas e surpresas!"
@@ -750,6 +781,12 @@ class AudioPlayerController(
         } catch (e: Throwable) {
             Result.failure(e)
         }
+    }
+
+    private fun bundledSamplePath(persona: VoicePersona) = "$NARRATOR_SAMPLES/${persona.id}.ogg"
+
+    private suspend fun hasBundledSample(persona: VoicePersona): Boolean = withContext(Dispatchers.IO) {
+        runCatching { context.assets.openFd(bundledSamplePath(persona)).use { true } }.getOrDefault(false)
     }
 
     private fun startProgressTracker() {

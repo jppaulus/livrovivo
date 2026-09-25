@@ -2,11 +2,13 @@ package com.livrovivo.app.core.di
 
 import com.livrovivo.app.BuildConfig
 import com.livrovivo.app.core.ai.AiHttp
+import com.livrovivo.app.core.ai.AzureSpeechService
 import com.livrovivo.app.core.ai.BackendConfig
 import com.livrovivo.app.core.ai.ElevenLabsService
 import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.ai.StoryWriter
 import com.livrovivo.app.core.audio.AudioPlayerController
+import com.livrovivo.app.core.audio.AzureNarrationEngine
 import com.livrovivo.app.core.audio.DeviceNarrationEngine
 import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
@@ -71,14 +73,16 @@ val appModule = module {
     single { BackendConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) }
     single { GeminiService(androidContext(), get(), get(), get()) }
     single { ElevenLabsService(get(), get(), get()) }
+    single { AzureSpeechService(get()) }
     single { StoryWriter(get()) }
     single { IllustrationService(androidContext(), get(), get()) }
 
     // Narração
+    single { AzureNarrationEngine(get()) }
     single { GeminiNarrationEngine(get()) }
     single { ElevenLabsNarrationEngine(get()) }
     single { DeviceNarrationEngine(androidContext()) }
-    single { AudioPlayerController(androidContext(), get(), get(), get(), get()) }
+    single { AudioPlayerController(androidContext(), get(), get(), get(), get(), get()) }
     single { FeedbackSounds() }
     single { LiteracyBookWriter(GeminiBookAi(get())) }
     single { VoiceClips(androidContext().assets) }

@@ -1,5 +1,5 @@
 {
- "voz": "Puck",
+ "voz": "pt-BR-Macerio:DragonHDLatestNeural",
  "clips": {
   "fala:Abelha começa com qual letra?": "falas/abelha_comeca_com_qual_letra.ogg",
   "fala:Bola começa com qual letra?": "falas/bola_comeca_com_qual_letra.ogg",
@@ -372,6 +372,7 @@
   "silaba:VO": "silabas/vo.ogg",
   "silaba:VU": "silabas/vu.ogg"
  },
- "modelo": "gemini-3.1-flash-tts-preview",
- "provedor": "Google Cloud Agent Platform (Vertex AI)"
+ "modelo": "hd",
+ "provedor": "Microsoft Azure AI Speech",
+ "voz_curta": "pt-BR-MacerioMultilingualNeural"
 }

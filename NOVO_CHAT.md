@@ -36,22 +36,30 @@
 
 ## 2. Próximo passo combinado
 
-O usuário escolheu, em ordem: (1) commit + GitHub — **feito em 24/09**; (2) **servidor do app no Firebase** (Cloud
-Functions no mesmo projeto do Google Cloud, App Check com Play Integrity, login anônimo, limite de gasto diário no
-código e o orçamento com teto de gasto do Google Cloud); (3) juntar a outra linha. Depois: as 55 figuras da trilha e
-amostras gravadas dos 4 narradores. Ele comparou Supabase e Firebase e ficou com o **Firebase** (sem custo fixo, sem
-chave secreta no servidor, mesma conta do Google).
+O usuário escolheu, em ordem: (1) commit + GitHub — **feito em 24/09** (histórico reescrito em 25/09, sem o e-mail
+pessoal); (2) **servidor do app** (Firebase: App Check com Play Integrity, login anônimo, limite de gasto diário no
+código). Em 25/09, antes de construir, descobri que o Google proíbe IA generativa em apps infantis (§3): o servidor
+continua, mas chamando a **Azure** para a voz; o texto das histórias ainda precisa de fornecedor (proposta: Claude).
+A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 figuras da trilha. Regra: toda conta nova de serviço pago precisa de limite de gasto, e o custo estimado vem antes de gravar.
 
 ---
 
-## 3. Vozes (o que mudou em 23–24/09) — leia o HANDOFF §4, itens 5, 9, 10 e 11
+## 3. Vozes (o que mudou em 23–25/09) — leia o HANDOFF §4, itens 5, 9, 10, 11 e **12**
 
+- **25/09: os termos do Google Cloud proíbem IA generativa em apps usados por menores de 18** (HANDOFF §4 item 12).
+  Gemini (texto, imagens, vozes) só em testes. Na loja, a voz é da **Microsoft Azure** (conta de avaliação gratuita,
+  recurso `livro-vivo-voz`, chave `azure.speechKey` no `local.properties`).
 - O usuário **recusou** a voz do aparelho ("robótica, tipo Google Maps") e todas as vozes abertas testadas
-  (Supertonic, Kokoro, Piper, Qwen3-TTS, Chatterbox). Ele quer as vozes do **Gemini**: Capitão = **Puck**,
-  Ursinho = **Algieba**. Pais **nunca** criam chave de API.
-- **Trilha:** as 370 falas fixas (instruções, letras, sílabas, palavras, frases) foram **gravadas** com o Puck e estão
-  em `app/src/main/assets/voz` (5,9 MB), com o índice `indice.json`. Gravadas pelo Google Cloud (Vertex AI / Agent
-  Platform, `gemini-3.1-flash-tts-preview`), que é o caminho que pode ir para a loja. Script: `ferramentas/gerar_audios.py`.
+  (Supertonic, Kokoro, Piper, Qwen3-TTS, Chatterbox). Pais **nunca** criam chave de API.
+- **Narradores (Azure, escolhidos de ouvido em 25/09):** Capitão = `pt-BR-Macerio:DragonHDLatestNeural`, Ursinho =
+  `pt-BR-ValerioNeural`, Vovó = `pt-BR-ThalitaMultilingualNeural`, Fada = `pt-BR-LeticiaNeural` (`VoicePersona.azureVoice`).
+  Na versão de teste, as histórias já são narradas por eles em streaming (chave `azure.speechKey` do
+  `local.properties` dentro do APK de teste: não compartilhe). Primeiro som em 0,35 a 1 s no emulador. A escolha do
+  narrador na Área dos Pais toca a saudação gravada de cada um (`assets/voz/narradores`, `gravar_narradores.py`).
+  A versão da loja ainda não tem a chave: precisa do servidor.
+- **Trilha:** as 370 falas fixas (instruções, letras, sílabas, palavras, frases) estão em `app/src/main/assets/voz`,
+  com o índice `indice.json`. Em 25/09 foram **regravadas com a Azure**: frases com o Macerio HD, letras/sílabas/palavras
+  com o `pt-BR-MacerioMultilingualNeural` (a HD inventa palavras em falas curtas). Script: `ferramentas/gerar_audios.py`.
 - **Histórias:** com a chave do Gemini, a página inteira é narrada em **streaming** (som em ~1,3 s, antes 9 a 12 s ou
   voz robótica). Sem chave (versão da loja), ainda cai na voz do aparelho: é isso que o servidor vai resolver.
 - **Área dos Pais:** virou "Narração e ilustrações", sem chaves; chaves e modelos só numa seção "Desenvolvedor" da
@@ -59,8 +67,8 @@ chave secreta no servidor, mesma conta do Google).
 - **Google Cloud:** projeto "Livro Vivo" (ID no `local.properties`), APIs Cloud Text-to-Speech e Agent Platform
   ativadas; login no PC pelo Google Cloud CLI (`gcloud auth application-default login`). O usuário **liga o
   faturamento só quando precisa** e tem um alerta de orçamento.
-- As vozes do Gemini no Google Cloud **não aceitam chave de API** (só login OAuth). A API do AI Studio (chave) proíbe
-  apps usados por menores de 18: só para testes.
+- As vozes do Gemini no Google Cloud **não aceitam chave de API** (só login OAuth). Tanto o AI Studio quanto o Google
+  Cloud proíbem apps usados por menores de 18: só para testes.
 
 ---
 
@@ -99,8 +107,8 @@ chave secreta no servidor, mesma conta do Google).
 
 ## 6. O que falta
 
-1. **Servidor no Firebase** (próximo passo): narração em streaming e histórias/ilustrações com IA sem chave no app,
-   limite de gasto no código e teto de gasto no Google Cloud.
+1. **Servidor do app** (próximo passo): narração dos 4 narradores pela Azure em streaming e histórias com IA sem chave
+   no app (fornecedor do texto a decidir; nada do Google), limite de gasto no código.
 2. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual, sons).
 3. Regras da loja para apps infantis (Política Famílias, LGPD, aviso de conteúdo gerado por IA).
 4. As 55 figuras da trilha (`ferramentas/lista_imagens.txt`); amostras gravadas dos 4 narradores; comportamento sem
