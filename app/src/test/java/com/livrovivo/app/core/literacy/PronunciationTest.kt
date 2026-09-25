@@ -33,11 +33,11 @@ class PronunciationTest {
     }
 
     @Test
-    fun `every letter and syllable of the trail has its recording name`() {
+    fun `every letter and syllable of the trail has its recording key`() {
         assertEquals(83, units.size)
-        assertEquals("som_ba", Pronunciation.resourceName("BA"))
-        assertEquals("som_a", Pronunciation.resourceName("A"))
-        units.forEach { unit -> assertEquals(unit, true, Pronunciation.resourceName(unit).matches(Regex("som_[a-z]{1,2}"))) }
+        assertEquals("silaba:BA", VoiceClips.key(VoiceClips.unitKind("BA"), "BA"))
+        assertEquals("letra:A", VoiceClips.key(VoiceClips.unitKind("A"), "A"))
+        units.forEach { unit -> assertEquals(unit, true, VoiceClips.key(VoiceClips.unitKind(unit), unit).matches(Regex("(letra|silaba):[A-Z]{1,2}"))) }
     }
 
     @Test

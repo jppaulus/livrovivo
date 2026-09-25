@@ -22,9 +22,6 @@ object Pronunciation {
     /** Vogal da sílaba com acento, para a voz ler a sílaba inteira de uma vez (BA → bá, BE → bê). */
     private val SYLLABLE_VOWELS = mapOf('A' to "á", 'E' to "ê", 'I' to "i", 'O' to "ô", 'U' to "u")
 
-    /** Arquivo gravado da letra ou sílaba em res/raw: "BA" → som_ba. */
-    fun resourceName(unit: String): String = "som_" + unit.lowercase()
-
     /** Como escrever a letra ou sílaba para a voz: "B" → "bê", "BA" → "bá". Outras palavras: em minúsculas. */
     fun hint(unit: String): String {
         val upper = unit.uppercase()

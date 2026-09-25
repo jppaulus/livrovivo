@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.core.literacy.TrailPhrases
 import com.livrovivo.app.core.theme.FairyCoral
 import com.livrovivo.app.core.theme.FairyEmerald
 import com.livrovivo.app.core.theme.FairyGold
@@ -117,7 +118,7 @@ fun TrailScreen(
                 else -> TrailMap(
                     modules = uiState.modules,
                     onOpen = { module ->
-                        if (module.isLocked) viewModel.speak("Termine as fases de antes para abrir ${module.module.title}.")
+                        if (module.isLocked) viewModel.speak(TrailPhrases.moduleLocked(module.module.title))
                         else onOpenModule(module.module.id)
                     }
                 )

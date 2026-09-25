@@ -8,6 +8,8 @@ import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.ReaderWord
 import com.livrovivo.app.core.literacy.ReaderWords
 import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.core.literacy.TrailPhrases
+import com.livrovivo.app.core.literacy.VoiceClips
 import com.livrovivo.app.domain.model.Chapter
 import com.livrovivo.app.domain.model.Story
 import com.livrovivo.app.domain.model.VocabularyWord
@@ -114,15 +116,23 @@ class EasyReaderViewModel(
 
     // --- Palavras ---
 
-    /** Tocar numa palavra: o narrador lê só ela, e ela fica destacada enquanto soa. */
+    /**
+     * Tocar numa palavra: ela soa sozinha (o áudio gravado da palavra ou, para o nome da criança e palavras
+     * sem gravação, a voz do app) e fica destacada enquanto isso.
+     */
     fun tapWord(index: Int) {
         val word = _state.value.words.getOrNull(index) ?: return
         stopSplit()
         _state.update { it.copy(tappedWord = index, split = null) }
         holdHighlight()
-        speak(wordKey(word.word), word.word, word.word.lowercase())
+        splitJob = viewModelScope.launch {
+            if (word.isName || !soundPlayer.playClip(VoiceClips.Kind.WORD, word.word)) {
+                speak(wordKey(word.word), word.word, word.word.lowercase())
+            }
+        }
     }
 
+    /** Som pedido pela criança (palavra, sílabas ou o parabéns do fim); parar a narração para ele também. */
     private var splitJob: Job? = null
 
     /**
@@ -142,15 +152,17 @@ class EasyReaderViewModel(
                 soundPlayer.play(syllable)
             }
             _state.update { state -> state.copy(split = state.split?.copy(active = parts.size)) }
-            soundPlayer.say(splitKey(word.word), word.word, word.word.lowercase())
+            if (!soundPlayer.playClip(VoiceClips.Kind.WORD, word.word)) {
+                soundPlayer.say(splitKey(word.word), word.word, word.word.lowercase())
+            }
             delay(SPLIT_LINGER_MS)
             _state.update { state -> state.copy(split = null) }
         }
     }
 
+    /** Cancelar o pedido de som para o áudio dele (só o dele: a tela seguinte pode já estar falando). */
     private fun stopSplit() {
         splitJob?.cancel()
-        soundPlayer.stop()
     }
 
     private var highlightJob: Job? = null
@@ -209,7 +221,12 @@ class EasyReaderViewModel(
         _state.update { it.copy(finished = true, tappedWord = null, split = null) }
         viewModelScope.launch { runCatching { euLeioRepository.markBookFinished(story.id) } }
         val name = story.childSnapshot?.name?.let { " $it" }.orEmpty()
-        speak("eu-leio-end#${story.id}", "Parabéns$name! Você leu o livro todo! Quer ler de novo?", null)
+        // Gravado não tem o nome da criança, mas soa na hora e com a mesma voz das palavras.
+        splitJob = viewModelScope.launch {
+            if (!soundPlayer.playClip(VoiceClips.Kind.PHRASE, TrailPhrases.BOOK_FINISHED)) {
+                speak("eu-leio-end#${story.id}", "Parabéns$name! Você leu o livro todo! Quer ler de novo?", null)
+            }
+        }
     }
 
     private fun showPage(index: Int) {

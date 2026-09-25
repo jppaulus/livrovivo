@@ -15,6 +15,7 @@ import com.livrovivo.app.core.literacy.FeedbackSounds
 import com.livrovivo.app.core.literacy.GeminiBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.core.literacy.VoiceClips
 import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.core.illustration.IllustrationService
 import com.livrovivo.app.core.settings.SettingsManager
@@ -80,7 +81,8 @@ val appModule = module {
     single { AudioPlayerController(androidContext(), get(), get(), get(), get()) }
     single { FeedbackSounds() }
     single { LiteracyBookWriter(GeminiBookAi(get())) }
-    single { SoundPlayer(androidContext(), get()) }
+    single { VoiceClips(androidContext().assets) }
+    single { SoundPlayer(androidContext(), get(), get()) }
 
     // Repositories
     single<StoryRepository> { StoryRepositoryImpl(get(), get(), get(), get(), get()) }
@@ -113,7 +115,7 @@ val appModule = module {
     viewModel { AppStartViewModel(get(), get()) }
     viewModel { (isEditMode: Boolean) -> OnboardingViewModel(get(), get(), isEditMode) }
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get<BackendConfig>().isConfigured, get(), get()) }
-    viewModel { LiteracyViewModel(get(), get(), get(), get(), get()) }
+    viewModel { LiteracyViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { (phaseId: String) -> ActivityViewModel(phaseId, get(), get(), get(), get(), get(), get(), get()) }
     viewModel { (storyId: String) -> EasyReaderViewModel(storyId, get(), get(), get(), get(), get(), get(), get()) }
     viewModel { CreationViewModel(get(), get(), get(), get()) }

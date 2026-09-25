@@ -43,3 +43,7 @@ supabase/.temp/
 .DS_Store
 Thumbs.db
 *.log
+
+# Página gerada pelo gerar_audios.py para ouvir as falas gravadas
+ferramentas/revisao_audios.html
+__pycache__/

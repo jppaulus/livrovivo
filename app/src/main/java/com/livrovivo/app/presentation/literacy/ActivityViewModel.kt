@@ -7,6 +7,8 @@ import com.livrovivo.app.core.literacy.FeedbackSounds
 import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.Pronunciation
 import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.core.literacy.TrailPhrases
+import com.livrovivo.app.core.literacy.VoiceClips
 import com.livrovivo.app.domain.model.VocabularyWord
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.repository.BillingRepository
@@ -87,27 +89,28 @@ class ActivityViewModel(
     fun removeFromSlot(slot: Int) = update { ActivitySession.removeFromSlot(it, slot) }
 
     /**
-     * Botão de alto-falante: repete a instrução da pergunta. Quando ela termina numa letra ou sílaba
-     * ("Toque na sílaba BE"), a frase sai pela voz do app e o "BE" pelo [SoundPlayer]: áudio gravado,
-     * ou a dica de pronúncia ("bê") enquanto os áudios não existirem.
+     * Botão de alto-falante: repete a instrução da pergunta. Com a instrução gravada ([VoiceClips]), ela toca
+     * inteira, na hora. Sem gravação, a frase sai pela voz do app; se ela termina numa letra ou sílaba
+     * ("Toque na sílaba BE"), o "BE" sai pelo [SoundPlayer] (áudio gravado ou a dica de pronúncia "bê").
      */
     fun speakPrompt() {
         val question = _state.value.session?.question ?: return
-        val parts = Pronunciation.promptTarget(question.prompt, units)
-        if (parts == null) {
-            speak(narrationFor(question.prompt))
-            return
-        }
         stopPrompt()
         promptJob = viewModelScope.launch {
+            if (soundPlayer.playClip(VoiceClips.Kind.PROMPT, question.prompt)) return@launch
+            val parts = Pronunciation.promptTarget(question.prompt, units)
+            if (parts == null) {
+                appVoice(narrationFor(question.prompt))
+                return@launch
+            }
             soundPlayer.say(KEY_PREFIX + parts.carrier.hashCode(), parts.carrier, narrationFor(parts.carrier))
             soundPlayer.play(parts.target, example = Pronunciation.exampleWord(parts.target, vocabulary))
         }
     }
 
+    /** Cancelar o pedido de fala para o áudio dele (só o dele: a tela seguinte pode já estar falando). */
     private fun stopPrompt() {
         promptJob?.cancel()
-        soundPlayer.stop()
     }
 
     fun stopNarration() {
@@ -130,7 +133,7 @@ class ActivityViewModel(
 
     private fun onCorrect() {
         feedbackSounds.playSuccess()
-        speak("Muito bem!")
+        speak(TrailPhrases.CORRECT)
         feedbackJob?.cancel()
         feedbackJob = viewModelScope.launch {
             delay(CELEBRATION_MS)
@@ -159,7 +162,7 @@ class ActivityViewModel(
 
     private fun onTryAgain() {
         feedbackSounds.playTryAgain()
-        speak("Tente de novo!")
+        speak(TrailPhrases.TRY_AGAIN)
         feedbackJob?.cancel()
         feedbackJob = viewModelScope.launch {
             delay(TRY_AGAIN_MS)
@@ -167,8 +170,15 @@ class ActivityViewModel(
         }
     }
 
+    /** Frase fixa ("Muito bem!"): o áudio gravado, ou a voz do app enquanto ele não existir. */
     private fun speak(text: String) {
         stopPrompt()
+        promptJob = viewModelScope.launch {
+            if (!soundPlayer.playClip(VoiceClips.Kind.PHRASE, text)) appVoice(text)
+        }
+    }
+
+    private fun appVoice(text: String) {
         val key = KEY_PREFIX + text.hashCode()
         if (audioPlayerController.playbackState.value.chapterKey == key) audioPlayerController.replay()
         else audioPlayerController.load(key, text, null, "alegre", null, true)

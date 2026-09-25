@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.literacy.LiteracyRules
+import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.core.literacy.VoiceClips
 import com.livrovivo.app.domain.model.ChildProfile
 import com.livrovivo.app.domain.model.LiteracyKnowledge
 import com.livrovivo.app.domain.model.LiteracyModule
@@ -16,6 +18,7 @@ import com.livrovivo.app.domain.repository.EuLeioRepository
 import com.livrovivo.app.domain.repository.LiteracyRepository
 import com.livrovivo.app.domain.usecase.GetActiveChildUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class PhaseUi(
     val phase: LiteracyPhase,
@@ -86,7 +90,8 @@ class LiteracyViewModel(
     private val euLeioRepository: EuLeioRepository,
     private val billingRepository: BillingRepository,
     getActiveChildUseCase: GetActiveChildUseCase,
-    private val audioPlayerController: AudioPlayerController
+    private val audioPlayerController: AudioPlayerController,
+    private val soundPlayer: SoundPlayer
 ) : ViewModel() {
 
     val uiState: StateFlow<LiteracyUiState> = getActiveChildUseCase().flatMapLatest { child ->
@@ -141,13 +146,32 @@ class LiteracyViewModel(
     /** Um livro "Eu leio" está sendo escrito (para o "Escrevendo..." do resultado). */
     val isWritingBook: StateFlow<Boolean> = euLeioRepository.isWriting
 
-    fun speak(text: String) {
-        val key = "literacy-screen#${text.hashCode()}"
-        if (audioPlayerController.playbackState.value.chapterKey == key) audioPlayerController.replay()
-        else audioPlayerController.load(key, text, null, "alegre", null, true)
+    private var speakJob: Job? = null
+
+    /**
+     * Fala as frases em sequência. Com todas gravadas ([VoiceClips]), toca os áudios prontos, na hora;
+     * se faltar alguma, a voz do app lê tudo junto.
+     */
+    fun speak(vararg texts: String) {
+        stopNarration()
+        speakJob = viewModelScope.launch {
+            if (texts.all { soundPlayer.hasClip(VoiceClips.Kind.PHRASE, it) }) {
+                texts.forEach { soundPlayer.playClip(VoiceClips.Kind.PHRASE, it) }
+                return@launch
+            }
+            val text = texts.joinToString(" ")
+            val key = "literacy-screen#${text.hashCode()}"
+            if (audioPlayerController.playbackState.value.chapterKey == key) audioPlayerController.replay()
+            else audioPlayerController.load(key, text, null, "alegre", null, true)
+        }
     }
 
+    /**
+     * Para só o que esta tela pediu: ao entrar numa fase, a lista de fases sai depois de a fase já ter
+     * começado a falar, e parar o som de todo mundo cortava a instrução no "Toque...".
+     */
     fun stopNarration() {
+        speakJob?.cancel()
         if (audioPlayerController.playbackState.value.chapterKey?.startsWith("literacy-screen#") == true) {
             audioPlayerController.onReaderStopped()
         }

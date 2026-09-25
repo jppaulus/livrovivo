@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.core.literacy.TrailPhrases
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.parentalgate.ParentalGateDialog
 import com.livrovivo.app.core.ui.InfoPill
@@ -84,7 +85,7 @@ fun PhaseListScreen(
         AlertDialog(
             onDismissRequest = { askAdult = false },
             title = { Text("Fase de assinantes \u2B50") },
-            text = { Text(ASK_ADULT_TEXT, style = MaterialTheme.typography.bodyLarge) },
+            text = { Text(TrailPhrases.ASK_ADULT, style = MaterialTheme.typography.bodyLarge) },
             confirmButton = {
                 TextButton(onClick = { askAdult = false; parentalGate = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Sou adulto")
@@ -152,10 +153,10 @@ fun PhaseListScreen(
                         onClick = {
                             when {
                                 phase.needsSubscription -> {
-                                    viewModel.speak(ASK_ADULT_TEXT)
+                                    viewModel.speak(TrailPhrases.ASK_ADULT)
                                     askAdult = true
                                 }
-                                phase.isLocked -> viewModel.speak("Termine a fase de antes para abrir esta.")
+                                phase.isLocked -> viewModel.speak(TrailPhrases.PHASE_LOCKED)
                                 else -> onOpenPhase(phase.phase.id)
                             }
                         }
@@ -209,7 +210,6 @@ private fun BooksRow(books: List<Story>, onOpenBook: (String) -> Unit) {
     }
 }
 
-private const val ASK_ADULT_TEXT = "Esta fase faz parte da assinatura. Chame um adulto para ver com você!"
 
 @Composable
 private fun PhaseCard(phase: PhaseUi, color: Color, onClick: () -> Unit) {

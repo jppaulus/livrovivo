@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.core.literacy.TrailPhrases
 import com.livrovivo.app.core.theme.FairyGold
 import com.livrovivo.app.core.theme.FairyPurple
 import com.livrovivo.app.core.ui.BouncyCardButton
@@ -62,17 +63,12 @@ fun PhaseResultScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val next = uiState.nextPhase(phaseId)
-    val message = when (stars) {
-        3 -> "Incrível! Você ganhou 3 estrelas!"
-        2 -> "Muito bem! Você ganhou 2 estrelas!"
-        1 -> "Boa! Você ganhou 1 estrela!"
-        else -> "Você treinou bastante! Vamos tentar de novo?"
-    }
-    val bookNotice = "Você ganhou um livro novo para ler sozinho!"
+    val message = TrailPhrases.result(stars)
+    val bookNotice = TrailPhrases.BOOK_NOTICE
     val writing by viewModel.isWritingBook.collectAsState()
     // O livro aparece na lista quando fica pronto (com IA, alguns segundos depois das estrelas).
     val newBook = uiState.books.takeIf { booksBefore >= 0 && it.size > booksBefore }?.last()
-    LaunchedEffect(phaseId, stars, newBook?.id) { viewModel.speak(if (newBook != null) "$message $bookNotice" else message) }
+    LaunchedEffect(phaseId, stars, newBook?.id) { if (newBook != null) viewModel.speak(message, bookNotice) else viewModel.speak(message) }
     DisposableEffect(viewModel) { onDispose { viewModel.stopNarration() } }
 
     Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
