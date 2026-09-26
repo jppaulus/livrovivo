@@ -81,8 +81,6 @@ class AudioPlayerController(
         const val AMBIENT_VOLUME = 0.5f
         /** Sem o primeiro pedaço da voz em partes neste tempo, volta ao caminho antigo (arquivo por parte). */
         const val FIRST_AUDIO_TIMEOUT_MS = 6_000L
-        /** Letras por segundo de fala (Gemini, medido em 24/09/2026), para o destaque antes de saber a duração. */
-        const val CHARS_PER_SECOND = 10.5
         /** Saudação gravada de cada narrador, tocada quando os pais escolhem o narrador. */
         const val NARRATOR_SAMPLES = "voz/narradores"
     }
@@ -99,7 +97,9 @@ class AudioPlayerController(
     private data class NarrationPart(
         val chunk: NarrationChunker.Chunk,
         val sentenceStart: Int,
-        val timeline: NarrationTimeline
+        val timeline: NarrationTimeline,
+        /** Início (ms) de cada frase medido nas pausas da voz; sem ele, o destaque é estimado pelo peso das frases. */
+        val startsMs: LongArray? = null
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -225,7 +225,7 @@ class AudioPlayerController(
         }
         if (sameChapter && status != NarrationStatus.ERROR && status != NarrationStatus.IDLE) {
             if (autoPlay && status == NarrationStatus.PREPARING) playWhenReady = true
-            if (autoPlay && (status == NarrationStatus.READY || status == NarrationStatus.PAUSED)) player?.play()
+            if (autoPlay && (status == NarrationStatus.READY || status == NarrationStatus.PAUSED)) resumeFile()
             return
         }
         startLoad(LoadParams(key, text, script, mood, listenerAge), autoPlay)
@@ -233,6 +233,7 @@ class AudioPlayerController(
 
     private fun startLoad(params: LoadParams, autoPlay: Boolean) {
         loadJob?.cancel()
+        stopStream()
         stopProgressTracker()
         player?.stop()
         player?.clearMediaItems()
@@ -354,7 +355,7 @@ class AudioPlayerController(
         }
         if (cached != null) {
             cached.setLastModified(System.currentTimeMillis())
-            parts = listOf(whole)
+            parts = listOf(whole.copy(startsMs = readMarks(base, whole)))
             activeEngine = engine
             startPlayback(cached, engine.kind, null)
             return true
@@ -363,58 +364,75 @@ class AudioPlayerController(
         val started = System.nanoTime()
         return kotlinx.coroutines.coroutineScope {
             val chunks = Channel<ByteArray>(Channel.UNLIMITED)
-            val firstRate = CompletableDeferred<Int>()
+            val firstAudio = CompletableDeferred<SpeechPauses>()
+            val generated = CompletableDeferred<Unit>()
             val producer = launch(Dispatchers.IO) {
                 val all = ByteArrayOutputStream()
-                var rate = 24_000
+                var pauses: SpeechPauses? = null
                 try {
                     engine.stream(request).collect { chunk ->
-                        rate = chunk.sampleRate
+                        val tracked = pauses ?: SpeechPauses(chunk.sampleRate).also {
+                            pauses = it
+                            firstAudio.complete(it)
+                        }
+                        tracked.append(chunk.pcm)
                         all.write(chunk.pcm)
                         chunks.send(chunk.pcm)
-                        if (!firstRate.isCompleted) firstRate.complete(rate)
                     }
                     chunks.close()
-                    if (all.size() == 0) throw AiException(AiException.Kind.PARSE, "A voz não devolveu áudio")
-                    val file = saveWholePage(all.toByteArray(), rate, base)
-                    withContext(Dispatchers.Main) { if (currentParams?.key == params.key) currentFile = file }
+                    val tracked = pauses ?: throw AiException(AiException.Kind.PARSE, "A voz não devolveu áudio")
+                    generated.complete(Unit)
+                    val file = saveWholePage(all.toByteArray(), tracked.sampleRate, base)
+                    val starts = alignWhole(whole, tracked, complete = true)
+                    writeMarks(base, starts)
+                    withContext(Dispatchers.Main) {
+                        if (currentParams?.key == params.key) {
+                            currentFile = file
+                            parts = listOf(whole.copy(startsMs = starts))
+                        }
+                    }
                 } catch (e: CancellationException) {
                     chunks.close()
                     throw e
                 } catch (e: Throwable) {
                     chunks.close(e)
-                    firstRate.completeExceptionally(e)
+                    firstAudio.completeExceptionally(e)
                     if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.w("LivroVivoVoz", "Voz em partes falhou: ${friendly(e)}")
                 }
             }
-            val rate = withTimeoutOrNull(FIRST_AUDIO_TIMEOUT_MS) { runCatching { firstRate.await() }.getOrNull() }
-            if (rate == null || currentParams?.key != params.key) {
+            val pauses = withTimeoutOrNull(FIRST_AUDIO_TIMEOUT_MS) { runCatching { firstAudio.await() }.getOrNull() }
+            if (pauses == null || currentParams?.key != params.key) {
                 producer.cancel()
                 return@coroutineScope false
             }
             if (com.livrovivo.app.BuildConfig.DEBUG) android.util.Log.d("LivroVivoPerf",
                 "voice engine=${engine.kind} stream firstAudioMs=${(System.nanoTime() - started) / 1_000_000}")
-            playStream(engine, params, rate, chunks, whole)
+            playStream(engine, pauses, generated, chunks, whole)
             true
         }
     }
 
-    /** Toca os pedaços conforme chegam, atualizando progresso e destaque, até o último ser ouvido. */
+    /**
+     * Toca os pedaços conforme chegam, atualizando progresso e destaque, até o último ser ouvido. O destaque segue
+     * as pausas da voz ([SentenceAligner]), recalculadas conforme o áudio chega.
+     */
     private suspend fun playStream(
         engine: StreamingNarrationEngine,
-        params: LoadParams,
-        rate: Int,
+        pauses: SpeechPauses,
+        generated: CompletableDeferred<Unit>,
         chunks: ReceiveChannel<ByteArray>,
         whole: NarrationPart
     ) =
         kotlinx.coroutines.coroutineScope {
+            val rate = pauses.sampleRate
+            stopStream()
             player?.stop()
             player?.clearMediaItems()
             val out = StreamingPcmPlayer(rate, _playbackState.value.speed)
             stream = out
             parts = listOf(whole)
             activeEngine = engine
-            val estimate = (params.text.length / CHARS_PER_SECOND * rate).toLong()
+            val estimate = (whole.timeline.totalWeight * SentenceAligner.MS_PER_WEIGHT / 1000.0 * rate).toLong()
             _playbackState.update {
                 it.copy(
                     status = if (playWhenReady) NarrationStatus.PLAYING else NarrationStatus.READY,
@@ -430,7 +448,7 @@ class AudioPlayerController(
                 var first = true
                 try {
                     for (pcm in chunks) {
-                        out.write(pcm) // bloqueia enquanto está pausado ou com o buffer cheio
+                        out.write(pcm) // espera enquanto está pausado ou com o buffer cheio
                         if (first) {
                             first = false
                             if (playWhenReady) out.play()
@@ -443,18 +461,34 @@ class AudioPlayerController(
                     _playbackState.update { it.copy(notice = "Não consegui narrar o resto desta página (${friendly(e)}).") }
                 }
             }
+            var starts = LongArray(0)
+            var alignedVersion = -1
+            var alignedComplete = false
             try {
                 while (isActive) {
                     val written = out.framesWritten
                     val played = out.framesPlayed.coerceAtMost(written)
-                    val total = if (writer.isCompleted) written else maxOf(estimate, written)
+                    val complete = generated.isCompleted
+                    val received = pauses.durationMs * rate / 1000
+                    // Duração: a real assim que a voz terminou de chegar; antes disso, a estimativa pelo texto.
+                    val total = when {
+                        writer.isCompleted -> written
+                        complete -> maxOf(received, written)
+                        else -> maxOf(estimate, received, written)
+                    }
                     val progress = if (total > 0) (played.toFloat() / total).coerceIn(0f, 1f) else 0f
+                    if (pauses.version != alignedVersion || complete != alignedComplete) {
+                        alignedVersion = pauses.version
+                        alignedComplete = complete
+                        starts = withContext(Dispatchers.Default) { alignWhole(whole, pauses, complete) }
+                    }
+                    val playedMs = played * 1000 / rate
                     _playbackState.update {
                         it.copy(
-                            currentPositionMs = played * 1000 / rate,
+                            currentPositionMs = playedMs,
                             durationMs = total * 1000 / rate,
                             playbackProgress = progress,
-                            highlightedSentence = if (out.isPlaying || played > 0) whole.timeline.sentenceAt(progress) else -1
+                            highlightedSentence = if (out.isPlaying || played > 0) SentenceAligner.sentenceAt(starts, playedMs) else -1
                         )
                     }
                     // Terminou: tudo chegou e o alto-falante tocou até o fim (com folga de 50 ms).
@@ -470,6 +504,27 @@ class AudioPlayerController(
                 applyDucking()
             }
         }
+
+    /** Início de cada frase da página pelas pausas da voz. */
+    private fun alignWhole(whole: NarrationPart, pauses: SpeechPauses, complete: Boolean): LongArray =
+        SentenceAligner.align(whole.timeline.weights, pauses.pauses(), pauses.durationMs, complete)
+
+    /** Os inícios das frases ficam ao lado do áudio guardado, para o destaque valer também ao ouvir de novo. */
+    private suspend fun writeMarks(base: File, starts: LongArray) = withContext(Dispatchers.IO) {
+        runCatching { File(base.path + ".marks").writeText(starts.joinToString(",")) }
+    }
+
+    private suspend fun readMarks(base: File, whole: NarrationPart): LongArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            File(base.path + ".marks").takeIf { it.exists() }?.readText()?.split(",")?.map { it.trim().toLong() }?.toLongArray()
+        }.getOrNull()?.takeIf { it.size == whole.timeline.sentences.size }
+    }
+
+    /** Desliga na hora a narração que toca enquanto chega: nunca dois tocadores ao mesmo tempo. */
+    private fun stopStream() {
+        stream?.release()
+        stream = null
+    }
 
     /** Guarda a página narrada (AAC, ou WAV se o aparelho não codificar) para tocar de novo sem gerar. */
     private suspend fun saveWholePage(pcm: ByteArray, rate: Int, base: File): File = withContext(Dispatchers.IO) {
@@ -644,7 +699,7 @@ class AudioPlayerController(
         val exo = player
         when (state.status) {
             NarrationStatus.PLAYING -> exo?.pause()
-            NarrationStatus.READY, NarrationStatus.PAUSED -> exo?.play()
+            NarrationStatus.READY, NarrationStatus.PAUSED -> resumeFile()
             NarrationStatus.ENDED -> replay()
             NarrationStatus.PREPARING -> playWhenReady = !playWhenReady
             NarrationStatus.ERROR, NarrationStatus.IDLE -> currentParams?.let { startLoad(it, autoPlay = true) }
@@ -652,6 +707,11 @@ class AudioPlayerController(
     }
 
     fun replay() {
+        if (stream != null) {
+            // A página ainda toca enquanto chega: para essa narração antes de começar de novo.
+            loadJob?.cancel()
+            stopStream()
+        }
         val file = currentFile
         if (file == null) {
             currentParams?.let { startLoad(it, autoPlay = true) }
@@ -668,9 +728,16 @@ class AudioPlayerController(
         exo.play()
     }
 
+    /** Continua a página guardada; se ela tocou pela voz em partes, o player ainda está vazio: começa do início. */
+    private fun resumeFile() {
+        val exo = player
+        if (exo == null || exo.mediaItemCount == 0) replay() else exo.play()
+    }
+
     /** Para a narração (ao sair do leitor ou trocar de página). */
     fun stop() {
         loadJob?.cancel()
+        stopStream()
         playWhenReady = false
         player?.pause()
         stopProgressTracker()
@@ -805,7 +872,9 @@ class AudioPlayerController(
                 } else {
                     withinPart
                 }
-                val sentence = part?.let { it.sentenceStart + it.timeline.sentenceAt(withinPart) } ?: -1
+                val sentence = part?.let {
+                    it.sentenceStart + (it.startsMs?.let { starts -> SentenceAligner.sentenceAt(starts, position) } ?: it.timeline.sentenceAt(withinPart))
+                } ?: -1
                 _playbackState.update {
                     it.copy(
                         currentPositionMs = position,

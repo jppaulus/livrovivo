@@ -99,14 +99,25 @@ object NarrationChunker {
 
 /**
  * Divide o texto em frases e estima em que frase a narração está, para destacar a leitura
- * (estilo karaokê) com qualquer motor de voz.
+ * (estilo karaokê) com qualquer motor de voz. Quando há o áudio, o [SentenceAligner] acerta os pontos pelas
+ * pausas da voz; sem ele, vale a estimativa pelo peso de cada frase.
  */
-class NarrationTimeline private constructor(val sentences: List<IntRange>, private val cumulativeWeights: DoubleArray) {
+class NarrationTimeline private constructor(
+    val sentences: List<IntRange>,
+    /** Peso de cada frase, proporcional ao tempo de fala. */
+    val weights: DoubleArray
+) {
+    private val cumulativeWeights = DoubleArray(weights.size).also { acc ->
+        var sum = 0.0
+        weights.forEachIndexed { i, weight -> sum += weight; acc[i] = sum }
+    }
+
+    val totalWeight: Double get() = cumulativeWeights.lastOrNull() ?: 0.0
 
     /** Índice da frase correspondente a uma fração [0, 1] do áudio. */
     fun sentenceAt(fraction: Float): Int {
         if (sentences.isEmpty()) return -1
-        val total = cumulativeWeights.last()
+        val total = totalWeight
         if (total <= 0.0) return 0
         val target = fraction.coerceIn(0f, 1f) * total
         val idx = cumulativeWeights.indexOfFirst { it >= target }
@@ -115,6 +126,19 @@ class NarrationTimeline private constructor(val sentences: List<IntRange>, priva
 
     companion object {
         private val SENTENCE_END = Regex("[.!?…]+[\"'”»)]*\\s+|\\n+")
+        private val FINAL_PUNCTUATION = Regex("[.!?…]+")
+
+        /**
+         * Letras custam tempo; vírgulas e travessões, uma pausa curta; o fim da frase, uma pausa maior (as
+         * reticências contam uma vez só: contadas ponto a ponto, "Blub..." pesava como uma frase inteira).
+         * Ajustado em 25/09/2026 com as vozes da Azure: erro médio da estimativa caiu de 0,9 s para 0,34 s.
+         */
+        fun weightOf(sentence: String): Double {
+            val letters = sentence.count { it.isLetterOrDigit() }
+            val shortPauses = sentence.count { it == ',' || it == ';' || it == ':' || it == '—' }
+            val endings = FINAL_PUNCTUATION.findAll(sentence).count()
+            return (letters + shortPauses * 2 + endings * 6).toDouble().coerceAtLeast(1.0)
+        }
 
         fun build(text: String): NarrationTimeline {
             val ranges = mutableListOf<IntRange>()
@@ -126,17 +150,7 @@ class NarrationTimeline private constructor(val sentences: List<IntRange>, priva
             }
             addRange(text, start, text.length, ranges)
 
-            val weights = DoubleArray(ranges.size)
-            var acc = 0.0
-            ranges.forEachIndexed { i, range ->
-                val sentence = text.substring(range.first, range.last + 1)
-                // Letras custam tempo; pontuação indica pausas extras na fala.
-                val letters = sentence.count { it.isLetterOrDigit() }
-                val pauses = sentence.count { it == ',' || it == ';' || it == ':' || it == '—' } * 3 +
-                    sentence.count { it == '.' || it == '!' || it == '?' || it == '…' } * 6
-                acc += letters + pauses + 8
-                weights[i] = acc
-            }
+            val weights = DoubleArray(ranges.size) { i -> weightOf(text.substring(ranges[i].first, ranges[i].last + 1)) }
             return NarrationTimeline(ranges, weights)
         }
 

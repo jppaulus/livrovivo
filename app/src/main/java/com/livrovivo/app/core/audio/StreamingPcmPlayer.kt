@@ -6,12 +6,16 @@ import android.media.AudioTrack
 import android.media.PlaybackParams
 
 /**
- * Toca áudio PCM (16-bit mono) enquanto ele ainda está chegando: é o que faz a narração do Gemini começar em
- * cerca de 1 s, em vez de esperar a página inteira ser gerada.
+ * Toca áudio PCM (16-bit mono) enquanto ele ainda está chegando: é o que faz a narração começar em cerca de
+ * 1 s, em vez de esperar a página inteira ser gerada.
  *
  * [write] bloqueia quando o buffer está cheio (ou pausado): chame numa thread de fundo.
  */
 class StreamingPcmPlayer(val sampleRate: Int, speed: Float) {
+
+    private companion object {
+        const val WAIT_MS = 20L
+    }
 
     private val track: AudioTrack = AudioTrack.Builder()
         .setAudioAttributes(
@@ -52,6 +56,11 @@ class StreamingPcmPlayer(val sampleRate: Int, speed: Float) {
     val framesPlayed: Long
         get() = if (released) framesWritten else track.playbackHeadPosition.toLong() and 0xFFFFFFFFL
 
+    /**
+     * Entrega todo o [pcm] ao alto-falante. Com o áudio pausado (ou antes do play), o AudioTrack devolve na hora
+     * sem aceitar mais nada quando o buffer enche: aqui a escrita espera, porque descartar o resto fazia a página
+     * tocar só o primeiro segundo ("Glub" em vez de "Glub, glub!") e pular trechos depois de pausar (25/09/2026).
+     */
     fun write(pcm: ByteArray) {
         if (released) return
         var offset = 0
@@ -61,8 +70,11 @@ class StreamingPcmPlayer(val sampleRate: Int, speed: Float) {
             } catch (_: IllegalStateException) {
                 -1 // liberado em outra thread (a criança saiu da página)
             }
-            if (written <= 0) break
-            offset += written
+            when {
+                written < 0 -> break
+                written == 0 -> Thread.sleep(WAIT_MS) // buffer cheio e pausado: espera o play
+                else -> offset += written
+            }
         }
         framesWritten += offset / 2
     }

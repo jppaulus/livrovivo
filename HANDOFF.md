@@ -172,6 +172,14 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
      página inteira em streaming: 1º som em 0,5 a 0,8 s no PC, 0,35 a 1 s no emulador). Só a versão de teste tem a
      chave (`DEV_AZURE_SPEECH_KEY`); a da loja precisa do servidor. A amostra de cada narrador na Área dos Pais é uma
      saudação gravada (`assets/voz/narradores/<id>.ogg`, `ferramentas/gravar_narradores.py`).
+   - **Correções de 25/09 (vídeo do usuário):** (1) o `StreamingPcmPlayer` descartava o áudio que chegava com a
+     narração pausada ou antes do play (o AudioTrack devolve 0 com o buffer cheio): a história abria e tocava só
+     "Glub" em vez de "Glub, glub!", e pulava trechos depois de pausar; agora a escrita espera. (2) "Ouvir de novo"
+     durante a voz em partes abria o ExoPlayer por cima do tocador ao vivo (dois áudios, pausa sem efeito, destaque
+     piscando); agora `stopStream()` desliga o tocador ao vivo antes. (3) O destaque do texto segue as **pausas da
+     voz** (`SentenceAligner`): erro médio de 0,09 s contra 0,9 s da estimativa por letras (conferido com o Whisper);
+     os inícios das frases ficam em `files/narration/<hash>.marks` ao lado do áudio guardado. O peso das frases no
+     `NarrationTimeline` contava cada ponto das reticências como uma pausa ("Blub..." pesava como uma frase inteira).
    - **Texto das histórias:** proposta ainda não decidida: Claude (Anthropic permite produtos para menores com
      proteções e aviso de IA). **Ilustrações por IA:** sem fornecedor liberado ainda; na loja, ficam desligadas.
 
