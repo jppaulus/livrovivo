@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gerado por ferramentas/icone/gerar_icone.py: mude lá e rode de novo. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0 h108 v108 h-108 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="0" android:endX="54" android:endY="108">
+                <item android:offset="0" android:color="#FFB6ECFF" />
+                <item android:offset="1" android:color="#FF63BFF0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M7,84 a15,7.5 0 1,0 30,0 a15,7.5 0 1,0 -30,0 z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7" />
+    <path
+        android:pathData="M23,88 a13,6.5 0 1,0 26,0 a13,6.5 0 1,0 -26,0 z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7" />
+    <path
+        android:pathData="M72,82 a14,7 0 1,0 28,0 a14,7 0 1,0 -28,0 z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7" />
+    <path
+        android:pathData="M63,88 a11,5.5 0 1,0 22,0 a11,5.5 0 1,0 -22,0 z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7" />
+</vector>

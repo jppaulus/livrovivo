@@ -88,6 +88,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.livrovivo.app.BuildConfig
 import com.livrovivo.app.core.audio.NarrationStatus
 import com.livrovivo.app.core.audio.PlaybackState
 import com.livrovivo.app.core.audio.VoicePersona
@@ -368,7 +369,8 @@ private fun PageContent(
             companionEmoji = uiState.companion.emoji
         )
 
-        if (uiState.illustrationNotice != null && status == IllustrationStatus.FAILED) {
+        // Erro de ilustração nunca aparece para a criança: ela vê a cena desenhada do app. O aviso é só para testes.
+        if (BuildConfig.DEBUG && uiState.illustrationNotice != null && status == IllustrationStatus.FAILED) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

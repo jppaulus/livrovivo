@@ -90,6 +90,9 @@ class ReaderViewModel(
     private var pendingAutoplay = false
     private var lastChoice: Choice? = null
     private val illustrationJobs = mutableMapOf<Int, Job>()
+
+    /** Sem faturamento (ou sem permissão), toda página falharia igual: para de tentar nesta leitura. */
+    private var illustrationsPaused = false
     private var preparedPage: String? = null
     private var preparationJob: Job? = null
     private var autoPlay = true
@@ -181,12 +184,18 @@ class ReaderViewModel(
             return
         }
         if (illustrationJobs[chapterIndex]?.isActive == true) return
+        if (illustrationsPaused) {
+            setIllustrationStatus(chapterIndex, IllustrationStatus.DISABLED)
+            return
+        }
         illustrationJobs[chapterIndex] = viewModelScope.launch {
             setIllustrationStatus(chapterIndex, IllustrationStatus.PAINTING)
             illustrateChapterUseCase(storyId, chapterIndex)
                 .onSuccess { setIllustrationStatus(chapterIndex, IllustrationStatus.READY) }
                 .onFailure { error ->
-                    val notConfigured = error is AiException && error.kind == AiException.Kind.NOT_CONFIGURED
+                    val kind = (error as? AiException)?.kind
+                    val notConfigured = kind == AiException.Kind.NOT_CONFIGURED
+                    if (kind == AiException.Kind.BILLING || kind == AiException.Kind.PERMISSION_DENIED) illustrationsPaused = true
                     setIllustrationStatus(chapterIndex, if (notConfigured) IllustrationStatus.DISABLED else IllustrationStatus.FAILED)
                     if (!notConfigured && error is AiException) {
                         _uiState.update { it.copy(illustrationNotice = "Ilustração indisponível: ${error.friendlyMessage}") }
@@ -202,6 +211,7 @@ class ReaderViewModel(
     fun retryIllustration() {
         val index = _uiState.value.pageIndex
         _uiState.update { it.copy(illustrationNotice = null) }
+        illustrationsPaused = false
         illustrationJobs[index]?.cancel()
         ensureIllustration(index)
     }
