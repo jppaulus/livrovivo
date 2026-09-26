@@ -104,5 +104,11 @@ interface BillingRepository {
 
     companion object {
         const val FREE_STORIES = 3
+
+        /**
+         * No plano grátis, só a capa (1ª página) ganha ilustração de IA; as outras mostram os desenhos do app. Cada
+         * imagem custa uns US$ 0,03: o grátis fica limitado e o assinante tem todas as páginas (26/09/2026).
+         */
+        const val FREE_ILLUSTRATED_PAGES = 1
     }
 }

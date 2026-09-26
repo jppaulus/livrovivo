@@ -37,7 +37,7 @@ object PictureBookLibrary {
         return Chapter(index = index, content = content,
             choices = if (index >= 4) emptyList() else choices(book, index - 1),
             isEnding = index >= 4, mood = book.mood,
-            sceneImagePrompt = "Published picture book scene, $sceneName. Depict the action, not a portrait: $content")
+            sceneImagePrompt = "Published picture book scene, $sceneName. Depict this moment: $content")
     }
 
     private fun choices(book: Book, stage: Int) = book.choices[stage].mapIndexed { i, text ->

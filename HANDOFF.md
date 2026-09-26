@@ -181,7 +181,21 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
      os inícios das frases ficam em `files/narration/<hash>.marks` ao lado do áudio guardado. O peso das frases no
      `NarrationTimeline` contava cada ponto das reticências como uma pausa ("Blub..." pesava como uma frase inteira).
    - **Texto das histórias:** proposta ainda não decidida: Claude (Anthropic permite produtos para menores com
-     proteções e aviso de IA). **Ilustrações por IA:** sem fornecedor liberado ainda; na loja, ficam desligadas.
+     proteções e aviso de IA).
+   - **Ilustrações (26/09): FLUX.2 pro (Black Forest Labs) pela Microsoft Foundry.** Recurso `livro-vivo-ia`
+     (AIServices, East US), publicação `flux-2-pro` (5 por minuto), chave `azure.foundryKey`/`azure.foundryEndpoint`.
+     Os termos da BFL permitem app infantil, mas exigem termos de uso/política de privacidade no app e o aviso de que
+     as imagens são feitas por IA. Na conta de avaliação, a cota é zero para FLUX Kontext, FLUX 1.1 e os MAI-Image
+     (que também são prévia); FLUX.2 pro tem 15 por minuto. Vai **só o texto**: mandar a página anterior como
+     referência é prévia e fazia o desenho copiar a cena anterior; a descrição dos personagens foi reforçada (cabelo,
+     olhos, roupa completa). US$ 0,03 e 7 a 11 s por imagem de 1024 x 768. O filtro de conteúdo da Microsoft barrava
+     páginas inocentes quando somava "4-year-old girl" com a cena em português (livros da `PictureBookLibrary`) e
+     "young children"/"portrait": o pedido tira a idade exata e essas palavras e, se ainda for barrado, tenta de novo
+     com um pedido mínimo. O filtro não responde sempre igual.
+   - **Custos por plano (decisão do usuário, 26/09):** o plano grátis tem gasto limitado (3 histórias; ilustração de
+     IA só na capa, `BillingRepository.FREE_ILLUSTRATED_PAGES`; as outras páginas mostram os desenhos do app). O
+     assinante tem ilustração em todas as páginas: o custo é coberto pela assinatura. Quando houver servidor, a regra
+     precisa valer lá também (no app ela pode ser burlada).
 
 ---
 

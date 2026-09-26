@@ -160,7 +160,7 @@ fun PaywallScreen(
                 ) {
                     BenefitItem("Seu filho aprende a ler com histórias em que ele é o personagem")
                     BenefitItem("Trilha da Leitura completa: 51 fases e livros \"Eu leio\" ilimitados, com ilustrações")
-                    BenefitItem("Histórias ilimitadas personalizadas por IA")
+                    BenefitItem("Histórias ilimitadas personalizadas por IA, ilustradas em todas as páginas")
                     BenefitItem("Narração neural expressiva em português (PT-BR)")
                     BenefitItem("Acesso 100% offline para viagens e hora de dormir")
                     BenefitItem("Nós de escolhas adaptativos para desenvolvimento emocional")

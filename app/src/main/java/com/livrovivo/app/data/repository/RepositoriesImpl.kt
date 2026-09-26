@@ -190,6 +190,10 @@ class StoryRepositoryImpl(
         if (!illustrationService.isEnabled()) {
             return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED))
         }
+        if (chapterIndex > BillingRepository.FREE_ILLUSTRATED_PAGES && !settingsManager.current().isPremium) {
+            // Fora do plano grátis: a página mostra os desenhos do app, sem aviso nenhum para a criança.
+            return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED, "Ilustração de IA só na capa no plano grátis"))
+        }
         return try {
             val child = story.childSnapshot
             val file = illustrationService.illustrate(story, chapter, child)

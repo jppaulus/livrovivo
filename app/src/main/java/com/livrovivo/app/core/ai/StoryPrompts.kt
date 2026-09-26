@@ -104,7 +104,7 @@ HISTÓRIA
 
 Crie também:
 - "title": um título encantador e curto (até 8 palavras) que inclua o nome ${childName(brief)}.
-- "characterSheet": EM INGLÊS, uma descrição visual fixa e detalhada de ${childName(brief)} (idade aparente, pele, cabelo, roupa marcante e cores) e de ${brief.companion.name}, para que os personagens fiquem idênticos em todas as ilustrações.
+- "characterSheet": EM INGLÊS, uma descrição visual fixa e bem específica de ${childName(brief)} (idade aparente; tom de pele; cabelo com cor, comprimento, corte e franja; cor dos olhos; um traço marcante do rosto; uma roupa fixa com as cores da peça de cima, da de baixo e dos sapatos) e de ${brief.companion.name} (cores, tamanho e formas). Respeite a aparência informada pelos pais. Cada página é desenhada só a partir dessa descrição, então todo detalhe que faltar muda de uma página para outra.
 """.trim()
 
     fun continuationPrompt(brief: StoryBrief, story: Story, choice: Choice): String {

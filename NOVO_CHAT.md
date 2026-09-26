@@ -57,6 +57,9 @@ A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 
   `local.properties` dentro do APK de teste: não compartilhe). Primeiro som em 0,35 a 1 s no emulador. A escolha do
   narrador na Área dos Pais toca a saudação gravada de cada um (`assets/voz/narradores`, `gravar_narradores.py`).
   A versão da loja ainda não tem a chave: precisa do servidor.
+- **Ilustrações (26/09):** FLUX.2 pro pela Microsoft Foundry (HANDOFF §4 item 12), só com o texto. Plano grátis:
+  ilustração de IA só na capa; assinante: todas as páginas (o usuário decidiu que o grátis tem gasto limitado e o
+  pago pode ter custo). Gemini só nos testes.
 - **Trilha:** as 370 falas fixas (instruções, letras, sílabas, palavras, frases) estão em `app/src/main/assets/voz`,
   com o índice `indice.json`. Em 25/09 foram **regravadas com a Azure**: frases com o Macerio HD, letras/sílabas/palavras
   com o `pt-BR-MacerioMultilingualNeural` (a HD inventa palavras em falas curtas). Script: `ferramentas/gerar_audios.py`.

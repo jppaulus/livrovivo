@@ -112,6 +112,6 @@ class StoryWriter(
     }
 
     private fun defaultCharacterSheet(brief: StoryBrief): String =
-        "${brief.child.name}: ${StoryPrompts.appearanceDescription(brief.child)}, wearing a cozy yellow sweater. " +
+        "${brief.child.name}: ${StoryPrompts.appearanceDescription(brief.child)}, wearing a cozy yellow sweater, blue jeans and red sneakers. " +
             "${brief.companion.name}: ${brief.companion.visualDescription}."
 }

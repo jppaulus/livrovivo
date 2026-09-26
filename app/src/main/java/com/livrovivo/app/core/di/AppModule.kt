@@ -5,6 +5,7 @@ import com.livrovivo.app.core.ai.AiHttp
 import com.livrovivo.app.core.ai.AzureSpeechService
 import com.livrovivo.app.core.ai.BackendConfig
 import com.livrovivo.app.core.ai.ElevenLabsService
+import com.livrovivo.app.core.ai.FluxImageService
 import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.ai.StoryWriter
 import com.livrovivo.app.core.audio.AudioPlayerController
@@ -74,8 +75,9 @@ val appModule = module {
     single { GeminiService(androidContext(), get(), get(), get()) }
     single { ElevenLabsService(get(), get(), get()) }
     single { AzureSpeechService(get()) }
+    single { FluxImageService(get()) }
     single { StoryWriter(get()) }
-    single { IllustrationService(androidContext(), get(), get()) }
+    single { IllustrationService(androidContext(), get(), get(), get()) }
 
     // Narração
     single { AzureNarrationEngine(get()) }

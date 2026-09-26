@@ -46,6 +46,8 @@ android {
             buildConfigField("String", "DEV_ELEVENLABS_API_KEY", "\"${localProperty("elevenlabs.apiKey")}\"")
             buildConfigField("String", "DEV_AZURE_SPEECH_KEY", "\"${localProperty("azure.speechKey")}\"")
             buildConfigField("String", "DEV_AZURE_SPEECH_REGION", "\"${localProperty("azure.speechRegion")}\"")
+            buildConfigField("String", "DEV_AZURE_FOUNDRY_KEY", "\"${localProperty("azure.foundryKey")}\"")
+            buildConfigField("String", "DEV_AZURE_FOUNDRY_ENDPOINT", "\"${localProperty("azure.foundryEndpoint")}\"")
         }
         release {
             isMinifyEnabled = false
@@ -53,6 +55,8 @@ android {
             buildConfigField("String", "DEV_ELEVENLABS_API_KEY", "\"\"")
             buildConfigField("String", "DEV_AZURE_SPEECH_KEY", "\"\"")
             buildConfigField("String", "DEV_AZURE_SPEECH_REGION", "\"\"")
+            buildConfigField("String", "DEV_AZURE_FOUNDRY_KEY", "\"\"")
+            buildConfigField("String", "DEV_AZURE_FOUNDRY_ENDPOINT", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
