@@ -41,11 +41,11 @@ class IllustrationService(
         // No FLUX vai só o texto (a referência ainda é prévia): a descrição dos personagens mantém todos iguais.
         val image = if (flux.isAvailable) {
             try {
-                flux.generate(buildPrompt(story, chapter, child, current.illustrationStyle, hasReference = false))
+                flux.generate(buildPrompt(story, chapter, child, current.illustrationStyle, hasReference = false), story.id)
             } catch (e: AiException) {
                 if (e.kind != AiException.Kind.BLOCKED) throw e
                 // O filtro da Microsoft às vezes barra a soma de palavras inocentes: uma tentativa com o pedido mínimo.
-                flux.generate(leanPrompt(story, chapter, child, current.illustrationStyle))
+                flux.generate(leanPrompt(story, chapter, child, current.illustrationStyle), story.id)
             }
         } else {
             val prompt = buildPrompt(story, chapter, child, current.illustrationStyle, hasReference = previousImage != null)
@@ -86,7 +86,11 @@ SCENE: a curious child and ${MagicalCompanion.ALL.first().visualDescription} rea
 COMPOSITION: wide horizontal 4:3 frame, expressive friendly faces, gentle and safe for young children.
 IMPORTANT: no text, no letters, no words, no watermarks.
 """.trim()
-        val image = if (flux.isAvailable) flux.generate(prompt) else gemini.generateImage(prompt, emptyList(), aspectRatio = "4:3")
+        val image = if (flux.isAvailable) {
+            flux.generate(prompt, storyId = "amostra-estilo-${style.id}")
+        } else {
+            gemini.generateImage(prompt, emptyList(), aspectRatio = "4:3")
+        }
         return withContext(Dispatchers.IO) {
             val bitmap = BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size)
                 ?: throw AiException(AiException.Kind.PARSE, "Imagem gerada em formato inválido")

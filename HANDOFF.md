@@ -85,7 +85,8 @@ página avançada), provavelmente foi ele, não bug. Avise antes de reinstalar o
 | `core/settings/SettingsManager.kt` | DataStore: chaves, motor de voz, modelos, estilo, contador de histórias, `applyPendingDefaults()` |
 | `presentation/reader/` | Leitor: páginas, escolhas, voltar e trocar de caminho, comemoração, barra de narração |
 | `presentation/{home,creation,onboarding,parent,settings,paywall}/` | Demais telas |
-| `supabase/functions/ai-gateway/index.ts` | Proxy de IA para produção (chaves ficam no servidor) |
+| `supabase/functions/ai-gateway/` | Servidor do app (Supabase): texto pelo Claude, voz e imagens pela Microsoft, limites dos planos (`regras.ts`); tabelas de contagem em `supabase/migrations/` (§4, item 13) |
+| `core/ai/LivroVivoServer.kt` / `StoryAi.kt` | No app: conta anônima e chamadas ao servidor; quem escreve o texto (servidor ou, nos testes, Gemini) |
 
 **Fluxo de uma página:** escolha da criança → `ContinueStoryUseCase` → `StoryWriter` (IA ou offline) →
 capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (em partes) e ilustração.
@@ -196,6 +197,35 @@ capítulo salvo no Room → leitor mostra o texto → em paralelo: narração (e
      IA só na capa, `BillingRepository.FREE_ILLUSTRATED_PAGES`; as outras páginas mostram os desenhos do app). O
      assinante tem ilustração em todas as páginas: o custo é coberto pela assinatura. Quando houver servidor, a regra
      precisa valer lá também (no app ela pode ser burlada).
+13. **Servidor do app (27–28/09/2026): Supabase + Claude + Microsoft.** Escolhas do usuário: Supabase no plano grátis
+   (sem cartão; projeto "Livro Vivo" em `us-east-1`) e Claude para o texto (Anthropic permite app infantil com proteções;
+   créditos pré-pagos com recarga automática desligada = teto rígido). A conta do Claude **ainda não existe**: até lá, o
+   servidor responde `NAO_CONFIGURADO` ao texto e a versão de teste escreve com o Gemini.
+   - **Função `ai-gateway`** (`supabase/functions/ai-gateway/`): `historia` (Claude, `claude-sonnet-5` por padrão,
+     esforço `low`, JSON pelo `output_config.format`; o esquema do app no formato do Gemini é convertido em
+     `regras.ts`), `voz` (Azure em partes, só as 4 vozes dos narradores), `imagem` (FLUX, 45 s no máximo) e `estado`.
+     O servidor põe a própria proteção infantil antes das instruções do app. Regras e limites em `regras.ts`
+     (testes: `npx -y deno@2 test supabase/functions/ai-gateway/regras_test.ts`); o `LivroVivoServerTest` confere que
+     app e servidor concordam (vozes, plano grátis, publicação do FLUX).
+   - **Limites** (`lv_reservar` na migração `20260927000000_servidor_livro_vivo.sql`): grátis = 3 histórias na vida da
+     conta e imagem só na capa de história escrita pelo servidor; assinante = 20 histórias novas por mês (sugestão;
+     ajustar no beta), releitura à vontade; limites diários de texto, voz e imagem; **teto de US$ 5/dia para o
+     servidor inteiro** (`TETO_DIARIO_USD`). Falha da IA devolve a cota. Nada da criança fica no servidor: só
+     contadores. O rascunho antigo (tabelas com nome e interesses das crianças, repasse aberto de Gemini/ElevenLabs)
+     foi apagado sem nunca ter sido publicado.
+   - **Assinante no servidor:** por enquanto marcado à mão (`lv_contas.assinante`); falta conferir a compra na Google
+     Play. A conta de teste do emulador foi marcada em 28/09.
+   - **App:** conta anônima do Supabase (`ServerSession`, sem e-mail), `LivroVivoServer` (texto, voz, imagem),
+     `StoryAi` (servidor ou, só nos testes, Gemini). Com `supabase.url` no `local.properties`, voz e imagens vão pelo
+     servidor também na versão de teste. O Gemini e a ElevenLabs não passam mais pelo servidor.
+   - **Região:** o Supabase rodava a função em São Paulo e cada pedido ia e voltava dos EUA. Com o cabeçalho
+     `x-region: us-east-1` o primeiro som caiu de 1,1–1,7 s para 0,6–0,9 s (0,86 s no emulador).
+   - **Segurança conferida:** sessão falsificada é recusada pelo Supabase (`verify_jwt`); sem sessão ou com a chave
+     pública no lugar da sessão, a função recusa (`SESSAO`); voz fora da lista e velocidade absurda dão
+     `PEDIDO_INVALIDO`. Falta, antes da loja: Play Integrity (hoje dá para criar contas anônimas à vontade, até 30 por
+     hora por IP) e a compra conferida no servidor.
+   - **Prazo:** a avaliação gratuita da Azure termina em 25/10/2026; depois, só com "pagamento conforme o uso", que
+     não tem limite automático de gasto (a proteção passa a ser o teto do servidor e alertas de orçamento).
 
 ---
 
@@ -356,15 +386,20 @@ e cada integração tem botão "Testar" nas configurações.
 ## 8. Onde ficam as chaves e configurações
 
 - **No app (recomendado para testar):** cadeado na tela inicial → resolver a conta → **IA, vozes e ilustrações**.
-- **`local.properties`** (só no build de debug, fora do git):
+- **`local.properties`** (fora do git; as chaves de teste só entram no build de debug):
   ```properties
-  gemini.apiKey=AIza...
-  elevenlabs.apiKey=sk_...
-  supabase.url=https://SEU-PROJETO.supabase.co
-  supabase.anonKey=eyJ...
+  gemini.apiKey=AIza...            # só testes
+  azure.speechKey=... / azure.speechRegion=eastus / azure.foundryKey=... / azure.foundryEndpoint=https://...
+  supabase.url=https://<ref>.supabase.co   # vai no app (debug e loja)
+  supabase.anonKey=sb_publishable_...      # chave pública: vai no app
+  supabase.accessToken=sbp_...             # só no PC, para publicar; nunca no app
   ```
-- **Servidor (produção):** `supabase/.env` a partir do `.env.example` → `supabase secrets set --env-file supabase/.env`
-  → `supabase functions deploy ai-gateway`.
+- **Servidor:** segredos em `supabase/.env` (fora do git; modelo em `supabase/.env.example`: Azure, Anthropic,
+  `TETO_DIARIO_USD`). Publicar com o token do `local.properties` no ambiente (`SUPABASE_ACCESS_TOKEN`):
+  `npx -y supabase@2.118.0 secrets set --env-file supabase/.env --project-ref <ref>` e
+  `npx -y supabase@2.118.0 functions deploy ai-gateway --use-api --project-ref <ref>`. A migração foi aplicada pela
+  API de gerenciamento (`POST /v1/projects/<ref>/database/query`); o login anônimo foi ligado com autorização do
+  usuário. Não commitar o `<ref>` do projeto.
 
 Links úteis: chave do Gemini em aistudio.google.com/apikey · limites em aistudio.google.com/rate-limit ·
 chave da ElevenLabs em elevenlabs.io/app/settings/api-keys

@@ -1,0 +1,6 @@
+# Configuração mínima do Supabase para publicar o servidor (npx supabase functions deploy).
+project_id = "livro-vivo"
+
+[functions.ai-gateway]
+# O Supabase confere a sessão do app antes de chamar a função. Não desligar: a função confia nessa conferência.
+verify_jwt = true

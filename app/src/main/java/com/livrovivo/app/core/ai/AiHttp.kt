@@ -15,8 +15,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Backend opcional de produção: a Edge Function "ai-gateway" do Supabase guarda as chaves de IA
- * no servidor e repassa as chamadas. Configurado via local.properties (supabase.url / supabase.anonKey).
+ * Endereço do servidor do app (projeto no Supabase, função "ai-gateway"): as chaves de IA ficam lá, nunca no app.
+ * Vem do local.properties (supabase.url / supabase.anonKey); a chave pública pode ir dentro do app.
  */
 class BackendConfig(supabaseUrl: String, val anonKey: String) {
     private val baseUrl = supabaseUrl.trim().trimEnd('/')
@@ -25,6 +25,8 @@ class BackendConfig(supabaseUrl: String, val anonKey: String) {
         get() = baseUrl.startsWith("https://") && anonKey.isNotBlank() && !baseUrl.contains("your-project")
 
     val gatewayUrl: String get() = "$baseUrl/functions/v1/ai-gateway"
+
+    val authUrl: String get() = "$baseUrl/auth/v1"
 }
 
 class HttpResult(val code: Int, val body: ByteArray, val contentType: String?) {

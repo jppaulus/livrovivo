@@ -7,11 +7,13 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.livrovivo.app.core.ai.BackendConfig
+import com.livrovivo.app.core.ai.LivroVivoServer
+import com.livrovivo.app.core.ai.StoryAi
 import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.literacy.BookAi
 import com.livrovivo.app.core.literacy.DecodableValidator
-import com.livrovivo.app.core.literacy.GeminiBookAi
+import com.livrovivo.app.core.literacy.StoryBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.LiteracyRules
 import com.livrovivo.app.core.literacy.TrailParser
@@ -221,9 +223,10 @@ class LiteracyStorageTest {
         }.build()
         try {
             settings.saveGeminiApiKey("test-only-never-sent-to-network")
-            val gemini = GeminiService(context, http, settings, BackendConfig("", ""))
+            val gemini = GeminiService(context, http, settings)
+            val ai = StoryAi(LivroVivoServer(context, http, BackendConfig("", "")), gemini)
             val literacy = LiteracyRepositoryImpl(db.literacyDao()) { trailJson() }
-            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(GeminiBookAi(gemini)), billing(subscriber = true))
+            val books = EuLeioRepositoryImpl(literacy, db.literacyDao(), db.storyDao(), LiteracyBookWriter(StoryBookAi(ai)), billing(subscriber = true))
             val trail = literacy.getTrail()
             val firstBookPhases = trail.module("vogais")!!.phases + trail.module("consoantes")!!.phases +
                 trail.module("silabas")!!.phases.take(3)

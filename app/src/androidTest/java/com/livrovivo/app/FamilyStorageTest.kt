@@ -6,6 +6,9 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.livrovivo.app.core.ai.BackendConfig
+import com.livrovivo.app.core.ai.FluxImageService
+import com.livrovivo.app.core.ai.LivroVivoServer
+import com.livrovivo.app.core.ai.StoryAi
 import com.livrovivo.app.core.ai.GeminiService
 import com.livrovivo.app.core.ai.StoryWriter
 import com.livrovivo.app.core.database.LivroVivoDatabase
@@ -65,9 +68,10 @@ class FamilyStorageTest {
                 chapters = listOf(Chapter(1, "Lia ouviu um som perto de uma folha e uma pedra.",
                     listOf(Choice("Levantar a folha", 2), Choice("Examinar a pedra", 2)))))
             db.storyDao().insertStoryWithChapters(story.toEntity(), story.chapters.map { it.toEntity(story.id) })
-            val gemini = GeminiService(context, http, settings, BackendConfig("", ""))
-            val repo = StoryRepositoryImpl(db.storyDao(), db.childProfileDao(), StoryWriter(gemini),
-                IllustrationService(context, gemini, settings), settings)
+            val gemini = GeminiService(context, http, settings)
+            val server = LivroVivoServer(context, http, BackendConfig("", ""))
+            val repo = StoryRepositoryImpl(db.storyDao(), db.childProfileDao(), StoryWriter(StoryAi(server, gemini)),
+                IllustrationService(context, gemini, FluxImageService(http, server, "", ""), settings), settings)
             repo.prepareContinuations(story.id)
             assertEquals(2, calls.get())
             val untouched = repo.getStoryById(story.id)!!
@@ -128,9 +132,10 @@ class FamilyStorageTest {
         val settingsFile = File(context.cacheDir, "test-${UUID.randomUUID()}.preferences_pb")
         val settings = SettingsManager(context, PreferenceDataStoreFactory.create(scope = settingsScope, produceFile = { settingsFile }))
         val http = OkHttpClient.Builder().addInterceptor { throw AssertionError("Tests must not contact AI providers") }.build()
-        val gemini = GeminiService(context, http, settings, BackendConfig("", ""))
-        val illustrations = IllustrationService(context, gemini, settings)
-        val repo = StoryRepositoryImpl(db.storyDao(), db.childProfileDao(), StoryWriter(gemini), illustrations, settings)
+        val gemini = GeminiService(context, http, settings)
+        val server = LivroVivoServer(context, http, BackendConfig("", ""))
+        val illustrations = IllustrationService(context, gemini, FluxImageService(http, server, "", ""), settings)
+        val repo = StoryRepositoryImpl(db.storyDao(), db.childProfileDao(), StoryWriter(StoryAi(server, gemini)), illustrations, settings)
         val assetIds = mutableListOf<String>()
         try {
             val child = ChildProfile("a", "Lia", AgeGroup.TODDLER.code)

@@ -106,10 +106,11 @@ class AzureNarrationEngine(private val azure: AzureSpeechService) : StreamingNar
 
     override suspend fun canStream(): Boolean = azure.isAvailable
 
-    override fun stream(request: NarrationRequest): Flow<SpeechChunk> = azure.stream(buildSsml(request))
+    override fun stream(request: NarrationRequest): Flow<SpeechChunk> =
+        azure.stream(request.persona.azureVoice, spokenText(request), RATE)
 
     override suspend fun synthesize(request: NarrationRequest, settings: AppSettings, outputBase: File): File {
-        val speech = azure.synthesize(buildSsml(request))
+        val speech = azure.synthesize(request.persona.azureVoice, spokenText(request), RATE)
         return savePcm(speech.pcm, speech.sampleRate, outputBase)
     }
 
@@ -118,12 +119,11 @@ class AzureNarrationEngine(private val azure: AzureSpeechService) : StreamingNar
         const val RATE = "-8%"
 
         /** As marcações de emoção ([whispers]...) são do Gemini: a Azure as leria em voz alta. */
+        fun spokenText(request: NarrationRequest): String = ChapterSanitizer.stripAudioTags(request.script ?: request.text)
+
+        /** O pedido que vai para a Azure (montado aqui na versão de teste, ou igual no servidor). */
         fun buildSsml(request: NarrationRequest): String =
-            AzureSpeechService.ssml(
-                voice = request.persona.azureVoice,
-                text = ChapterSanitizer.stripAudioTags(request.script ?: request.text),
-                rate = RATE
-            )
+            AzureSpeechService.ssml(voice = request.persona.azureVoice, text = spokenText(request), rate = RATE)
     }
 }
 

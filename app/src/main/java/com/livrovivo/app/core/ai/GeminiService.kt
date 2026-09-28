@@ -48,15 +48,15 @@ data class KeyValidation(val valid: Boolean, val visibleModels: List<String>, va
 /**
  * Cliente da API Gemini (generateContent) para texto estruturado, ilustrações e narração.
  *
- * - Usa a chave dos pais (modo direto) ou o backend Supabase (modo produção).
+ * - Só para testes: usa a chave do local.properties (ou digitada na seção Desenvolvedor). Os termos do Google
+ *   proíbem o Gemini em app infantil (HANDOFF §4, item 12); na loja, o texto vem do servidor do app (StoryAi).
  * - Se um modelo foi desativado, não está liberado para a conta ou está sem cota, tenta o próximo
  *   da lista; quando o configurado não tem acesso e outro funciona, o que funcionou vira o padrão.
  */
 class GeminiService(
     private val context: Context,
     private val http: OkHttpClient,
-    private val settings: SettingsManager,
-    private val backend: BackendConfig
+    private val settings: SettingsManager
 ) {
     private companion object {
         const val API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
@@ -77,7 +77,7 @@ class GeminiService(
     /** Identificação do app para chaves restritas a aplicativos Android no Google Cloud. */
     private val androidCertSha1: String? by lazy { signingCertificateSha1() }
 
-    suspend fun isAvailable(): Boolean = settings.current().hasGeminiKey || backend.isConfigured
+    suspend fun isAvailable(): Boolean = settings.current().hasGeminiKey
 
     /** Gera um objeto JSON (saída estruturada) a partir de instruções de sistema + pedido. */
     suspend fun generateJson(
@@ -275,11 +275,7 @@ class GeminiService(
     suspend fun validateKey(): KeyValidation {
         val apiKey = settings.current().geminiApiKey
         if (apiKey.isBlank()) {
-            return if (backend.isConfigured) {
-                KeyValidation(valid = true, visibleModels = emptyList(), error = null)
-            } else {
-                KeyValidation(valid = false, visibleModels = emptyList(), error = AiException(AiException.Kind.NOT_CONFIGURED))
-            }
+            return KeyValidation(valid = false, visibleModels = emptyList(), error = AiException(AiException.Kind.NOT_CONFIGURED))
         }
         return try {
             val request = Request.Builder()
@@ -337,7 +333,7 @@ class GeminiService(
         buildBody: (model: String, lite: Boolean) -> JsonObject
     ): Pair<String, JsonObject> {
         val apiKey = settings.current().geminiApiKey
-        if (apiKey.isBlank() && !backend.isConfigured) {
+        if (apiKey.isBlank()) {
             throw AiException(AiException.Kind.NOT_CONFIGURED)
         }
         val started = System.nanoTime()
@@ -365,26 +361,12 @@ class GeminiService(
     }
 
     private suspend fun post(apiKey: String, model: String, body: JsonObject, timeoutSeconds: Long): HttpResult {
-        val request = if (apiKey.isNotBlank()) {
-            Request.Builder()
-                .url("$BASE_URL/$model:generateContent")
-                .addHeader("x-goog-api-key", apiKey)
-                .addAndroidIdentity()
-                .post(AiHttp.jsonBody(body.toString()))
-                .build()
-        } else {
-            val payload = buildJsonObject {
-                put("provider", "gemini")
-                put("model", model)
-                put("payload", body)
-            }
-            Request.Builder()
-                .url(backend.gatewayUrl)
-                .addHeader("Authorization", "Bearer ${backend.anonKey}")
-                .addHeader("apikey", backend.anonKey)
-                .post(AiHttp.jsonBody(payload.toString()))
-                .build()
-        }
+        val request = Request.Builder()
+            .url("$BASE_URL/$model:generateContent")
+            .addHeader("x-goog-api-key", apiKey)
+            .addAndroidIdentity()
+            .post(AiHttp.jsonBody(body.toString()))
+            .build()
         return AiHttp.execute(http, request, timeoutSeconds)
     }
 

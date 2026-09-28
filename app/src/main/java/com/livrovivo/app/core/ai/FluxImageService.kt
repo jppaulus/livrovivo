@@ -19,11 +19,13 @@ import java.util.Base64
  * app tenha termos de uso e avise que as imagens são feitas por IA (HANDOFF §4, item 12). Vai só o texto: mandar a
  * página anterior como referência ainda é prévia, e com ela o desenho copiava a cena anterior.
  *
- * Por enquanto só a versão de teste tem a chave (azure.foundryKey no local.properties); a da loja vai pelo servidor.
+ * Com o servidor do app configurado, a imagem vem por ele (a chave fica lá, e ele confere o plano: no grátis, só a
+ * capa). Sem ele, só a versão de teste chama o FLUX direto, com azure.foundryKey do local.properties.
  * Medido em 26/09/2026: 7 a 11 s e US$ 0,03 por imagem de 1024 x 768.
  */
 class FluxImageService(
     private val http: OkHttpClient,
+    private val server: LivroVivoServer,
     private val key: String = BuildConfig.DEV_AZURE_FOUNDRY_KEY,
     endpoint: String = BuildConfig.DEV_AZURE_FOUNDRY_ENDPOINT
 ) {
@@ -79,11 +81,15 @@ class FluxImageService(
 
     private val url = "${endpoint.trim().trimEnd('/')}/providers/blackforestlabs/v1/$DEPLOYMENT?api-version=preview"
 
-    val isAvailable: Boolean get() = key.isNotBlank() && url.startsWith("https://")
+    private val hasDevKey: Boolean get() = key.isNotBlank() && url.startsWith("https://")
 
-    /** Uma ilustração 4:3 a partir do texto. */
-    suspend fun generate(prompt: String, width: Int = 1024, height: Int = 768): GeneratedImage {
-        if (!isAvailable) throw AiException(AiException.Kind.NOT_CONFIGURED)
+    val isAvailable: Boolean get() = server.isConfigured || hasDevKey
+
+    /** Uma ilustração 4:3 (1024 x 768) a partir do texto, para a história [storyId]. */
+    suspend fun generate(prompt: String, storyId: String): GeneratedImage {
+        if (server.isConfigured) return server.image(prompt, storyId)
+        if (!hasDevKey) throw AiException(AiException.Kind.NOT_CONFIGURED)
+        val (width, height) = 1024 to 768
         val request = Request.Builder()
             .url(url)
             .addHeader("api-key", key)

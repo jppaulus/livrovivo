@@ -7,6 +7,8 @@ import com.livrovivo.app.core.ai.BackendConfig
 import com.livrovivo.app.core.ai.ElevenLabsService
 import com.livrovivo.app.core.ai.FluxImageService
 import com.livrovivo.app.core.ai.GeminiService
+import com.livrovivo.app.core.ai.LivroVivoServer
+import com.livrovivo.app.core.ai.StoryAi
 import com.livrovivo.app.core.ai.StoryWriter
 import com.livrovivo.app.core.audio.AudioPlayerController
 import com.livrovivo.app.core.audio.AzureNarrationEngine
@@ -15,9 +17,9 @@ import com.livrovivo.app.core.audio.ElevenLabsNarrationEngine
 import com.livrovivo.app.core.audio.GeminiNarrationEngine
 import com.livrovivo.app.core.database.LivroVivoDatabase
 import com.livrovivo.app.core.literacy.FeedbackSounds
-import com.livrovivo.app.core.literacy.GeminiBookAi
 import com.livrovivo.app.core.literacy.LiteracyBookWriter
 import com.livrovivo.app.core.literacy.SoundPlayer
+import com.livrovivo.app.core.literacy.StoryBookAi
 import com.livrovivo.app.core.literacy.VoiceClips
 import com.livrovivo.app.core.literacy.TrailParser
 import com.livrovivo.app.core.illustration.IllustrationService
@@ -72,10 +74,12 @@ val appModule = module {
     // IA (texto, imagem e voz)
     single { AiHttp.createClient() }
     single { BackendConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) }
-    single { GeminiService(androidContext(), get(), get(), get()) }
-    single { ElevenLabsService(get(), get(), get()) }
-    single { AzureSpeechService(get()) }
-    single { FluxImageService(get()) }
+    single { LivroVivoServer(androidContext(), get(), get()) }
+    single { GeminiService(androidContext(), get(), get()) }
+    single { ElevenLabsService(get(), get()) }
+    single { AzureSpeechService(get(), get()) }
+    single { FluxImageService(get(), get()) }
+    single { StoryAi(get(), get()) }
     single { StoryWriter(get()) }
     single { IllustrationService(androidContext(), get(), get(), get()) }
 
@@ -86,7 +90,7 @@ val appModule = module {
     single { DeviceNarrationEngine(androidContext()) }
     single { AudioPlayerController(androidContext(), get(), get(), get(), get(), get()) }
     single { FeedbackSounds() }
-    single { LiteracyBookWriter(GeminiBookAi(get())) }
+    single { LiteracyBookWriter(StoryBookAi(get())) }
     single { VoiceClips(androidContext().assets) }
     single { SoundPlayer(androidContext(), get(), get()) }
 

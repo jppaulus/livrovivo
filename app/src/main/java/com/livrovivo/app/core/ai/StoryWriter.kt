@@ -10,7 +10,7 @@ import java.util.UUID
  * Escreve histórias capítulo a capítulo: com IA quando disponível, ou com o motor offline.
  */
 class StoryWriter(
-    private val gemini: GeminiService
+    private val ai: StoryAi
 ) {
     private val continuations = ContinuationCache<String, Chapter>()
 
@@ -24,11 +24,13 @@ class StoryWriter(
         forceOffline: Boolean = false
     ): Result<Draft> {
         val storyId = UUID.randomUUID().toString()
-        if (forceOffline || !gemini.isAvailable()) {
+        if (forceOffline || !ai.isAvailable()) {
             return Result.success(Draft(offlineStory(storyId, brief, themeId, objectiveCode), usedAi = false))
         }
         return try {
-            val json = gemini.generateJson(
+            val json = ai.generateJson(
+                kind = StoryAi.Kind.OPENING,
+                storyId = storyId,
                 systemPrompt = StoryPrompts.SYSTEM_PROMPT,
                 userPrompt = StoryPrompts.openingPrompt(brief),
                 schema = StoryPrompts.schema(includeOpeningFields = true)
@@ -68,14 +70,16 @@ class StoryWriter(
         if (story.isOffline) {
             return Result.success(OfflineStoryEngine.continuation(brief, story.themeId, story, choice))
         }
-        if (!gemini.isAvailable()) {
+        if (!ai.isAvailable()) {
             return Result.failure(AiException(AiException.Kind.NOT_CONFIGURED))
         }
         return try {
             val key = story.id + "|" + story.sortedChapters.joinToString("|") { "${it.index}:${it.content}:${if (it.index == story.lastChapter?.index) null else it.selectedChoiceText}" } + "|" + choice.text
             val chapter = continuations.get(key) {
                 val isFinal = nextIndex >= story.plannedChapters
-                val json = gemini.generateJson(
+                val json = ai.generateJson(
+                    kind = StoryAi.Kind.CONTINUATION,
+                    storyId = story.id,
                     systemPrompt = StoryPrompts.SYSTEM_PROMPT,
                     userPrompt = StoryPrompts.continuationPrompt(brief, story, choice),
                     schema = StoryPrompts.schema(includeOpeningFields = false)

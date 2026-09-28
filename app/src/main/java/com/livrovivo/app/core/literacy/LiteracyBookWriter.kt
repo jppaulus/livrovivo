@@ -2,7 +2,7 @@ package com.livrovivo.app.core.literacy
 
 import android.util.Log
 import com.livrovivo.app.core.ai.DecodableRequest
-import com.livrovivo.app.core.ai.GeminiService
+import com.livrovivo.app.core.ai.StoryAi
 import com.livrovivo.app.core.ai.JsonUtils.array
 import com.livrovivo.app.core.ai.JsonUtils.asObjectOrNull
 import com.livrovivo.app.core.ai.JsonUtils.string
@@ -20,18 +20,18 @@ import kotlinx.serialization.json.JsonObject
 /** Livro escrito e de onde ele veio. */
 data class WrittenBook(val book: DecodableBook, val isOffline: Boolean)
 
-/** A parte da IA que o escritor usa. No app é o Gemini; nos testes, uma versão falsa. */
+/** A parte da IA que o escritor usa. No app é o [StoryAi]; nos testes, uma versão falsa. */
 interface BookAi {
     suspend fun isAvailable(): Boolean
     suspend fun generateJson(systemPrompt: String, userPrompt: String, schema: JsonObject): JsonObject
 }
 
-/** Liga o escritor ao [GeminiService] das aventuras (mesma chave, mesmos modelos e mesma troca automática). */
-class GeminiBookAi(private val gemini: GeminiService) : BookAi {
-    override suspend fun isAvailable(): Boolean = gemini.isAvailable()
+/** Liga o escritor à mesma IA das aventuras (o servidor do app ou, nos testes, o Gemini). */
+class StoryBookAi(private val ai: StoryAi) : BookAi {
+    override suspend fun isAvailable(): Boolean = ai.isAvailable()
 
     override suspend fun generateJson(systemPrompt: String, userPrompt: String, schema: JsonObject): JsonObject =
-        gemini.generateJson(systemPrompt, userPrompt, schema, temperature = 0.8)
+        ai.generateJson(StoryAi.Kind.BOOK, storyId = null, systemPrompt, userPrompt, schema, temperature = 0.8)
 }
 
 /**

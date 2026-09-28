@@ -1,7 +1,7 @@
 # Livro Vivo — continuar em um novo chat
 
-> Atualizado em 24/09/2026, ao fim do chat que trocou as vozes (trilha gravada com o Gemini e narrador das histórias
-> em streaming). O chat anterior (23/09) implementou a **Trilha da Leitura** (`ALFABETIZACAO.md`, etapas 0 a 8).
+> Atualizado em 28/09/2026: vozes e ilustrações da Microsoft, plano grátis limitado e o **servidor do app no Supabase**
+> (HANDOFF §4, itens 12 e 13). O chat de 23/09 implementou a **Trilha da Leitura** (`ALFABETIZACAO.md`, etapas 0 a 8).
 > Leia este arquivo inteiro antes de mexer em qualquer coisa. Responda sempre em **português do Brasil**.
 > O usuário está começando em programação: explique o que mudou e como testar, uma etapa por vez.
 
@@ -37,10 +37,13 @@
 ## 2. Próximo passo combinado
 
 O usuário escolheu, em ordem: (1) commit + GitHub — **feito em 24/09** (histórico reescrito em 25/09, sem o e-mail
-pessoal); (2) **servidor do app** (Firebase: App Check com Play Integrity, login anônimo, limite de gasto diário no
-código). Em 25/09, antes de construir, descobri que o Google proíbe IA generativa em apps infantis (§3): o servidor
-continua, mas chamando a **Azure** para a voz; o texto das histórias ainda precisa de fornecedor (proposta: Claude).
-A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 figuras da trilha. Regra: toda conta nova de serviço pago precisa de limite de gasto, e o custo estimado vem antes de gravar.
+pessoal); (2) **servidor do app** — **no ar desde 28/09** no Supabase (não no Firebase: o Google proíbe IA generativa
+em apps infantis, §3): voz e ilustrações da Microsoft já passam por ele, com os limites dos planos e teto de US$ 5/dia.
+**Falta:** o usuário criar a conta da Anthropic (Claude, créditos pré-pagos, recarga automática desligada) para o texto;
+depois, comparar Sonnet 5 x Haiku 4.5 lendo as mesmas histórias. Antes da loja: Play Integrity e a compra conferida no
+servidor. (3) Termos de uso, privacidade (LGPD) e aviso de IA. (4) Juntar a outra linha. Depois: as 55 figuras da
+trilha. Regra: toda conta nova de serviço pago precisa de limite de gasto, e o custo estimado vem antes de gravar.
+⚠️ A avaliação gratuita da Azure termina em **25/10/2026**.
 
 ---
 
@@ -63,8 +66,9 @@ A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 
 - **Trilha:** as 370 falas fixas (instruções, letras, sílabas, palavras, frases) estão em `app/src/main/assets/voz`,
   com o índice `indice.json`. Em 25/09 foram **regravadas com a Azure**: frases com o Macerio HD, letras/sílabas/palavras
   com o `pt-BR-MacerioMultilingualNeural` (a HD inventa palavras em falas curtas). Script: `ferramentas/gerar_audios.py`.
-- **Histórias:** com a chave do Gemini, a página inteira é narrada em **streaming** (som em ~1,3 s, antes 9 a 12 s ou
-  voz robótica). Sem chave (versão da loja), ainda cai na voz do aparelho: é isso que o servidor vai resolver.
+- **Histórias:** a página inteira é narrada em **streaming** pela Microsoft, pelo servidor do app (primeiro som em
+  0,6 a 0,9 s). O texto vem do Claude pelo servidor quando a conta da Anthropic existir; até lá, só a versão de teste
+  escreve (Gemini).
 - **Área dos Pais:** virou "Narração e ilustrações", sem chaves; chaves e modelos só numa seção "Desenvolvedor" da
   versão de teste.
 - **Google Cloud:** projeto "Livro Vivo" (ID no `local.properties`), APIs Cloud Text-to-Speech e Agent Platform
@@ -94,7 +98,8 @@ A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 
 
 ```bash
 # JDK: C:\Program Files\Microsoft\jdk-17.0.17.10-hotspot
-./gradlew testDebugUnitTest      # 180 testes (um deles confere que as 370 falas têm áudio)
+./gradlew testDebugUnitTest      # 201 testes (um deles confere que as 370 falas têm áudio)
+npx -y deno@2 test supabase/functions/ai-gateway/regras_test.ts   # 10 testes do servidor
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk (~35 MB)
 ```
 
@@ -110,8 +115,8 @@ A trilha já foi regravada com a Azure. (3) Juntar a outra linha. Depois: as 55 
 
 ## 6. O que falta
 
-1. **Servidor do app** (próximo passo): narração dos 4 narradores pela Azure em streaming e histórias com IA sem chave
-   no app (fornecedor do texto a decidir; nada do Google), limite de gasto no código.
+1. **Servidor do app:** no ar (voz e imagens). Faltam o texto pelo Claude (conta da Anthropic), Play Integrity e a
+   compra da Google Play conferida no servidor (hoje o assinante é marcado à mão em `lv_contas`).
 2. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual, sons).
 3. Regras da loja para apps infantis (Política Famílias, LGPD, aviso de conteúdo gerado por IA).
 4. As 55 figuras da trilha (`ferramentas/lista_imagens.txt`); amostras gravadas dos 4 narradores; comportamento sem

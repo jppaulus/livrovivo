@@ -45,8 +45,7 @@ data class ElevenLabsVoice(
  */
 class ElevenLabsService(
     private val http: OkHttpClient,
-    private val settings: SettingsManager,
-    private val backend: BackendConfig
+    private val settings: SettingsManager
 ) {
     private companion object {
         const val BASE_URL = "https://api.elevenlabs.io"
@@ -55,7 +54,8 @@ class ElevenLabsService(
     private val voicesMutex = Mutex()
     private var cachedVoices: Pair<String, List<ElevenLabsVoice>>? = null
 
-    suspend fun isAvailable(): Boolean = settings.current().hasElevenLabsKey || backend.isConfigured
+    /** Só com chave (versão de teste): o servidor do app não repassa a ElevenLabs. */
+    suspend fun isAvailable(): Boolean = settings.current().hasElevenLabsKey
 
     suspend fun listVoices(forceRefresh: Boolean = false): List<ElevenLabsVoice> = voicesMutex.withLock {
         val key = settings.current().elevenLabsApiKey
@@ -116,32 +116,14 @@ class ElevenLabsService(
 
     private suspend fun send(path: String, method: String, body: JsonObject?, timeoutSeconds: Long): HttpResult {
         val key = settings.current().elevenLabsApiKey
-        val request = when {
-            key.isNotBlank() -> Request.Builder()
-                .url(BASE_URL + path)
-                .addHeader("xi-api-key", key)
-                .apply {
-                    if (method == "POST") post(AiHttp.jsonBody((body ?: JsonObject(emptyMap())).toString())) else get()
-                }
-                .build()
-
-            backend.isConfigured -> {
-                val payload = buildJsonObject {
-                    put("provider", "elevenlabs")
-                    put("path", path)
-                    put("method", method)
-                    body?.let { put("payload", it) }
-                }
-                Request.Builder()
-                    .url(backend.gatewayUrl)
-                    .addHeader("Authorization", "Bearer ${backend.anonKey}")
-                    .addHeader("apikey", backend.anonKey)
-                    .post(AiHttp.jsonBody(payload.toString()))
-                    .build()
+        if (key.isBlank()) throw AiException(AiException.Kind.NOT_CONFIGURED)
+        val request = Request.Builder()
+            .url(BASE_URL + path)
+            .addHeader("xi-api-key", key)
+            .apply {
+                if (method == "POST") post(AiHttp.jsonBody((body ?: JsonObject(emptyMap())).toString())) else get()
             }
-
-            else -> throw AiException(AiException.Kind.NOT_CONFIGURED)
-        }
+            .build()
         return AiHttp.execute(http, request, timeoutSeconds)
     }
 
