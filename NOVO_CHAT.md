@@ -39,9 +39,9 @@
 O usuário escolheu, em ordem: (1) commit + GitHub — **feito em 24/09** (histórico reescrito em 25/09, sem o e-mail
 pessoal); (2) **servidor do app** — **no ar desde 28/09** no Supabase (não no Firebase: o Google proíbe IA generativa
 em apps infantis, §3): voz e ilustrações da Microsoft já passam por ele, com os limites dos planos e teto de US$ 5/dia.
-**Falta:** o usuário criar a conta da Anthropic (Claude, créditos pré-pagos, recarga automática desligada) para o texto;
-depois, comparar Sonnet 5 x Haiku 4.5 lendo as mesmas histórias. Antes da loja: Play Integrity e a compra conferida no
-servidor. (3) Termos de uso, privacidade (LGPD) e aviso de IA. (4) Juntar a outra linha. Depois: as 55 figuras da
+**Texto das histórias: fornecedor NÃO decidido** — o usuário ainda não previu esse custo (28/09). O servidor está
+pronto para o Claude, mas sem chave não gasta nada; não pedir conta nem créditos até ele decidir. Antes da loja: Play
+Integrity e a compra conferida no servidor. (3) Termos de uso, privacidade (LGPD) e aviso de IA. (4) Juntar a outra linha. Depois: as 55 figuras da
 trilha. Regra: toda conta nova de serviço pago precisa de limite de gasto, e o custo estimado vem antes de gravar.
 ⚠️ A avaliação gratuita da Azure termina em **25/10/2026**.
 
@@ -67,8 +67,8 @@ trilha. Regra: toda conta nova de serviço pago precisa de limite de gasto, e o 
   com o índice `indice.json`. Em 25/09 foram **regravadas com a Azure**: frases com o Macerio HD, letras/sílabas/palavras
   com o `pt-BR-MacerioMultilingualNeural` (a HD inventa palavras em falas curtas). Script: `ferramentas/gerar_audios.py`.
 - **Histórias:** a página inteira é narrada em **streaming** pela Microsoft, pelo servidor do app (primeiro som em
-  0,6 a 0,9 s). O texto vem do Claude pelo servidor quando a conta da Anthropic existir; até lá, só a versão de teste
-  escreve (Gemini).
+  0,6 a 0,9 s). O texto com IA ainda não tem fornecedor para a loja (custo não previsto): só a versão de teste escreve
+  (Gemini); sem IA, o app usa a "Coleção pronta".
 - **Área dos Pais:** virou "Narração e ilustrações", sem chaves; chaves e modelos só numa seção "Desenvolvedor" da
   versão de teste.
 - **Google Cloud:** projeto "Livro Vivo" (ID no `local.properties`), APIs Cloud Text-to-Speech e Agent Platform
@@ -115,7 +115,7 @@ npx -y deno@2 test supabase/functions/ai-gateway/regras_test.ts   # 10 testes do
 
 ## 6. O que falta
 
-1. **Servidor do app:** no ar (voz e imagens). Faltam o texto pelo Claude (conta da Anthropic), Play Integrity e a
+1. **Servidor do app:** no ar (voz e imagens). Faltam decidir o fornecedor (e o custo) do texto, Play Integrity e a
    compra da Google Play conferida no servidor (hoje o assinante é marcado à mão em `lv_contas`).
 2. Juntar a branch `claude/projeto-conforme-md-8263f2` (Billing real, álbum, ritual, sons).
 3. Regras da loja para apps infantis (Política Famílias, LGPD, aviso de conteúdo gerado por IA).
